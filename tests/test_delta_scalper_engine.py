@@ -23,7 +23,11 @@ from vnedge.scalping.delta_engine.factory import build_delta_scalper_assembly
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
 from vnedge.scalping.delta_engine.flow_store import ChannelSequenceTracker, L2TradeFlowStore
 from vnedge.scalping.delta_engine.forward_tracker import ForwardOutcomeTracker
-from vnedge.scalping.delta_engine.regime import build_features
+from vnedge.scalping.delta_engine.regime import (
+    RegimeProfileConfig,
+    build_features,
+    build_regime_profile,
+)
 from vnedge.scalping.delta_engine.scanners import (
     MomentumBurstConfig,
     MomentumBurstScanner,
@@ -40,8 +44,11 @@ from vnedge.scalping.delta_engine.types import (
     L2Confirmation,
     MarketContext,
     Regime,
+    SessionRegime,
     Side,
     SignalCandidate,
+    TrendStrength,
+    VolatilityRegime,
 )
 from vnedge.scalping.delta_engine.validation import (
     fee_sensitivity,
@@ -94,6 +101,9 @@ def test_checked_in_config_is_valid_and_cannot_unlock_live():
         Regime.QUIET,
         Regime.EXPANDING,
     )
+    assert config.features.regime_profile_timeframe == "5m"
+    assert config.features.regime_profile_strong_trend_adx == 30.0
+    assert config.features.regime_profile_high_vol_percentile == 0.75
     assert not config.engine.live_orders_enabled
     with pytest.raises(ValueError, match="research-only"):
         DeltaScalperConfig.model_validate(
@@ -296,6 +306,71 @@ def test_feature_engine_includes_complete_hld_feature_categories():
     } <= set(features)
 
 
+def test_structured_regime_profile_is_causal_and_directional():
+    rows = tuple(
+        Candle(
+            NOW - timedelta(minutes=5 * (219 - index)),
+            100 + index * 0.25 - 0.05,
+            100 + index * 0.25 + 0.20,
+            100 + index * 0.25 - 0.20,
+            100 + index * 0.25,
+            100,
+            "5m",
+        )
+        for index in range(220)
+    )
+    profile = build_regime_profile(
+        {"5m": rows},
+        funding_rate=0.001,
+        l2=L2Confirmation(status="fresh", sequence_healthy=True),
+        config=RegimeProfileConfig(),
+    )
+
+    assert profile.trend is TrendStrength.STRONG_TREND
+    assert profile.trend_direction == "up"
+    assert profile.volatility in {
+        VolatilityRegime.LOW,
+        VolatilityRegime.MEDIUM,
+        VolatilityRegime.HIGH,
+    }
+    assert profile.session in set(SessionRegime)
+    assert profile.flags["funding_extreme"] is True
+    assert profile.flags["l2_healthy"] is True
+    assert profile.metrics["history_bars"] == 220
+    assert profile.source_timeframe == "5m"
+
+
+@pytest.mark.parametrize(
+    ("recent_half_range", "expected"),
+    [(2.0, VolatilityRegime.HIGH), (0.05, VolatilityRegime.LOW)],
+)
+def test_structured_regime_profile_uses_rolling_atr_percentiles(
+    recent_half_range, expected
+):
+    rows = []
+    for index in range(220):
+        baseline = 0.5 if expected is VolatilityRegime.LOW else 0.1
+        half_range = recent_half_range if index >= 200 else baseline
+        rows.append(
+            Candle(
+                NOW - timedelta(minutes=5 * (219 - index)),
+                100.0,
+                100.0 + half_range,
+                100.0 - half_range,
+                100.0,
+                100,
+                "5m",
+            )
+        )
+    profile = build_regime_profile(
+        {"5m": tuple(rows)},
+        funding_rate=0.0,
+        l2=L2Confirmation(),
+    )
+    assert profile.trend is TrendStrength.RANGE
+    assert profile.volatility is expected
+
+
 def test_live_context_and_research_use_identical_candle_feature_definitions():
     store = MultiTimeframeCandleStore()
     candles_by_tf = {"1m": [], "15m": [], "1h": [], "4h": []}
@@ -443,6 +518,8 @@ def test_generator_journals_each_decision_key_once():
     first = generator.on_candle_closed("BTCUSD", "1m", now=NOW)
     duplicate = generator.on_candle_closed("BTCUSD", "1m", now=NOW)
     assert first.selected is not None
+    assert first.regime_profile is not None
+    assert first.regime_profile["trend"] == "unknown"
     assert duplicate.selected is None and duplicate.duplicate
     assert [stage.name for stage in first.pipeline_trace] == [
         "context_builder",

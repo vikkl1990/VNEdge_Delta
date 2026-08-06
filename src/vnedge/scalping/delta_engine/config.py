@@ -56,11 +56,34 @@ class FeatureSettings(_StrictModel):
     regime_fast_ema: int = Field(default=12, ge=2)
     regime_slow_ema: int = Field(default=36, ge=3)
     regime_efficiency_window: int = Field(default=12, ge=2)
+    regime_profile_timeframe: str = "5m"
+    regime_profile_adx_window: int = Field(default=14, ge=5)
+    regime_profile_strong_trend_adx: float = Field(default=30.0, gt=0)
+    regime_profile_range_adx_max: float = Field(default=22.0, ge=0)
+    regime_profile_ema_fast: int = Field(default=20, ge=2)
+    regime_profile_ema_slow: int = Field(default=50, ge=3)
+    regime_profile_ema_separation_atr_min: float = Field(default=0.8, gt=0)
+    regime_profile_atr_window: int = Field(default=14, ge=5)
+    regime_profile_percentile_window: int = Field(default=200, ge=50)
+    regime_profile_high_vol_percentile: float = Field(default=0.75, gt=0, lt=1)
+    regime_profile_low_vol_percentile: float = Field(default=0.30, gt=0, lt=1)
+    regime_profile_bollinger_window: int = Field(default=20, ge=5)
 
     @model_validator(mode="after")
     def validate_regime_windows(self) -> FeatureSettings:
         if self.regime_slow_ema <= self.regime_fast_ema:
             raise ValueError("regime_slow_ema must exceed regime_fast_ema")
+        if self.regime_profile_timeframe not in {"1m", "5m"}:
+            raise ValueError("regime_profile_timeframe must be 1m or 5m")
+        if self.regime_profile_ema_slow <= self.regime_profile_ema_fast:
+            raise ValueError("regime profile slow EMA must exceed fast EMA")
+        if self.regime_profile_strong_trend_adx <= self.regime_profile_range_adx_max:
+            raise ValueError("strong trend ADX must exceed range ADX")
+        if (
+            self.regime_profile_low_vol_percentile
+            >= self.regime_profile_high_vol_percentile
+        ):
+            raise ValueError("low volatility percentile must be below high")
         return self
 
 

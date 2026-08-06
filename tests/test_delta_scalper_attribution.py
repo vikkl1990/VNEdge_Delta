@@ -20,6 +20,10 @@ def _trade(index: int) -> dict:
         ),
         "symbol": symbol,
         "regime_at_entry": "expanding" if index % 2 == 0 else "quiet",
+        "trend_regime_at_entry": "strong_trend" if index % 2 == 0 else "range",
+        "trend_direction_at_entry": "up" if index % 2 == 0 else "flat",
+        "volatility_regime_at_entry": "high" if index % 2 == 0 else "low",
+        "session_regime_at_entry": "overlap" if index % 2 == 0 else "asia",
         "side": "long" if index % 2 == 0 else "short",
         "entry_ts": (START + timedelta(hours=index)).isoformat(),
         "exit_ts": (START + timedelta(hours=index, minutes=5)).isoformat(),
@@ -80,7 +84,13 @@ def test_attribution_decomposes_selection_and_protects_frozen_window():
     assert full_cross
     assert full_cross[0]["pct_of_all_trades"] > 0
     assert full_cross[0]["avg_hold_bars"] == 5.0
+    assert selection["dimensions"]["scanner_symbol_trend_volatility"]
+    assert {row["trend_regime"] for row in selection["dimensions"]["trend_regime"]} == {
+        "strong_trend",
+        "range",
+    }
     assert selection["frequency_expectancy_scatter"]
+    assert selection["structured_frequency_expectancy_scatter"]
     assert report["full_period_aggregate"]["subgroup_attribution_performed"] is False
     assert selection["signal_quality_diagnostics"]["scalper_probability"][
         "observations"

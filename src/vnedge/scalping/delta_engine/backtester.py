@@ -37,6 +37,10 @@ class BacktestTrade:
     planned_target_bps: float
     same_bar_ambiguous: bool
     regime_at_entry: str
+    trend_regime_at_entry: str
+    trend_direction_at_entry: str
+    volatility_regime_at_entry: str
+    session_regime_at_entry: str
     expected_move_bps: float
     expected_net_bps: float
     scalper_probability: float
@@ -236,6 +240,8 @@ class CausalScalperBacktester:
             entry_is_maker=candidate.entry_is_maker,
             hold_seconds=elapsed,
         )
+        raw_profile = candidate.metadata.get("regime_profile")
+        profile = raw_profile if isinstance(raw_profile, dict) else {}
         return BacktestTrade(
             scanner_id=candidate.scanner_id,
             symbol=candidate.symbol,
@@ -257,6 +263,12 @@ class CausalScalperBacktester:
             planned_target_bps=target_distance_bps,
             same_bar_ambiguous=stop_hit and target_hit,
             regime_at_entry=str(candidate.metadata.get("regime") or "unknown"),
+            trend_regime_at_entry=str(profile.get("trend") or "unknown"),
+            trend_direction_at_entry=str(
+                profile.get("trend_direction") or "unknown"
+            ),
+            volatility_regime_at_entry=str(profile.get("volatility") or "unknown"),
+            session_regime_at_entry=str(profile.get("session") or "unknown"),
             expected_move_bps=candidate.expected_move_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,
             scalper_probability=candidate.scalper_probability,

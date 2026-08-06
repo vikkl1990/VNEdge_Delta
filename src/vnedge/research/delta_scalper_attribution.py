@@ -88,6 +88,24 @@ def normalize_trade(row: dict, *, source: str) -> dict:
         "scanner_id": str(row.get("scanner_id") or "unknown"),
         "symbol": str(row.get("symbol") or "unknown").upper(),
         "regime": str(row.get("regime_at_entry") or row.get("regime") or "unknown"),
+        "trend_regime": str(
+            row.get("trend_regime_at_entry") or row.get("trend_regime") or "unknown"
+        ),
+        "trend_direction": str(
+            row.get("trend_direction_at_entry")
+            or row.get("trend_direction")
+            or "unknown"
+        ),
+        "volatility_regime": str(
+            row.get("volatility_regime_at_entry")
+            or row.get("volatility_regime")
+            or "unknown"
+        ),
+        "session_regime": str(
+            row.get("session_regime_at_entry")
+            or row.get("session_regime")
+            or "unknown"
+        ),
         "side": str(row.get("side") or "unknown").lower(),
         "exit_reason": str(row.get("exit_reason") or "unknown"),
         "entry_hour_utc": f"{entry_ts.hour:02d}:00 UTC",
@@ -256,6 +274,10 @@ def _dimension(
 DIMENSIONS: dict[str, tuple[str, ...]] = {
     "scanner": ("scanner_id",),
     "regime": ("regime",),
+    "trend_regime": ("trend_regime",),
+    "trend_direction": ("trend_direction",),
+    "volatility_regime": ("volatility_regime",),
+    "session_regime": ("session_regime",),
     "symbol": ("symbol",),
     "side": ("side",),
     "entry_hour_utc": ("entry_hour_utc",),
@@ -268,7 +290,16 @@ DIMENSIONS: dict[str, tuple[str, ...]] = {
     "l2_quality": ("l2_quality",),
     "scanner_symbol": ("scanner_id", "symbol"),
     "scanner_regime": ("scanner_id", "regime"),
+    "scanner_trend_regime": ("scanner_id", "trend_regime"),
+    "scanner_volatility_regime": ("scanner_id", "volatility_regime"),
+    "scanner_session_regime": ("scanner_id", "session_regime"),
     "scanner_symbol_regime": ("scanner_id", "symbol", "regime"),
+    "scanner_symbol_trend_volatility": (
+        "scanner_id",
+        "symbol",
+        "trend_regime",
+        "volatility_regime",
+    ),
     "scanner_move_size": ("scanner_id", "move_size_bucket"),
     "scanner_probability": ("scanner_id", "probability_bucket"),
     "scanner_confidence": ("scanner_id", "confidence_bucket"),
@@ -292,6 +323,7 @@ def _loss_clusters(tables: dict[str, list[dict]], minimum_trades: int) -> list[d
         "scanner_probability",
         "scanner_confidence",
         "scanner_symbol_regime",
+        "scanner_symbol_trend_volatility",
         "symbol_regime",
         "symbol_hour_ist",
     }
@@ -318,6 +350,7 @@ def _false_signal_clusters(
         "scanner_probability",
         "scanner_confidence",
         "scanner_symbol_regime",
+        "scanner_symbol_trend_volatility",
         "symbol_regime",
         "symbol_hour_ist",
     }
@@ -399,6 +432,8 @@ def load_decision_rejections(path: Path) -> list[dict]:
             ),
             "unknown",
         )
+        decision_profile = payload.get("regime_profile")
+        decision_profile = decision_profile if isinstance(decision_profile, dict) else {}
         for raw_reason in payload.get("rejection_reasons") or []:
             reason = str(raw_reason)
             parts = reason.split(":")
@@ -414,6 +449,12 @@ def load_decision_rejections(path: Path) -> list[dict]:
             )
             metadata = candidate.get("metadata")
             metadata = metadata if isinstance(metadata, dict) else {}
+            candidate_profile = metadata.get("regime_profile")
+            profile = (
+                candidate_profile
+                if isinstance(candidate_profile, dict)
+                else decision_profile
+            )
             l2 = metadata.get("l2_confirmation")
             l2 = l2 if isinstance(l2, dict) else {}
             rows.append(
@@ -422,6 +463,14 @@ def load_decision_rejections(path: Path) -> list[dict]:
                     "symbol": str(payload.get("symbol") or "unknown").upper(),
                     "scanner_id": scanner_id,
                     "regime": str(metadata.get("regime") or context_regime),
+                    "trend_regime": str(profile.get("trend") or "unknown"),
+                    "trend_direction": str(
+                        profile.get("trend_direction") or "unknown"
+                    ),
+                    "volatility_regime": str(
+                        profile.get("volatility") or "unknown"
+                    ),
+                    "session_regime": str(profile.get("session") or "unknown"),
                     "reason": reason_code,
                     "reason_detail": ":".join(parts[2:]) if len(parts) > 2 else None,
                     "l2_status": str(l2.get("status") or "unavailable"),
@@ -434,6 +483,9 @@ def rejection_attribution(rows: list[dict]) -> dict:
     dimensions = {
         "reason": ("reason",),
         "regime": ("regime",),
+        "trend_regime": ("trend_regime",),
+        "volatility_regime": ("volatility_regime",),
+        "session_regime": ("session_regime",),
         "scanner_regime": ("scanner_id", "regime"),
         "symbol_regime": ("symbol", "regime"),
         "scanner_symbol_regime": ("scanner_id", "symbol", "regime"),
@@ -508,6 +560,7 @@ def _attribution_section(rows: list[dict], *, minimum_cluster_trades: int) -> di
     tables = dimension_tables(rows)
     summary = summarize(rows)
     full_cross = tables.get("scanner_symbol_regime", [])
+    structured_cross = tables.get("scanner_symbol_trend_volatility", [])
     return {
         "summary": summary,
         "signal_quality_diagnostics": signal_quality_diagnostics(rows),
@@ -528,6 +581,19 @@ def _attribution_section(rows: list[dict], *, minimum_cluster_trades: int) -> di
                 "profit_factor": row["profit_factor"],
             }
             for row in full_cross
+        ],
+        "structured_frequency_expectancy_scatter": [
+            {
+                "key": row["key"],
+                "scanner_id": row["scanner_id"],
+                "symbol": row["symbol"],
+                "trend_regime": row["trend_regime"],
+                "volatility_regime": row["volatility_regime"],
+                "trades": row["trades"],
+                "average_net_bps": row["average_net_bps"],
+                "profit_factor": row["profit_factor"],
+            }
+            for row in structured_cross
         ],
     }
 

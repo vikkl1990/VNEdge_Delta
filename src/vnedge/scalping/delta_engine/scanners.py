@@ -135,6 +135,7 @@ class MomentumBurstScanner(Scanner):
             entry_is_maker=self.config.prefer_maker,
             metadata={
                 "regime": ctx.regime.value,
+                "regime_profile": ctx.regime_profile.to_dict(),
                 "regime_filter": {
                     "allowed": True,
                     "enabled_regimes": [regime.value for regime in self.config.enabled_regimes],
@@ -253,6 +254,7 @@ class OrderFlowImbalanceFadeScanner(Scanner):
             entry_is_maker=self.config.prefer_maker,
             metadata={
                 "regime": ctx.regime.value,
+                "regime_profile": ctx.regime_profile.to_dict(),
                 "regime_filter": {
                     "allowed": True,
                     "enabled_regimes": [regime.value for regime in self.config.enabled_regimes],

@@ -51,6 +51,7 @@ class EngineDecision:
     total_duration_us: int = 0
     journal_write_success: bool | None = None
     duplicate: bool = False
+    regime_profile: dict[str, object] | None = None
     research_only: bool = True
     can_trade: bool = False
     can_promote: bool = False
@@ -66,6 +67,7 @@ class EngineDecision:
             "total_duration_us": self.total_duration_us,
             "journal_write_success": self.journal_write_success,
             "duplicate": self.duplicate,
+            "regime_profile": self.regime_profile,
             "research_only": True,
             "can_trade": False,
             "can_promote": False,
@@ -236,6 +238,7 @@ class DeltaScalperSignalGenerator:
             pipeline_trace=tuple(trace),
             total_duration_us=self._elapsed_us(pipeline_started),
             duplicate=duplicate,
+            regime_profile=ctx.regime_profile.to_dict(),
         )
         return self._journal(decision)
 

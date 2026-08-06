@@ -24,6 +24,18 @@ features:
   regime_fast_ema: 12
   regime_slow_ema: 36
   regime_efficiency_window: 12
+  regime_profile_timeframe: 5m
+  regime_profile_adx_window: 14
+  regime_profile_strong_trend_adx: 30.0
+  regime_profile_range_adx_max: 22.0
+  regime_profile_ema_fast: 20
+  regime_profile_ema_slow: 50
+  regime_profile_ema_separation_atr_min: 0.8
+  regime_profile_atr_window: 14
+  regime_profile_percentile_window: 200
+  regime_profile_high_vol_percentile: 0.75
+  regime_profile_low_vol_percentile: 0.30
+  regime_profile_bollinger_window: 20
 
 scanners:
   momentum_burst:

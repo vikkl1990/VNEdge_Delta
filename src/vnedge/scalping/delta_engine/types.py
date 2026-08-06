@@ -23,6 +23,27 @@ class Regime(str, Enum):
     UNKNOWN = "unknown"
 
 
+class TrendStrength(str, Enum):
+    STRONG_TREND = "strong_trend"
+    WEAK_TREND = "weak_trend"
+    RANGE = "range"
+    UNKNOWN = "unknown"
+
+
+class VolatilityRegime(str, Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    UNKNOWN = "unknown"
+
+
+class SessionRegime(str, Enum):
+    ASIA = "asia"
+    EUROPE = "europe"
+    OVERLAP = "overlap"
+    US = "us"
+
+
 def _utc(ts: datetime) -> datetime:
     return ts.replace(tzinfo=UTC) if ts.tzinfo is None else ts.astimezone(UTC)
 
@@ -88,6 +109,36 @@ class L2Confirmation:
 
 
 @dataclass(frozen=True)
+class RegimeProfile:
+    """Orthogonal causal labels attached for research attribution."""
+
+    trend: TrendStrength = TrendStrength.UNKNOWN
+    trend_direction: str = "flat"
+    volatility: VolatilityRegime = VolatilityRegime.UNKNOWN
+    session: SessionRegime = SessionRegime.ASIA
+    source_timeframe: str = "unavailable"
+    flags: Mapping[str, bool] = field(default_factory=dict)
+    metrics: Mapping[str, float] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.trend_direction not in {"up", "down", "flat"}:
+            raise ValueError("trend_direction must be up, down, or flat")
+        object.__setattr__(self, "flags", MappingProxyType(dict(self.flags)))
+        object.__setattr__(self, "metrics", MappingProxyType(dict(self.metrics)))
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "trend": self.trend.value,
+            "trend_direction": self.trend_direction,
+            "volatility": self.volatility.value,
+            "session": self.session.value,
+            "source_timeframe": self.source_timeframe,
+            "flags": dict(self.flags),
+            "metrics": dict(self.metrics),
+        }
+
+
+@dataclass(frozen=True)
 class MarketContext:
     symbol: str
     ts: datetime
@@ -96,6 +147,7 @@ class MarketContext:
     funding_rate: float
     funding_velocity: float
     l2: L2Confirmation = L2Confirmation()
+    regime_profile: RegimeProfile = RegimeProfile()
     features: Mapping[str, float] = field(default_factory=dict)
 
     def __post_init__(self) -> None:

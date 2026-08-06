@@ -27,6 +27,10 @@ class ForwardOutcome:
     symbol: str
     side: str
     regime: str
+    trend_regime: str
+    trend_direction: str
+    volatility_regime: str
+    session_regime: str
     decision_ts: str
     entry_ts: str
     exit_ts: str
@@ -164,12 +168,18 @@ class ForwardOutcomeTracker:
             )
         except (TypeError, ValueError):
             l2_imbalance_z = None
+        raw_profile = candidate.metadata.get("regime_profile")
+        profile = raw_profile if isinstance(raw_profile, dict) else {}
         return ForwardOutcome(
             key=candidate.dedup_key,
             scanner_id=candidate.scanner_id,
             symbol=candidate.symbol,
             side=candidate.side.value,
             regime=str(candidate.metadata.get("regime") or "unknown"),
+            trend_regime=str(profile.get("trend") or "unknown"),
+            trend_direction=str(profile.get("trend_direction") or "unknown"),
+            volatility_regime=str(profile.get("volatility") or "unknown"),
+            session_regime=str(profile.get("session") or "unknown"),
             decision_ts=candidate.decision_ts.isoformat(),
             entry_ts=active.entry_ts.isoformat(),
             exit_ts=bar.ts.isoformat(),

@@ -124,6 +124,18 @@ training data. Live forward outcomes are never pooled with replay. Explicit
 live journal rejection reasons are attributed separately; historical rejection
 counts remain unavailable until replay persists every evaluated decision.
 
+### Structured causal regime profile
+
+Every context also carries orthogonal research labels computed from the latest
+closed 5m candles: trend strength (`strong_trend`, `weak_trend`, `range`), trend
+direction, rolling ATR-percentile volatility (`high`, `medium`, `low`), and a
+fixed UTC session (`asia`, `europe`, `overlap`, `us`). Trend strength requires
+ADX plus 20/50 EMA separation measured in ATR units and directional agreement.
+Funding-extreme and L2-health flags are metadata only. The checked-in YAML owns
+every threshold, and the profile is journaled on every decision for identical
+live/replay attribution. These labels do not gate trades until a separately
+preregistered experiment passes selection and untouched validation.
+
 ## Run the preregistered threshold sweep
 
 ```bash

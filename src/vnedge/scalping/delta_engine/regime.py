@@ -6,7 +6,15 @@ import math
 from dataclasses import dataclass
 from statistics import fmean, pstdev
 
-from vnedge.scalping.delta_engine.types import Candle, Regime
+from vnedge.scalping.delta_engine.types import (
+    Candle,
+    L2Confirmation,
+    Regime,
+    RegimeProfile,
+    SessionRegime,
+    TrendStrength,
+    VolatilityRegime,
+)
 
 
 def _ema(values: list[float], span: int) -> float:
@@ -43,6 +51,33 @@ class RegimeConfig:
     trend_efficiency_min: float = 0.28
     expansion_ratio: float = 1.35
     funding_extreme_abs: float = 0.0005
+
+
+@dataclass(frozen=True)
+class RegimeProfileConfig:
+    source_timeframe: str = "5m"
+    adx_window: int = 14
+    strong_trend_adx: float = 30.0
+    range_adx_max: float = 22.0
+    ema_fast: int = 20
+    ema_slow: int = 50
+    ema_separation_atr_min: float = 0.8
+    atr_window: int = 14
+    volatility_percentile_window: int = 200
+    high_volatility_percentile: float = 0.75
+    low_volatility_percentile: float = 0.30
+    bollinger_window: int = 20
+    funding_extreme_abs: float = 0.0005
+
+    def __post_init__(self) -> None:
+        if self.source_timeframe not in {"1m", "5m"}:
+            raise ValueError("regime profile timeframe must be 1m or 5m")
+        if self.ema_slow <= self.ema_fast:
+            raise ValueError("regime profile slow EMA must exceed fast EMA")
+        if self.strong_trend_adx <= self.range_adx_max:
+            raise ValueError("strong trend ADX must exceed range ADX")
+        if not 0 < self.low_volatility_percentile < self.high_volatility_percentile < 1:
+            raise ValueError("invalid volatility percentile thresholds")
 
 
 class RegimeEngine:
@@ -83,6 +118,168 @@ class RegimeEngine:
             if fast < slow and macro_down:
                 return Regime.TRENDING_DOWN
         return Regime.QUIET
+
+
+def _percentile_rank(values: list[float], current: float) -> float:
+    if not values:
+        return 0.5
+    return (
+        sum(value < current for value in values)
+        + 0.5 * sum(value == current for value in values)
+    ) / len(values)
+
+
+def _rolling_mean(values: list[float], window: int) -> list[float]:
+    if len(values) < window:
+        return []
+    running = sum(values[:window])
+    output = [running / window]
+    for index in range(window, len(values)):
+        running += values[index] - values[index - window]
+        output.append(running / window)
+    return output
+
+
+def _rolling_bb_widths(values: list[float], window: int) -> list[float]:
+    if len(values) < window:
+        return []
+    running_sum = sum(values[:window])
+    running_sq = sum(value * value for value in values[:window])
+    output: list[float] = []
+    for end in range(window - 1, len(values)):
+        if end >= window:
+            incoming = values[end]
+            outgoing = values[end - window]
+            running_sum += incoming - outgoing
+            running_sq += incoming * incoming - outgoing * outgoing
+        mean = running_sum / window
+        variance = max(0.0, running_sq / window - mean * mean)
+        output.append(4.0 * math.sqrt(variance) / mean if mean else 0.0)
+    return output
+
+
+def session_regime(ts_hour: int) -> SessionRegime:
+    if 7 <= ts_hour < 13:
+        return SessionRegime.EUROPE
+    if 13 <= ts_hour < 16:
+        return SessionRegime.OVERLAP
+    if 16 <= ts_hour < 22:
+        return SessionRegime.US
+    return SessionRegime.ASIA
+
+
+def regime_profile_flags(
+    funding_rate: float,
+    l2: L2Confirmation,
+    config: RegimeProfileConfig,
+) -> dict[str, bool]:
+    return {
+        "funding_extreme": abs(funding_rate) >= config.funding_extreme_abs,
+        "l2_healthy": (
+            l2.status in {"fresh", "aligned"} and l2.sequence_healthy is True
+        ),
+    }
+
+
+def build_regime_profile(
+    candles: dict[str, tuple[Candle, ...]],
+    *,
+    funding_rate: float,
+    l2: L2Confirmation,
+    config: RegimeProfileConfig | None = None,
+) -> RegimeProfile:
+    """Build orthogonal labels from immutable, already-closed candles only."""
+    settings = config or RegimeProfileConfig()
+    all_rows = candles.get(settings.source_timeframe, ())
+    available_bars = len(all_rows)
+    required_history = max(
+        settings.ema_slow + 1,
+        settings.adx_window + 1,
+        settings.volatility_percentile_window + settings.atr_window - 1,
+        settings.volatility_percentile_window + settings.bollinger_window - 1,
+        21,
+    )
+    rows = all_rows[-required_history:]
+    latest_ts = max(
+        (series[-1].ts for series in candles.values() if series),
+        default=None,
+    )
+    session = session_regime(latest_ts.hour if latest_ts is not None else 0)
+    flags = regime_profile_flags(funding_rate, l2, settings)
+    minimum = max(settings.ema_slow + 1, settings.adx_window + 1)
+    if available_bars < minimum:
+        return RegimeProfile(
+            session=session,
+            source_timeframe=settings.source_timeframe,
+            flags=flags,
+            metrics={"history_bars": float(available_bars)},
+        )
+
+    closes = [row.close for row in rows]
+    true_ranges = _true_ranges(rows)
+    atr_series = _rolling_mean(true_ranges, settings.atr_window)
+    current_atr = atr_series[-1] if atr_series else 0.0
+    current_close = closes[-1]
+    atr_bps = current_atr / current_close * 10_000 if current_close else 0.0
+    atr_bps_series = [
+        value / closes[index + settings.atr_window - 1] * 10_000
+        for index, value in enumerate(atr_series)
+        if closes[index + settings.atr_window - 1] > 0
+    ]
+    atr_history = atr_bps_series[-settings.volatility_percentile_window :]
+    atr_percentile = _percentile_rank(atr_history, atr_bps)
+
+    widths = _rolling_bb_widths(closes, settings.bollinger_window)
+    width_history = widths[-settings.volatility_percentile_window :]
+    current_width = width_history[-1] if width_history else 0.0
+    width_percentile = _percentile_rank(width_history, current_width)
+
+    fast = _ema(closes[-settings.ema_slow :], settings.ema_fast)
+    slow = _ema(closes[-settings.ema_slow :], settings.ema_slow)
+    prior_fast = _ema(closes[-(settings.ema_slow + 1) : -1], settings.ema_fast)
+    separation_atr = abs(fast - slow) / current_atr if current_atr > 0 else 0.0
+    if fast > slow and fast > prior_fast:
+        direction = "up"
+    elif fast < slow and fast < prior_fast:
+        direction = "down"
+    else:
+        direction = "flat"
+    adx = _adx(rows[-max(30, settings.adx_window + 1) :], settings.adx_window)
+    if (
+        adx >= settings.strong_trend_adx
+        and separation_atr >= settings.ema_separation_atr_min
+        and direction != "flat"
+    ):
+        trend = TrendStrength.STRONG_TREND
+    elif adx <= settings.range_adx_max:
+        trend = TrendStrength.RANGE
+    else:
+        trend = TrendStrength.WEAK_TREND
+
+    if atr_percentile >= settings.high_volatility_percentile:
+        volatility = VolatilityRegime.HIGH
+    elif atr_percentile <= settings.low_volatility_percentile:
+        volatility = VolatilityRegime.LOW
+    else:
+        volatility = VolatilityRegime.MEDIUM
+    return RegimeProfile(
+        trend=trend,
+        trend_direction=direction,
+        volatility=volatility,
+        session=session,
+        source_timeframe=settings.source_timeframe,
+        flags=flags,
+        metrics={
+            "history_bars": float(available_bars),
+            "adx_14": adx,
+            "ema_separation_atr": separation_atr,
+            "atr_bps": atr_bps,
+            "atr_percentile": atr_percentile,
+            "bb_width_bps": current_width * 10_000,
+            "bb_width_percentile": width_percentile,
+            "efficiency_ratio": _efficiency(closes, 20),
+        },
+    )
 
 
 def build_features(candles: dict[str, tuple[Candle, ...]]) -> dict[str, float]:

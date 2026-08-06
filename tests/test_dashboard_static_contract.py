@@ -148,6 +148,7 @@ def test_dashboard_has_delta_loss_attribution_panel():
     assert "protected_from_threshold_selection" in html
     assert "scanner_symbol_regime" in html
     assert "frequency_expectancy_scatter" in html
+    assert "structured_frequency_expectancy_scatter" in html
     assert "Trade frequency versus average net expectancy" in html
 
 

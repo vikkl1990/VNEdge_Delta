@@ -9,7 +9,11 @@ from vnedge.scalping.delta_engine.candle_store import MultiTimeframeCandleStore
 from vnedge.scalping.delta_engine.config import DeltaScalperConfig
 from vnedge.scalping.delta_engine.context import MarketContextBuilder
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
-from vnedge.scalping.delta_engine.regime import RegimeConfig, RegimeEngine
+from vnedge.scalping.delta_engine.regime import (
+    RegimeConfig,
+    RegimeEngine,
+    RegimeProfileConfig,
+)
 from vnedge.scalping.delta_engine.scanners import (
     ImbalanceFadeConfig,
     MomentumBurstConfig,
@@ -50,6 +54,28 @@ def build_delta_scalper_assembly(
                 slow_ema=config.features.regime_slow_ema,
                 efficiency_window=config.features.regime_efficiency_window,
             )
+        ),
+        RegimeProfileConfig(
+            source_timeframe=config.features.regime_profile_timeframe,
+            adx_window=config.features.regime_profile_adx_window,
+            strong_trend_adx=config.features.regime_profile_strong_trend_adx,
+            range_adx_max=config.features.regime_profile_range_adx_max,
+            ema_fast=config.features.regime_profile_ema_fast,
+            ema_slow=config.features.regime_profile_ema_slow,
+            ema_separation_atr_min=(
+                config.features.regime_profile_ema_separation_atr_min
+            ),
+            atr_window=config.features.regime_profile_atr_window,
+            volatility_percentile_window=(
+                config.features.regime_profile_percentile_window
+            ),
+            high_volatility_percentile=(
+                config.features.regime_profile_high_vol_percentile
+            ),
+            low_volatility_percentile=(
+                config.features.regime_profile_low_vol_percentile
+            ),
+            bollinger_window=config.features.regime_profile_bollinger_window,
         ),
         max_l2_age_seconds=config.features.max_l2_age_seconds,
     )

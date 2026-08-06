@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from vnedge.scalping.delta_engine.candle_store import MultiTimeframeCandleStore
-from vnedge.scalping.delta_engine.regime import RegimeEngine, build_features
-from vnedge.scalping.delta_engine.types import L2Confirmation, MarketContext
+from vnedge.scalping.delta_engine.regime import (
+    RegimeEngine,
+    RegimeProfileConfig,
+    build_features,
+    build_regime_profile,
+    regime_profile_flags,
+    session_regime,
+)
+from vnedge.scalping.delta_engine.types import (
+    L2Confirmation,
+    MarketContext,
+    RegimeProfile,
+)
 
 
 class MarketContextBuilder:
@@ -15,6 +27,7 @@ class MarketContextBuilder:
         self,
         candle_store: MultiTimeframeCandleStore,
         regime_engine: RegimeEngine | None = None,
+        regime_profile_config: RegimeProfileConfig | None = None,
         *,
         max_l2_age_seconds: float = 2.0,
     ) -> None:
@@ -22,11 +35,13 @@ class MarketContextBuilder:
             raise ValueError("max_l2_age_seconds must be positive")
         self.candle_store = candle_store
         self.regime_engine = regime_engine or RegimeEngine()
+        self.regime_profile_config = regime_profile_config or RegimeProfileConfig()
         self.max_l2_age_seconds = max_l2_age_seconds
         self._funding: dict[str, deque[tuple[datetime, float]]] = defaultdict(
             lambda: deque(maxlen=24)
         )
         self._l2: dict[str, L2Confirmation] = {}
+        self._regime_profile_cache: dict[str, tuple[datetime | None, RegimeProfile]] = {}
 
     def update_funding(self, symbol: str, rate: float, observed_at: datetime) -> None:
         ts = observed_at.replace(tzinfo=UTC) if observed_at.tzinfo is None else observed_at
@@ -113,6 +128,28 @@ class MarketContextBuilder:
                 "l2_depth_usd": l2.depth_usd,
             }
         )
+        source_rows = candles.get(self.regime_profile_config.source_timeframe, ())
+        source_ts = source_rows[-1].ts if source_rows else None
+        cached = self._regime_profile_cache.get(native)
+        if cached is None or cached[0] != source_ts:
+            base_profile = build_regime_profile(
+                candles,
+                funding_rate=funding_rate,
+                l2=l2,
+                config=self.regime_profile_config,
+            )
+            self._regime_profile_cache[native] = (source_ts, base_profile)
+        else:
+            base_profile = cached[1]
+        profile = replace(
+            base_profile,
+            session=session_regime(latest.hour),
+            flags=regime_profile_flags(
+                funding_rate,
+                l2,
+                self.regime_profile_config,
+            ),
+        )
         return MarketContext(
             symbol=native,
             ts=latest,
@@ -125,5 +162,6 @@ class MarketContextBuilder:
             funding_rate=funding_rate,
             funding_velocity=funding_velocity,
             l2=l2,
+            regime_profile=profile,
             features=features,
         )
