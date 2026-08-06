@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 import joblib
@@ -7,10 +8,12 @@ import numpy as np
 import pandas as pd
 import pytest
 from lightgbm import LGBMClassifier
+from sklearn.preprocessing import StandardScaler
 
 pytest.importorskip("shap")
 
 from vnedge.research.delta_scalper_lightgbm_shap import (
+    ApprovedBoosterArtifactError,
     _flat_grouped_attribution,
     aggregate_base_shap,
     base_feature_name,
@@ -89,19 +92,30 @@ def test_saved_booster_loader_requires_approved_complete_bundle(tmp_path):
             }
         )
     )
-    with pytest.raises(ValueError, match="not approved"):
+    with pytest.raises(ApprovedBoosterArtifactError, match="not approved"):
         load_approved_booster_artifacts(tmp_path)
 
     model = LGBMClassifier(n_estimators=2, verbosity=-1, random_state=42)
     x = np.asarray([[0.0], [1.0], [2.0], [3.0]])
-    model.fit(x, np.asarray([0, 0, 1, 1]))
+    preprocessor = StandardScaler().fit(x)
+    model.fit(preprocessor.transform(x), np.asarray([0, 0, 1, 1]))
     model.booster_.save_model(str(tmp_path / "meta_model_lgbm.txt"))
-    joblib.dump({"fitted": True}, tmp_path / "meta_preprocessor.joblib")
+    joblib.dump(preprocessor, tmp_path / "meta_preprocessor.joblib")
+    hashes = {}
+    for key, name in (
+        ("native_booster", "meta_model_lgbm.txt"),
+        ("preprocessor", "meta_preprocessor.joblib"),
+    ):
+        hashes[key] = hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
     (tmp_path / "meta_config.json").write_text(
         json.dumps(
             {
+                "features": ["x"],
+                "numeric_features": ["x"],
+                "categorical_features": ["none"],
                 "native_booster": "meta_model_lgbm.txt",
                 "preprocessor": "meta_preprocessor.joblib",
+                "sha256": hashes,
                 "approved_for_shap": True,
                 "frozen_after_untouched_success": True,
                 "live_integration_enabled": False,
@@ -113,5 +127,32 @@ def test_saved_booster_loader_requires_approved_complete_bundle(tmp_path):
 
     assert booster.num_trees() >= 1
     assert booster.predict(x).shape == (4,)
-    assert preprocessor == {"fitted": True}
+    assert preprocessor.transform(x).shape == (4, 1)
     assert config["approved_for_shap"] is True
+
+
+def test_saved_booster_loader_reports_missing_corrupt_and_escaping_files(tmp_path):
+    with pytest.raises(ApprovedBoosterArtifactError, match="missing approved"):
+        load_approved_booster_artifacts(tmp_path)
+
+    (tmp_path / "meta_config.json").write_text("{broken")
+    with pytest.raises(ApprovedBoosterArtifactError, match="invalid JSON"):
+        load_approved_booster_artifacts(tmp_path)
+
+    (tmp_path / "meta_config.json").write_text(
+        json.dumps(
+            {
+                "features": ["x"],
+                "numeric_features": ["x"],
+                "categorical_features": ["none"],
+                "native_booster": "../outside.txt",
+                "preprocessor": "meta_preprocessor.joblib",
+                "sha256": {},
+                "approved_for_shap": True,
+                "frozen_after_untouched_success": True,
+                "live_integration_enabled": False,
+            }
+        )
+    )
+    with pytest.raises(ApprovedBoosterArtifactError, match="escapes"):
+        load_approved_booster_artifacts(tmp_path)

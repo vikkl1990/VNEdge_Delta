@@ -9,6 +9,7 @@ Deployable artifacts are written only after frozen-window success.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -86,6 +87,14 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
         handle.write("\n")
         temporary = Path(handle.name)
     temporary.replace(path)
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _load_backtest_quality(path: Path) -> dict[str, Any]:
@@ -468,6 +477,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "threshold": float(selected["threshold"]),
                 "native_booster": "meta_model_lgbm.txt",
                 "preprocessor": "meta_preprocessor.joblib",
+                "sha256": {
+                    "native_booster": _sha256_file(
+                        args.artifact_dir / "meta_model_lgbm.txt"
+                    ),
+                    "preprocessor": _sha256_file(
+                        args.artifact_dir / "meta_preprocessor.joblib"
+                    ),
+                },
                 "frozen_after_untouched_success": True,
                 "approved_for_shap": True,
                 "live_integration_enabled": False,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,6 +60,52 @@ PRIMARY_SIGNAL_FEATURES = (
 )
 
 
+class ApprovedBoosterArtifactError(RuntimeError):
+    """An approved saved-model SHAP bundle is missing, invalid, or corrupt."""
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _required_bundle_member(
+    artifact_dir: Path,
+    config: dict[str, Any],
+    key: str,
+) -> Path:
+    value = config.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ApprovedBoosterArtifactError(
+            f"meta_config.json is missing required artifact field: {key}"
+        )
+    root = artifact_dir.resolve()
+    candidate = (root / value).resolve()
+    if not candidate.is_relative_to(root):
+        raise ApprovedBoosterArtifactError(
+            f"configured {key} escapes the artifact directory: {value}"
+        )
+    if not candidate.is_file():
+        raise ApprovedBoosterArtifactError(
+            f"missing approved {key} artifact: {candidate}"
+        )
+    return candidate
+
+
+def _validate_feature_config(config: dict[str, Any]) -> None:
+    for key in ("features", "numeric_features", "categorical_features"):
+        values = config.get(key)
+        if not isinstance(values, list) or not values or not all(
+            isinstance(value, str) and value for value in values
+        ):
+            raise ApprovedBoosterArtifactError(
+                f"meta_config.json has an invalid {key} list"
+            )
+
+
 def load_approved_booster_artifacts(
     artifact_dir: Path,
 ) -> tuple[Booster, Any, dict[str, Any]]:
@@ -66,20 +113,71 @@ def load_approved_booster_artifacts(
     config_path = artifact_dir / "meta_config.json"
     try:
         config = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise ValueError("approved LightGBM SHAP config is unavailable") from exc
+    except FileNotFoundError as exc:
+        raise ApprovedBoosterArtifactError(
+            f"missing approved LightGBM SHAP config: {config_path.resolve()}; "
+            "the trainer writes it only after untouched success"
+        ) from exc
+    except OSError as exc:
+        raise ApprovedBoosterArtifactError(
+            f"cannot read approved LightGBM SHAP config: {config_path.resolve()}: {exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise ApprovedBoosterArtifactError(
+            f"invalid JSON in approved LightGBM SHAP config: "
+            f"{config_path.resolve()}: {exc}"
+        ) from exc
+    if not isinstance(config, dict):
+        raise ApprovedBoosterArtifactError("meta_config.json must contain an object")
     if not (
         config.get("approved_for_shap") is True
         and config.get("frozen_after_untouched_success") is True
         and config.get("live_integration_enabled") is False
     ):
-        raise ValueError("LightGBM artifacts are not approved for SHAP loading")
-    booster_path = artifact_dir / str(config.get("native_booster") or "")
-    preprocessor_path = artifact_dir / str(config.get("preprocessor") or "")
-    if not booster_path.is_file() or not preprocessor_path.is_file():
-        raise ValueError("approved LightGBM SHAP bundle is incomplete")
-    booster = Booster(model_file=str(booster_path))
-    preprocessor = joblib.load(preprocessor_path)
+        raise ApprovedBoosterArtifactError(
+            "LightGBM artifacts are not approved for SHAP loading"
+        )
+    _validate_feature_config(config)
+    booster_path = _required_bundle_member(artifact_dir, config, "native_booster")
+    preprocessor_path = _required_bundle_member(artifact_dir, config, "preprocessor")
+    checksums = config.get("sha256")
+    if not isinstance(checksums, dict):
+        raise ApprovedBoosterArtifactError("meta_config.json is missing SHA-256 checksums")
+    for key, path in (
+        ("native_booster", booster_path),
+        ("preprocessor", preprocessor_path),
+    ):
+        expected = checksums.get(key)
+        actual = _sha256_file(path)
+        if not isinstance(expected, str) or actual != expected:
+            raise ApprovedBoosterArtifactError(
+                f"SHA-256 verification failed for {key}: {path}"
+            )
+    try:
+        booster = Booster(model_file=str(booster_path))
+    except Exception as exc:
+        raise ApprovedBoosterArtifactError(
+            f"failed to load native LightGBM Booster: {booster_path}: {exc}"
+        ) from exc
+    try:
+        preprocessor = joblib.load(preprocessor_path)
+    except Exception as exc:
+        raise ApprovedBoosterArtifactError(
+            f"failed to load fitted preprocessing pipeline: {preprocessor_path}: {exc}"
+        ) from exc
+    if not callable(getattr(preprocessor, "transform", None)) or not callable(
+        getattr(preprocessor, "get_feature_names_out", None)
+    ):
+        raise ApprovedBoosterArtifactError(
+            "loaded preprocessor lacks transform/get_feature_names_out"
+        )
+    transformed_features = len(preprocessor.get_feature_names_out())
+    if booster.num_feature() != transformed_features:
+        raise ApprovedBoosterArtifactError(
+            "Booster/preprocessor feature mismatch: "
+            f"model expects {booster.num_feature()}, preprocessor emits "
+            f"{transformed_features}"
+        )
     return booster, preprocessor, config
 
 

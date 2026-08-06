@@ -338,3 +338,9 @@ Saved-model SHAP must load the native model with `lightgbm.Booster(model_file=..
 `load_approved_booster_artifacts` enforces the approval flags and complete bundle
 before returning that Booster. It does not reconstruct an `LGBMClassifier` and
 does not enable live integration.
+
+The loader fails with explicit paths and remediation context for missing or
+invalid configuration, missing bundle members, corrupt JSON, invalid feature
+schema, path traversal, checksum failure, unreadable Booster/preprocessor files,
+and Booster/preprocessor dimensional mismatch. It never fills absent model
+features with zeros and never falls back to an unapproved model.
