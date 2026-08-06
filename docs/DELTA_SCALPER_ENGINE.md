@@ -242,3 +242,12 @@ to the next 1m open and recorded on every backtest and forward outcome. If stop
 and target touch in the same candle, the stop wins conservatively. This variant
 uses the identical chronological split, embargo, feature pipeline, threshold
 grid, and frozen-window promotion safeguards as the net-bps experiment.
+
+Each journal row also includes a nested `triple_barrier` object with the first
+barrier, distances, configured vertical bars, bars-to-touch, same-bar flag, and
+the effective target multiplier versus the predicted move. The mirror contract
+uses scanner `target_1`: currently 0.70× predicted move for momentum and 0.65×
+for imbalance fade. A 1.0×, 1.2×, or 1.5× predicted-move target is therefore a
+different research exit contract and must be independently re-simulated; it
+cannot be reconstructed safely from MFE after the original target already
+closed the observation.

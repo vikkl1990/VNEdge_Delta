@@ -672,6 +672,21 @@ def test_forward_tracker_enters_next_bar_and_journals_once():
     assert outcomes[0].upper_barrier_bps == pytest.approx(20.0)
     assert outcomes[0].lower_barrier_bps == pytest.approx(10.0)
     assert outcomes[0].vertical_barrier_seconds == candidate.time_stop_seconds
+    assert outcomes[0].vertical_barrier_bars == 28
+    assert outcomes[0].triple_barrier_bars_to_touch == 1
+    assert outcomes[0].triple_barrier_tp_multiplier == pytest.approx(1.0)
+    assert outcomes[0].to_dict()["triple_barrier"] == {
+        "label": 1,
+        "first_barrier": "upper",
+        "tp_distance_bps": pytest.approx(20.0),
+        "sl_distance_bps": pytest.approx(10.0),
+        "vertical_bars": 28,
+        "vertical_seconds": 1_680,
+        "bars_to_touch": 1,
+        "tp_multiplier_vs_predicted_move": pytest.approx(1.0),
+        "upper_barrier_source": "scanner_take_profit_1",
+        "same_bar_stop_first": False,
+    }
     assert outcomes[0].gross_bps == pytest.approx(20.0)
     assert outcomes[0].net_bps == pytest.approx(20.0 - 2.36)
     assert outcomes[0].scalper_compliant
@@ -711,6 +726,9 @@ def test_backtest_rebases_exit_distances_on_next_open_fill():
     assert report.trades[0].triple_barrier_outcome == "upper"
     assert report.trades[0].upper_barrier_bps == pytest.approx(20.0)
     assert report.trades[0].lower_barrier_bps == pytest.approx(10.0)
+    assert report.trades[0].vertical_barrier_bars == 28
+    assert report.trades[0].triple_barrier_bars_to_touch == 1
+    assert report.trades[0].to_dict()["triple_barrier"]["first_barrier"] == "upper"
     assert report.trades[0].gross_bps == pytest.approx(20.0)
     assert report.trades[0].modeled_cost_bps > 0
     assert report.trades[0].expected_fee_multiple > 0

@@ -1,0 +1,39 @@
+{
+  "baseline_outcomes": 19521,
+  "current_contract": {
+    "entry": "next_1m_open",
+    "lower_barrier": "scanner_stop_distance",
+    "same_bar_resolution": "stop_first",
+    "upper_barrier": "scanner_take_profit_1",
+    "vertical_barrier_seconds": 1680
+  },
+  "exit_reason_counts": {
+    "stop": 12617,
+    "target_1": 6904,
+    "time_stop": 0
+  },
+  "predicted_move_1x_comparison": {
+    "exact_matches": 0,
+    "maximum_absolute_difference_bps": 15.750000000001556,
+    "mean_absolute_difference_bps": 8.1768636948452,
+    "median_absolute_difference_bps": 7.391574454400331,
+    "p95_absolute_difference_bps": 13.500000000000139
+  },
+  "scanner_contracts": {
+    "delta_imbalance_fade_v1": {
+      "effective_tp_multiplier": 0.65,
+      "stops": 2954,
+      "targets": 2246,
+      "time_stops": 0,
+      "trades": 5200
+    },
+    "delta_momentum_burst_v1": {
+      "effective_tp_multiplier": 0.7,
+      "stops": 9663,
+      "targets": 4658,
+      "time_stops": 0,
+      "trades": 14321
+    }
+  },
+  "verdict": "predicted_move_times_1_is_an_alternative_exit_contract_not_a_mirror_of_current_target_1"
+}

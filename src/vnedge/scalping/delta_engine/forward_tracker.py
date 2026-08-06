@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from math import ceil
 
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
 from vnedge.scalping.delta_engine.types import Candle, Side, SignalCandidate
@@ -51,6 +52,9 @@ class ForwardOutcome:
     upper_barrier_bps: float
     lower_barrier_bps: float
     vertical_barrier_seconds: int
+    vertical_barrier_bars: int
+    triple_barrier_bars_to_touch: int
+    triple_barrier_tp_multiplier: float
     hold_seconds: int
     expected_move_bps: float
     expected_net_bps: float
@@ -69,7 +73,20 @@ class ForwardOutcome:
     same_bar_ambiguous: bool
 
     def to_dict(self) -> dict[str, object]:
-        return self.__dict__.copy()
+        row = self.__dict__.copy()
+        row["triple_barrier"] = {
+            "label": self.triple_barrier_label,
+            "first_barrier": self.triple_barrier_outcome,
+            "tp_distance_bps": self.upper_barrier_bps,
+            "sl_distance_bps": self.lower_barrier_bps,
+            "vertical_bars": self.vertical_barrier_bars,
+            "vertical_seconds": self.vertical_barrier_seconds,
+            "bars_to_touch": self.triple_barrier_bars_to_touch,
+            "tp_multiplier_vs_predicted_move": self.triple_barrier_tp_multiplier,
+            "upper_barrier_source": "scanner_take_profit_1",
+            "same_bar_stop_first": self.same_bar_ambiguous,
+        }
+        return row
 
 
 class ForwardOutcomeTracker:
@@ -243,6 +260,13 @@ class ForwardOutcomeTracker:
             upper_barrier_bps=upper_barrier_bps,
             lower_barrier_bps=lower_barrier_bps,
             vertical_barrier_seconds=candidate.time_stop_seconds,
+            vertical_barrier_bars=ceil(candidate.time_stop_seconds / 60),
+            triple_barrier_bars_to_touch=max(1, ceil(hold / 60)),
+            triple_barrier_tp_multiplier=(
+                upper_barrier_bps / candidate.expected_move_bps
+                if candidate.expected_move_bps > 0
+                else 0.0
+            ),
             hold_seconds=hold,
             expected_move_bps=candidate.expected_move_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,
