@@ -667,6 +667,11 @@ def test_forward_tracker_enters_next_bar_and_journals_once():
     assert outcomes[0].entry_ts == NOW.isoformat()
     assert outcomes[0].entry_price == 100.0
     assert outcomes[0].exit_reason == "target_1"
+    assert outcomes[0].triple_barrier_label == 1
+    assert outcomes[0].triple_barrier_outcome == "upper"
+    assert outcomes[0].upper_barrier_bps == pytest.approx(20.0)
+    assert outcomes[0].lower_barrier_bps == pytest.approx(10.0)
+    assert outcomes[0].vertical_barrier_seconds == candidate.time_stop_seconds
     assert outcomes[0].gross_bps == pytest.approx(20.0)
     assert outcomes[0].net_bps == pytest.approx(20.0 - 2.36)
     assert outcomes[0].scalper_compliant
@@ -702,6 +707,10 @@ def test_backtest_rebases_exit_distances_on_next_open_fill():
     report = CausalScalperBacktester(generator, fee, store).run("BTCUSD", rows)
     assert len(report.trades) == 1
     assert report.trades[0].exit_reason == "target_1"
+    assert report.trades[0].triple_barrier_label == 1
+    assert report.trades[0].triple_barrier_outcome == "upper"
+    assert report.trades[0].upper_barrier_bps == pytest.approx(20.0)
+    assert report.trades[0].lower_barrier_bps == pytest.approx(10.0)
     assert report.trades[0].gross_bps == pytest.approx(20.0)
     assert report.trades[0].modeled_cost_bps > 0
     assert report.trades[0].expected_fee_multiple > 0

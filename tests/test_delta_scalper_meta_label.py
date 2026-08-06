@@ -9,7 +9,10 @@ from vnedge.research.delta_scalper_meta_label import (
     MetaLabelVariant,
     candidate_features,
     fit_model,
+    label_comparison,
+    outcome_label,
     trade_features,
+    triple_barrier_label,
 )
 from vnedge.research.delta_scalper_threshold_sweep import GateVariant
 from vnedge.scalping.delta_engine.types import Side, SignalCandidate
@@ -88,6 +91,9 @@ def _trade(index: int, *, winner: bool) -> dict:
         "change_point_bars_since_shift": features["bars_since_regime_change"],
         "cusum_alarm_recent_at_entry": bool(features["cusum_alarm_recent"]),
         "net_bps": 8.0 if winner else -10.0,
+        "exit_reason": "target_1" if winner else "stop",
+        "triple_barrier_label": int(winner),
+        "triple_barrier_outcome": "upper" if winner else "lower",
     }
 
 
@@ -146,3 +152,45 @@ def test_meta_label_threshold_grid_matches_preregistered_design():
     assert PREREGISTERED_THRESHOLDS[0] == 0.50
     assert PREREGISTERED_THRESHOLDS[-1] == 0.94
     assert len(PREREGISTERED_THRESHOLDS) == 23
+
+
+def test_triple_barrier_label_is_target_before_stop_or_time():
+    assert triple_barrier_label({"exit_reason": "target_1"}) is True
+    assert triple_barrier_label({"exit_reason": "stop"}) is False
+    assert triple_barrier_label({"exit_reason": "time_stop"}) is False
+    assert triple_barrier_label(
+        {"exit_reason": "stop", "triple_barrier_label": 1}
+    ) is True
+
+    comparison = label_comparison(
+        [
+            {"exit_reason": "target_1", "net_bps": 8.0},
+            {"exit_reason": "time_stop", "net_bps": 6.0},
+            {"exit_reason": "stop", "net_bps": -10.0},
+        ],
+        label_net_bps=4.0,
+    )
+    assert comparison["triple_barrier_positive"] == 1
+    assert comparison["fixed_net_positive"] == 2
+    assert comparison["label_disagreements"] == 1
+    assert outcome_label(
+        {"exit_reason": "target_1"},
+        label_mode="triple_barrier",
+        label_net_bps=999,
+    ) is True
+
+
+def test_triple_barrier_meta_model_is_deterministic():
+    training = [_trade(index, winner=index % 2 == 0) for index in range(80)]
+    first = fit_model(
+        training,
+        label_net_bps=4.0,
+        label_mode="triple_barrier",
+    )
+    second = fit_model(
+        training,
+        label_net_bps=4.0,
+        label_mode="triple_barrier",
+    )
+    frame = pd.DataFrame([candidate_features(_candidate())])
+    assert first.predict_proba(frame).tolist() == second.predict_proba(frame).tolist()

@@ -222,3 +222,23 @@ first clears minimum sample, frequency, validation PF, average-net,
 positive-market, and data-quality gates. Support evidence is written under
 `research/meta_labeling`; a model pipeline and threshold are written only after
 untouched success, and are never automatically loaded into the live scanner.
+
+### Triple-barrier meta-label variant
+
+The same runner can label a candidate by its causal exit path instead of its
+fixed net return:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_meta_label \
+  --label-mode triple_barrier \
+  --artifact-dir research/meta_labeling_triple_barrier \
+  --output research/live_research/delta_scalper_meta_label_triple_barrier_latest.json \
+  --scalper-opted-in
+```
+
+The binary positive class is `target_1` touched before the stop or configured
+time stop. The upper target, lower stop, and vertical time barrier are rebased
+to the next 1m open and recorded on every backtest and forward outcome. If stop
+and target touch in the same candle, the stop wins conservatively. This variant
+uses the identical chronological split, embargo, feature pipeline, threshold
+grid, and frozen-window promotion safeguards as the net-bps experiment.

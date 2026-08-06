@@ -75,6 +75,7 @@ NUMERIC_FEATURES = (
 )
 FEATURE_COLUMNS = (*CATEGORICAL_FEATURES, *NUMERIC_FEATURES)
 PREREGISTERED_THRESHOLDS = tuple(round(0.50 + 0.02 * index, 2) for index in range(23))
+LABEL_MODES = ("net_bps", "triple_barrier")
 
 
 def _stamp(value: object) -> datetime:
@@ -248,8 +249,62 @@ def build_model() -> Pipeline:
     )
 
 
-def fit_model(rows: list[dict], *, label_net_bps: float) -> Pipeline:
-    labels = [float(row.get("net_bps") or 0.0) > label_net_bps for row in rows]
+def triple_barrier_label(row: dict) -> bool:
+    """Return the causal binary label: target before stop or time barrier."""
+    stored = row.get("triple_barrier_label")
+    if stored is not None:
+        return bool(int(stored))
+    return str(row.get("exit_reason") or "") == "target_1"
+
+
+def outcome_label(
+    row: dict,
+    *,
+    label_mode: str,
+    label_net_bps: float,
+) -> bool:
+    if label_mode == "triple_barrier":
+        return triple_barrier_label(row)
+    if label_mode == "net_bps":
+        return float(row.get("net_bps") or 0.0) > label_net_bps
+    raise ValueError(f"unsupported meta-label mode: {label_mode}")
+
+
+def label_comparison(rows: list[dict], *, label_net_bps: float) -> dict[str, object]:
+    triple = [triple_barrier_label(row) for row in rows]
+    fixed_net = [
+        float(row.get("net_bps") or 0.0) > label_net_bps for row in rows
+    ]
+    disagreements = sum(left != right for left, right in zip(triple, fixed_net))
+    return {
+        "outcomes": len(rows),
+        "triple_barrier_positive": sum(triple),
+        "fixed_net_positive": sum(fixed_net),
+        "label_disagreements": disagreements,
+        "label_disagreement_rate": disagreements / len(rows) if rows else 0.0,
+        "fixed_net_threshold_bps": label_net_bps,
+        "verdict": (
+            "exactly_equivalent_on_this_exit_contract_and_window"
+            if rows and disagreements == 0
+            else "labels_are_not_equivalent"
+        ),
+    }
+
+
+def fit_model(
+    rows: list[dict],
+    *,
+    label_net_bps: float,
+    label_mode: str = "net_bps",
+) -> Pipeline:
+    labels = [
+        outcome_label(
+            row,
+            label_mode=label_mode,
+            label_net_bps=label_net_bps,
+        )
+        for row in rows
+    ]
     if len(set(labels)) < 2:
         raise ValueError("meta-label training requires both positive and negative outcomes")
     model = build_model()
@@ -342,10 +397,18 @@ def _classifier_diagnostics(
     rows: list[dict],
     *,
     label_net_bps: float,
+    label_mode: str,
 ) -> dict:
     if not rows:
         return {"observations": 0}
-    labels = [float(row.get("net_bps") or 0.0) > label_net_bps for row in rows]
+    labels = [
+        outcome_label(
+            row,
+            label_mode=label_mode,
+            label_net_bps=label_net_bps,
+        )
+        for row in rows
+    ]
     probabilities = model.predict_proba(
         pd.DataFrame([trade_features(row) for row in rows])
     )[:, 1]
@@ -405,6 +468,11 @@ def _write_research_artifacts(
         },
     )
     _atomic_json(artifact_dir / "train_val_untouched_metrics.json", payload)
+    if payload.get("label_comparison"):
+        _atomic_json(
+            artifact_dir / "label_equivalence.json",
+            payload["label_comparison"],
+        )
     importance = (payload.get("validation_classifier_diagnostics") or {}).get(
         "top_absolute_coefficients"
     ) or []
@@ -455,7 +523,11 @@ async def run(args: argparse.Namespace) -> dict:
         if validation_start <= _stamp(row["decision_ts"])
         and _stamp(row["exit_ts"]) < validation_end
     ]
-    model = fit_model(train_rows, label_net_bps=args.label_net_bps)
+    model = fit_model(
+        train_rows,
+        label_net_bps=args.label_net_bps,
+        label_mode=args.label_mode,
+    )
     symbols = tuple(args.symbols.split(",")) if args.symbols else config.engine.symbols
     rows_by_symbol = {}
     ledgers = {}
@@ -549,7 +621,11 @@ async def run(args: argparse.Namespace) -> dict:
             for row in all_historical
             if _stamp(row["exit_ts"]) < frozen_boundary - embargo
         ]
-        final_model = fit_model(final_rows, label_net_bps=args.label_net_bps)
+        final_model = fit_model(
+            final_rows,
+            label_net_bps=args.label_net_bps,
+            label_mode=args.label_mode,
+        )
         frozen_scores = score_candidates(
             final_model,
             ledgers,
@@ -594,11 +670,36 @@ async def run(args: argparse.Namespace) -> dict:
             frozen_model = final_model
             frozen_threshold = float(selected["config"]["threshold"])
     payload = {
-        "report_id": "delta_scalper_meta_label_v1",
+        "report_id": f"delta_scalper_meta_label_{args.label_mode}_v1",
         "generated_at": datetime.now(UTC).isoformat(),
         "preregistered_before_results": True,
         "preregistered_thresholds": list(PREREGISTERED_THRESHOLDS),
-        "label": f"realized_net_bps_above_{args.label_net_bps:g}",
+        "label": (
+            "triple_barrier_target_before_stop_or_time"
+            if args.label_mode == "triple_barrier"
+            else f"realized_net_bps_above_{args.label_net_bps:g}"
+        ),
+        "label_definition": {
+            "mode": args.label_mode,
+            "positive": (
+                "upper target barrier touched first"
+                if args.label_mode == "triple_barrier"
+                else f"realized net bps above {args.label_net_bps:g}"
+            ),
+            "negative": (
+                "lower stop or vertical time barrier touched first"
+                if args.label_mode == "triple_barrier"
+                else f"realized net bps at or below {args.label_net_bps:g}"
+            ),
+            "upper_barrier": "scanner planned target rebased to next 1m open",
+            "lower_barrier": "scanner planned stop rebased to next 1m open",
+            "vertical_barrier": "scanner configured time_stop_seconds",
+            "same_bar_ambiguity": "lower stop barrier wins conservatively",
+        },
+        "label_comparison": label_comparison(
+            all_historical,
+            label_net_bps=args.label_net_bps,
+        ),
         "model": {
             "type": "regularized_logistic_regression",
             "C": 0.5,
@@ -626,7 +727,14 @@ async def run(args: argparse.Namespace) -> dict:
         "training": {
             "outcomes": len(train_rows),
             "label_positive_rate": (
-                sum(float(row.get("net_bps") or 0.0) > args.label_net_bps for row in train_rows)
+                sum(
+                    outcome_label(
+                        row,
+                        label_mode=args.label_mode,
+                        label_net_bps=args.label_net_bps,
+                    )
+                    for row in train_rows
+                )
                 / len(train_rows)
                 if train_rows
                 else 0.0
@@ -636,6 +744,7 @@ async def run(args: argparse.Namespace) -> dict:
             model,
             validation_rows,
             label_net_bps=args.label_net_bps,
+            label_mode=args.label_mode,
         ),
         "baseline_validation": baseline_summary,
         "evaluated_thresholds": sorted(evaluated, key=_rank, reverse=True),
@@ -690,6 +799,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-fraction", type=float, default=0.875)
     parser.add_argument("--embargo-minutes", type=int, default=30)
     parser.add_argument("--label-net-bps", type=float, default=4.0)
+    parser.add_argument("--label-mode", choices=LABEL_MODES, default="net_bps")
     parser.add_argument("--scalper-opted-in", action="store_true")
     parser.add_argument("--deto", action="store_true")
     parser.add_argument("--refresh", action="store_true")

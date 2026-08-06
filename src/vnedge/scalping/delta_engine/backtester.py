@@ -35,6 +35,11 @@ class BacktestTrade:
     scalper_compliant: bool
     planned_stop_bps: float
     planned_target_bps: float
+    triple_barrier_label: int
+    triple_barrier_outcome: str
+    upper_barrier_bps: float
+    lower_barrier_bps: float
+    vertical_barrier_seconds: int
     same_bar_ambiguous: bool
     regime_at_entry: str
     trend_regime_at_entry: str
@@ -277,6 +282,15 @@ class CausalScalperBacktester:
             scalper_compliant=costs.scalper_eligible,
             planned_stop_bps=stop_distance_bps,
             planned_target_bps=target_distance_bps,
+            triple_barrier_label=int(reason == "target_1"),
+            triple_barrier_outcome={
+                "target_1": "upper",
+                "stop": "lower",
+                "time_stop": "vertical",
+            }[reason],
+            upper_barrier_bps=target_distance_bps,
+            lower_barrier_bps=stop_distance_bps,
+            vertical_barrier_seconds=candidate.time_stop_seconds,
             same_bar_ambiguous=stop_hit and target_hit,
             regime_at_entry=str(candidate.metadata.get("regime") or "unknown"),
             trend_regime_at_entry=str(profile.get("trend") or "unknown"),

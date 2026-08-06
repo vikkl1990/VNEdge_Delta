@@ -46,6 +46,11 @@ class ForwardOutcome:
     entry_price: float
     exit_price: float
     exit_reason: str
+    triple_barrier_label: int
+    triple_barrier_outcome: str
+    upper_barrier_bps: float
+    lower_barrier_bps: float
+    vertical_barrier_seconds: int
     hold_seconds: int
     expected_move_bps: float
     expected_net_bps: float
@@ -158,8 +163,12 @@ class ForwardOutcomeTracker:
         )
         if candidate.side is Side.LONG:
             gross_bps = (exit_price / entry - 1) * 10_000
+            lower_barrier_bps = (1 - active.stop_price / entry) * 10_000
+            upper_barrier_bps = (active.target_price / entry - 1) * 10_000
         else:
             gross_bps = (entry / exit_price - 1) * 10_000
+            lower_barrier_bps = (active.stop_price / entry - 1) * 10_000
+            upper_barrier_bps = (1 - active.target_price / entry) * 10_000
         l2 = candidate.metadata.get("l2_confirmation")
         l2_context = dict(l2) if isinstance(l2, dict) else {}
         l2_status = str(l2_context.get("status") or "unavailable")
@@ -225,6 +234,15 @@ class ForwardOutcomeTracker:
             entry_price=entry,
             exit_price=exit_price,
             exit_reason=reason,
+            triple_barrier_label=int(reason == "target_1"),
+            triple_barrier_outcome={
+                "target_1": "upper",
+                "stop": "lower",
+                "time_stop": "vertical",
+            }[reason],
+            upper_barrier_bps=upper_barrier_bps,
+            lower_barrier_bps=lower_barrier_bps,
+            vertical_barrier_seconds=candidate.time_stop_seconds,
             hold_seconds=hold,
             expected_move_bps=candidate.expected_move_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,

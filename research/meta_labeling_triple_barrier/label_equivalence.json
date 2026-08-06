@@ -1,0 +1,9 @@
+{
+  "fixed_net_threshold_bps": 4.0,
+  "fixed_net_positive": 6904,
+  "label_disagreements": 0,
+  "label_disagreement_rate": 0.0,
+  "outcomes": 19521,
+  "triple_barrier_positive": 6904,
+  "verdict": "exactly_equivalent_on_this_exit_contract_and_window"
+}
