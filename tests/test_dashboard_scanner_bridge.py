@@ -142,6 +142,7 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     triple_meta_label = tmp_path / "triple-meta-label.json"
     lightgbm_meta_label = tmp_path / "lightgbm-meta-label.json"
     cusum_interactions = tmp_path / "cusum-interactions.json"
+    lightgbm_shap = tmp_path / "lightgbm-shap.json"
     primary.write_text(json.dumps(mtf_payload(now)))
     scalper.write_text(
         json.dumps(
@@ -227,6 +228,19 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
         "DELTA_SCALPER_CUSUM_INTERACTIONS_PATH",
         cusum_interactions,
     )
+    lightgbm_shap.write_text(
+        json.dumps(
+            {
+                "report_id": "delta_scalper_lightgbm_shap_v1",
+                "can_trade": False,
+            }
+        )
+    )
+    monkeypatch.setattr(
+        scanner_live,
+        "DELTA_SCALPER_LIGHTGBM_SHAP_PATH",
+        lightgbm_shap,
+    )
 
     combined = scanner_live.read_scanner_payload(primary)
 
@@ -256,6 +270,9 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     )
     assert combined["delta_scalper"]["cusum_interactions"]["report_id"] == (
         "delta_scalper_cusum_interactions_v1"
+    )
+    assert combined["delta_scalper"]["lightgbm_shap"]["report_id"] == (
+        "delta_scalper_lightgbm_shap_v1"
     )
     assert combined["policy"]["order_route_present"] is False
     assert combined["can_trade"] is False

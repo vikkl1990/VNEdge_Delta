@@ -88,6 +88,12 @@ DELTA_SCALPER_CUSUM_INTERACTIONS_PATH = Path(
         "research/live_research/delta_scalper_cusum_interactions_latest.json",
     )
 )
+DELTA_SCALPER_LIGHTGBM_SHAP_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_DELTA_SCALPER_LIGHTGBM_SHAP_PATH",
+        "research/live_research/delta_scalper_lightgbm_shap_latest.json",
+    )
+)
 COMBINED_SCANNER_PATH = Path(
     os.environ.get(
         "DASHBOARD_COMBINED_SCANNER_PATH",
@@ -117,6 +123,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     )
     lightgbm_meta_label = _read_payload(DELTA_SCALPER_LIGHTGBM_META_LABEL_PATH)
     cusum_interactions = _read_payload(DELTA_SCALPER_CUSUM_INTERACTIONS_PATH)
+    lightgbm_shap = _read_payload(DELTA_SCALPER_LIGHTGBM_SHAP_PATH)
     if not primary and not scalper:
         return {
             "generated_at": None,
@@ -169,6 +176,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "triple_barrier_meta_label": triple_barrier_meta_label or None,
             "lightgbm_meta_label": lightgbm_meta_label or None,
             "cusum_interactions": cusum_interactions or None,
+            "lightgbm_shap": lightgbm_shap or None,
         }
         if scalper
         else None,

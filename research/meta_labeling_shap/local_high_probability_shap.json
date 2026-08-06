@@ -1,0 +1,784 @@
+{
+  "rows": [
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-02-25 16:26:00+00:00",
+      "label": 1,
+      "prediction_log_odds": 0.006177860254233392,
+      "probability": 0.5015444601514115,
+      "realized_net_bps": 14.537627640399485,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "ETHUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": -0.006665336216823944
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.003143175170918751
+        },
+        {
+          "feature": "symbol",
+          "shap": -0.0019607486349032467
+        },
+        {
+          "feature": "side",
+          "shap": -0.0019520661632348407
+        },
+        {
+          "feature": "session_regime_at_entry",
+          "shap": -0.0010141437706267225
+        },
+        {
+          "feature": "hour_utc",
+          "shap": -1.7612898931104813e-05
+        },
+        {
+          "feature": "volatility_regime_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "change_point_window_at_entry",
+          "shap": 0.0
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.3038694280289779
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.07809958193138376
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.05883037589628162
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.03794791811569714
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.03223233901102401
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.028312767748892274
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.019119577013848595
+        },
+        {
+          "feature": "scalper_probability",
+          "shap": 0.016983158674882304
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-03-31 17:16:00+00:00",
+      "label": 1,
+      "prediction_log_odds": -0.004690944557983023,
+      "probability": 0.49882726601100075,
+      "realized_net_bps": 15.07452164030235,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "BTCUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "change_point_return_score",
+          "shap": -0.02409902110499936
+        },
+        {
+          "feature": "bb_width_percentile_at_entry",
+          "shap": -0.010317134663530814
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": -0.005191700137711724
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.0023024871699173005
+        },
+        {
+          "feature": "side",
+          "shap": -0.0019520661632348407
+        },
+        {
+          "feature": "session_regime_at_entry",
+          "shap": -0.0007821168446943236
+        },
+        {
+          "feature": "volatility_regime_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "change_point_window_at_entry",
+          "shap": 0.0
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.3447450109381349
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.06330820135507365
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.05482320486813587
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.04027098478765513
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.03198583563061843
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.027051106858141837
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.01991516520100781
+        },
+        {
+          "feature": "trend_direction_at_entry",
+          "shap": 0.011435805389192498
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-03-04 09:18:00+00:00",
+      "label": 1,
+      "prediction_log_odds": -0.014891473152378265,
+      "probability": 0.49627720050773655,
+      "realized_net_bps": 15.394364925021918,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "BTCUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "change_point_return_score",
+          "shap": -0.02335105033911667
+        },
+        {
+          "feature": "bb_width_percentile_at_entry",
+          "shap": -0.010317134663530814
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": -0.005367751838404593
+        },
+        {
+          "feature": "change_point_bars_since_shift",
+          "shap": -0.003748672878191839
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.0026062071016668196
+        },
+        {
+          "feature": "side",
+          "shap": -0.001206152048403446
+        },
+        {
+          "feature": "hour_utc",
+          "shap": -1.7612898931104813e-05
+        },
+        {
+          "feature": "change_point_window_at_entry",
+          "shap": 0.0
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.333802907239455
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.06332174942510674
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.05896009514354115
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.039104391346026626
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.03478396229239978
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.027089885368608048
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.023512585368536225
+        },
+        {
+          "feature": "scalper_probability",
+          "shap": 0.014301888363305947
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-03-09 03:11:00+00:00",
+      "label": 0,
+      "prediction_log_odds": -0.029106851804145628,
+      "probability": 0.4927238007467267,
+      "realized_net_bps": -21.26517601716246,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "ETHUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "change_point_return_score",
+          "shap": -0.010228247608508574
+        },
+        {
+          "feature": "bb_width_percentile_at_entry",
+          "shap": -0.009992508295817343
+        },
+        {
+          "feature": "change_point_bars_since_shift",
+          "shap": -0.0026728473587839504
+        },
+        {
+          "feature": "change_point_volatility_score",
+          "shap": -0.0019904666443483197
+        },
+        {
+          "feature": "side",
+          "shap": -0.0019520661632348407
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.001537133491043945
+        },
+        {
+          "feature": "session_regime_at_entry",
+          "shap": -0.0010583551314029094
+        },
+        {
+          "feature": "symbol",
+          "shap": -0.0009723545999624177
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.32109591529841824
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.06332174942510674
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.04018114619421715
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.03979537501002597
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.029183043026987984
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.02804555361780883
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.021394194786885423
+        },
+        {
+          "feature": "scalper_probability",
+          "shap": 0.01863836485102893
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-02-18 15:06:00+00:00",
+      "label": 1,
+      "prediction_log_odds": -0.06251305932514906,
+      "probability": 0.48437682263259985,
+      "realized_net_bps": 15.752679826826853,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "ETHUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "change_point_volatility_score",
+          "shap": -0.004503675474903249
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": -0.004347061630595479
+        },
+        {
+          "feature": "symbol",
+          "shap": -0.0019607486349032467
+        },
+        {
+          "feature": "side",
+          "shap": -0.001648819453137832
+        },
+        {
+          "feature": "hour_utc",
+          "shap": -1.7612898931104813e-05
+        },
+        {
+          "feature": "change_point_window_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "cusum_alarm_recent_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "volatility_regime_at_entry",
+          "shap": 0.0
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.26843012485145157
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.0690137442057753
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.04859149881284152
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.04248251477598252
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.032218318617907055
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.028119986696791232
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.019895293850886685
+        },
+        {
+          "feature": "trend_direction_at_entry",
+          "shap": 0.008292037260046268
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-02-24 15:25:00+00:00",
+      "label": 1,
+      "prediction_log_odds": -0.0640515992308669,
+      "probability": 0.48399257250061034,
+      "realized_net_bps": 14.808019749084998,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "ETHUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "bb_width_percentile_at_entry",
+          "shap": -0.009992508295817343
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": -0.006489284516131075
+        },
+        {
+          "feature": "change_point_volatility_score",
+          "shap": -0.003953092300674236
+        },
+        {
+          "feature": "symbol",
+          "shap": -0.002261628170776195
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.00206762282922157
+        },
+        {
+          "feature": "side",
+          "shap": -0.0018078632958295811
+        },
+        {
+          "feature": "volatility_regime_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "change_point_window_at_entry",
+          "shap": 0.0
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.29325673974081273
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.062058007296284516
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.04852401337745584
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.03969569435223826
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.03223233901102401
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.027707469463683358
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.018917041726298267
+        },
+        {
+          "feature": "scalper_probability",
+          "shap": 0.01145294849866175
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-02-15 17:46:00+00:00",
+      "label": 0,
+      "prediction_log_odds": -0.08892878904956725,
+      "probability": 0.4777824427883781,
+      "realized_net_bps": -21.360000000000458,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "ETHUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "trend_direction_at_entry",
+          "shap": -0.013652514142903414
+        },
+        {
+          "feature": "change_point_bars_since_shift",
+          "shap": -0.004831441081618532
+        },
+        {
+          "feature": "change_point_volatility_score",
+          "shap": -0.00462332540819769
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.0014721319478181714
+        },
+        {
+          "feature": "regime_at_entry",
+          "shap": -0.0012369421264278313
+        },
+        {
+          "feature": "session_regime_at_entry",
+          "shap": -0.0010583551314029094
+        },
+        {
+          "feature": "change_point_return_score",
+          "shap": -0.0005078323922910919
+        },
+        {
+          "feature": "hour_utc",
+          "shap": -0.0004305436518570971
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.28226156866307633
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.07675807466222405
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.04150731328304601
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.03809857142840392
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.028263060286834066
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.024820329542079078
+        },
+        {
+          "feature": "scalper_probability",
+          "shap": 0.02149419711618743
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": 0.01198207729807648
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-03-10 14:10:00+00:00",
+      "label": 0,
+      "prediction_log_odds": -0.089192478869901,
+      "probability": 0.47771665088164983,
+      "realized_net_bps": -21.15740890472303,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "BTCUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "trend_direction_at_entry",
+          "shap": -0.010966082607893432
+        },
+        {
+          "feature": "bb_width_percentile_at_entry",
+          "shap": -0.009645358454231905
+        },
+        {
+          "feature": "change_point_volatility_score",
+          "shap": -0.004140049925572394
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.0032734281194286697
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": -0.0028345825958214304
+        },
+        {
+          "feature": "cusum_alarm_recent_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "volatility_regime_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "change_point_window_at_entry",
+          "shap": 0.0
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.29080405543097726
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.04918812437395045
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.0471603607535419
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.03956607334464396
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.032834438481436995
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.025152438203023594
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.018860476493237445
+        },
+        {
+          "feature": "symbol",
+          "shap": 0.00904623446982775
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-02-13 16:33:00+00:00",
+      "label": 1,
+      "prediction_log_odds": -0.09541599780009002,
+      "probability": 0.47616408174558583,
+      "realized_net_bps": 14.631322225241249,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "ETHUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": -0.029204471337532435
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.003143175170918751
+        },
+        {
+          "feature": "side",
+          "shap": -0.0019520661632348407
+        },
+        {
+          "feature": "symbol",
+          "shap": -0.0012732341358353662
+        },
+        {
+          "feature": "session_regime_at_entry",
+          "shap": -0.0010141437706267225
+        },
+        {
+          "feature": "cusum_alarm_recent_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "volatility_regime_at_entry",
+          "shap": 0.0
+        },
+        {
+          "feature": "change_point_window_at_entry",
+          "shap": 0.0
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.2854761981508485
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.07060455122137
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.0376802497445115
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": 0.02813505694859757
+        },
+        {
+          "feature": "scalper_probability",
+          "shap": 0.02300446737572604
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": 0.017570450406872863
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.017554319027424624
+        },
+        {
+          "feature": "trend_direction_at_entry",
+          "shap": 0.016973174690493403
+        }
+      ]
+    },
+    {
+      "base_value_log_odds": -0.5966234559067823,
+      "decision_ts": "2026-03-21 23:53:00+00:00",
+      "label": 0,
+      "prediction_log_odds": -0.11790940586705512,
+      "probability": 0.4705567521752985,
+      "realized_net_bps": -21.359999999999346,
+      "scanner_id": "delta_imbalance_fade_v1",
+      "symbol": "ETHUSD",
+      "top_negative_contributions": [
+        {
+          "feature": "change_point_return_score",
+          "shap": -0.023024402187472322
+        },
+        {
+          "feature": "expected_move_bps",
+          "shap": -0.013628238812011292
+        },
+        {
+          "feature": "trend_direction_at_entry",
+          "shap": -0.010968705599900062
+        },
+        {
+          "feature": "bb_width_percentile_at_entry",
+          "shap": -0.009969984821945376
+        },
+        {
+          "feature": "atr_percentile_at_entry",
+          "shap": -0.004308218674933651
+        },
+        {
+          "feature": "trend_regime_at_entry",
+          "shap": -0.0020107162202634204
+        },
+        {
+          "feature": "regime_at_entry",
+          "shap": -0.0012034494100394786
+        },
+        {
+          "feature": "symbol",
+          "shap": -0.0011700650441727601
+        }
+      ],
+      "top_positive_contributions": [
+        {
+          "feature": "scanner_id",
+          "shap": 0.29656545547034263
+        },
+        {
+          "feature": "expected_net_bps",
+          "shap": 0.07928470066977455
+        },
+        {
+          "feature": "planned_stop_bps",
+          "shap": 0.05391704094522784
+        },
+        {
+          "feature": "expected_fee_multiple",
+          "shap": 0.04554141906154335
+        },
+        {
+          "feature": "planned_target_bps",
+          "shap": 0.02625094951200162
+        },
+        {
+          "feature": "change_point_bars_since_shift",
+          "shap": 0.016666350781448763
+        },
+        {
+          "feature": "atr_bps_at_entry",
+          "shap": 0.008499846826594938
+        },
+        {
+          "feature": "change_point_volatility_score",
+          "shap": 0.008140079455138883
+        }
+      ]
+    }
+  ]
+}

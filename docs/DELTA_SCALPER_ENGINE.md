@@ -305,3 +305,21 @@ CSVs, and Imbalance Fade pivot tables for average net, PF, and trade count.
 Any cell-derived binary meta feature requires a new nested discovery/validation
 split; a cell discovered on this selection window is not fed back into a model
 evaluated on the same window.
+
+### SHAP attribution for the LightGBM meta-label model
+
+Run the selection-only model explanation with:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_lightgbm_shap
+```
+
+The command recreates the guarded LightGBM experiment and computes SHAP only on
+the 10% probability-threshold selection window. It writes global base/encoded
+importance, causal CUSUM-window attribution, five-way grouped diagnostics with
+at least 40 observations, ten local high-probability explanations, a beeswarm,
+global bar chart, and a waterfall under `research/meta_labeling_shap`. One-hot
+contributions are added back to their causal base feature. The frozen final 20%
+receives neither predictions nor SHAP values. These explanations are diagnostics
+only: they cannot alter scanner thresholds, promote a model, route an order, or
+invent missing historical L2/CVD inputs.
