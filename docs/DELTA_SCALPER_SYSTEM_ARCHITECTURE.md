@@ -36,7 +36,6 @@ sequenceDiagram
     participant Gate as Signal and fee gates
     participant WAL as Research journal
     participant Fwd as Forward tracker
-
     WS->>Store: completed 1m or 5m candle
     Store->>Store: reject duplicate, future, or regressing close
     Store->>Ctx: read immutable closed snapshots
@@ -46,7 +45,7 @@ sequenceDiagram
     Gate->>WAL: journal decision exactly once
     alt candidate accepted
         Gate->>Fwd: register observation
-        Fwd->>Fwd: enter at next 1m open; resolve stop-first
+        Fwd->>Fwd: enter at next 1m open - resolve stop-first
         Fwd->>WAL: MFE, MAE, expected and realized net bps
     else candidate rejected
         Gate->>WAL: journal rejection reasons
@@ -129,17 +128,16 @@ sequenceDiagram
     participant Pending as Pending candidate
     participant Path as Conservative path simulator
     participant Report as Evidence report
-
     Data->>Store: append one closed 1m candle
     Store->>Store: causally aggregate 5m, 15m, 1h and 4h
     Store->>Engine: run identical context, scanners, predictor, fees and gates
     alt accepted candidate
-        Engine->>Pending: wait; do not fill on decision candle
+        Engine->>Pending: wait - do not fill on decision candle
         Pending->>Path: enter at next 1m open
-        Path->>Path: update MFE/MAE; stop-first ambiguity rule
+        Path->>Path: update MFE MAE with stop-first ambiguity rule
         Path->>Report: exit price, hold time, realized costs and net bps
     else rejected or no candidate
         Engine->>Report: count evaluation without a trade
     end
-    Report->>Report: daily/weekly/monthly/quarterly and untouched validation
+    Report->>Report: daily weekly monthly quarterly and untouched validation
 ```
