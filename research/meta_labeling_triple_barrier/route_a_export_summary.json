@@ -1,0 +1,32 @@
+{
+  "exit_reason_by_label": {
+    "stop": {
+      "0": 12617,
+      "1": 0
+    },
+    "target_1": {
+      "0": 0,
+      "1": 6904
+    }
+  },
+  "explicit_shared_simulator_labels": 19521,
+  "input": "research/live_research/delta_scalper_backtest_latest.json",
+  "input_rows": 19521,
+  "mfe_time_stop_labels_recovered": 0,
+  "mfe_time_stop_recovery_enabled": false,
+  "net_gt_4bps": 6904,
+  "net_positive": 6904,
+  "output": "research/live_research/delta_scalper_with_tb_labels.parquet",
+  "policy": {
+    "explicit_path_simulator_label_is_authoritative": true,
+    "mfe_recovery_is_approximate_and_opt_in": true,
+    "predicted_move_is_not_used_as_a_target_fallback": true,
+    "strict_time_stop_is_failure": true
+  },
+  "positive_label_rate": 0.3536704062291891,
+  "positive_labels": 6904,
+  "resolved_outcomes": 19521,
+  "summary": "research/meta_labeling_triple_barrier/route_a_export_summary.json",
+  "tb_vs_net_gt_4bps_disagreements": 0,
+  "unknown_exit_reasons": 0
+}

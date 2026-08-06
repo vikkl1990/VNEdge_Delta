@@ -251,3 +251,16 @@ for imbalance fade. A 1.0×, 1.2×, or 1.5× predicted-move target is therefore 
 different research exit contract and must be independently re-simulated; it
 cannot be reconstructed safely from MFE after the original target already
 closed the observation.
+
+Export the existing resolved outcomes to a flat Parquet training set with:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_triple_barrier_labels
+```
+
+The exporter reads `markets.*.trades` from the backtest report as well as nested
+forward-journal rows. It preserves the original columns and adds `tb_label`,
+`tb_first_barrier`, `tb_label_source`, `tb_tp_distance_bps`, `net_positive`, and
+`net_gt_4bps`. Explicit shared-simulator labels take priority. Strict time stops
+remain failures; legacy MFE recovery is available only through
+`--allow-mfe-time-stop-recovery` and is marked as an approximation.
