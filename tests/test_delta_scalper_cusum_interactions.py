@@ -19,6 +19,7 @@ def _trade(index: int, *, positive: bool, trend: str) -> dict:
         "volatility_regime_at_entry": "low" if trend == "range" else "high",
         "session_regime_at_entry": "asia",
         "change_point_window_at_entry": "00-30m",
+        "change_point_bars_since_shift": 3,
         "side": "long",
         "entry_ts": entry.isoformat(),
         "exit_ts": (entry + timedelta(seconds=60)).isoformat(),
@@ -52,6 +53,8 @@ def test_cusum_interactions_enforce_cell_size_and_protect_frozen_tail():
 
     assert report["selection_window"]["trades"] == 400
     assert report["selection_window"]["eligible_cells"] == 2
+    assert report["cusum_bucket_audit"]["mismatches"] == 0
+    assert len(report["sufficiently_populated_cells"]) == 2
     assert report["findings"]["positive_cell_count"] == 1
     assert report["findings"]["materially_worse_cell_count"] == 1
     best = report["findings"]["best_eligible_cells"][0]
@@ -62,6 +65,7 @@ def test_cusum_interactions_enforce_cell_size_and_protect_frozen_tail():
     assert frozen["subgroup_attribution_performed"] is False
     assert "eligible_cells" not in frozen
     assert report["policy"]["interaction_used_for_scanner_gate"] is False
+    assert report["imbalance_fade_pivot"]["average_net_bps"]
 
 
 def test_cusum_interaction_minimums_are_ordered():

@@ -1,0 +1,6 @@
+change_point_window,symbol,range | high,range | medium,strong_trend | high,strong_trend | medium,weak_trend | high,weak_trend | medium
+00-30m,BTCUSD,86.0,,135.0,,148.0,
+00-30m,ETHUSD,167.0,,342.0,,356.0,
+01-04h,ETHUSD,,106.0,168.0,109.0,158.0,173.0
+04h+,ETHUSD,86.0,,119.0,,180.0,83.0
+30-60m,ETHUSD,96.0,,201.0,,191.0,

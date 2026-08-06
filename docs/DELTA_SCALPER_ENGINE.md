@@ -299,3 +299,9 @@ expectancy, PF, MFE/MAE, sample share, uplift versus the selection baseline, and
 a 95% interval for average net bps. The frozen final 20% remains aggregate-only.
 CUSUM remains journaled metadata for meta-labeling: this report cannot enable
 `require_shift`, `avoid_shift`, BOCPD, PELT gates, paper trading, or execution.
+The command also writes the requested ≥80-trade Parquet view to
+`research/live_research/cusum_interaction_attribution.parquet`, best/worst 15
+CSVs, and Imbalance Fade pivot tables for average net, PF, and trade count.
+Any cell-derived binary meta feature requires a new nested discovery/validation
+split; a cell discovered on this selection window is not fed back into a model
+evaluated on the same window.

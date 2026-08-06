@@ -24,6 +24,9 @@ DEFAULT_OUTPUT = Path(
     "research/live_research/delta_scalper_cusum_interactions_latest.json"
 )
 DEFAULT_ARTIFACT_DIR = Path("research/cusum_interactions")
+DEFAULT_INTERACTION_PARQUET = Path(
+    "research/live_research/cusum_interaction_attribution.parquet"
+)
 INTERACTION_FIELDS = (
     "change_point_window",
     "scanner_id",
@@ -93,6 +96,66 @@ def interaction_cells(rows: list[dict]) -> list[dict]:
     )
 
 
+def _window_from_bars(value: object) -> str:
+    if not isinstance(value, (int, float)):
+        return "no_shift"
+    bars = int(value)
+    if bars <= 6:
+        return "00-30m"
+    if bars <= 12:
+        return "30-60m"
+    if bars <= 48:
+        return "01-04h"
+    return "04h+"
+
+
+def _bucket_audit(rows: list[dict]) -> dict[str, Any]:
+    mismatches = []
+    counts: dict[str, int] = defaultdict(int)
+    for row in rows:
+        precise = _window_from_bars(row.get("change_point_bars_since_shift"))
+        journaled = str(row.get("change_point_window") or "no_shift")
+        counts[journaled] += 1
+        if precise != journaled:
+            mismatches.append(
+                {
+                    "decision_ts": row.get("decision_ts"),
+                    "bars_since_shift": row.get("change_point_bars_since_shift"),
+                    "journaled": journaled,
+                    "reconstructed": precise,
+                }
+            )
+    return {
+        "rows": len(rows),
+        "journaled_bucket_counts": dict(sorted(counts.items())),
+        "mismatches": len(mismatches),
+        "mismatch_examples": mismatches[:20],
+        "definition": {
+            "00-30m": "bars_since_shift <= 6",
+            "30-60m": "7 <= bars_since_shift <= 12",
+            "01-04h": "13 <= bars_since_shift <= 48",
+            "04h+": "bars_since_shift > 48",
+            "no_shift": "bars_since_shift unavailable",
+        },
+    }
+
+
+def _pivot_rows(cells: list[dict], metric: str) -> list[dict[str, Any]]:
+    if not cells:
+        return []
+    frame = pd.DataFrame(cells)
+    table = frame.pivot_table(
+        index=["change_point_window", "symbol"],
+        columns=["trend_regime", "volatility_regime"],
+        values=metric,
+        aggfunc="first",
+    )
+    table.columns = [f"{trend} | {volatility}" for trend, volatility in table.columns]
+    output = table.reset_index()
+    output = output.astype(object).where(pd.notna(output), None)
+    return output.to_dict(orient="records")
+
+
 def build_report(
     backtest: dict,
     *,
@@ -119,6 +182,17 @@ def build_report(
         <= int(row["trades"])
         < minimum_eligible_trades
     ]
+    sufficiently_populated = sorted(
+        [
+            {**row, "sample_tier": "eligible_100_plus"}
+            for row in eligible
+        ]
+        + [
+            {**row, "sample_tier": "diagnostic_80_to_99"}
+            for row in near_threshold
+        ],
+        key=lambda row: -float(row["average_net_bps"]),
+    )
     positive = [
         row
         for row in eligible
@@ -140,6 +214,11 @@ def build_report(
         for row in eligible
         if row["scanner_id"] == "delta_imbalance_fade_v1"
         and row["change_point_window"] == "00-30m"
+    ]
+    imbalance_fade = [
+        row
+        for row in sufficiently_populated
+        if row["scanner_id"] == "delta_imbalance_fade_v1"
     ]
     best = sorted(
         eligible,
@@ -175,13 +254,15 @@ def build_report(
             "eligible_cells": len(eligible),
             "near_threshold_cells": len(near_threshold),
         },
+        "cusum_bucket_audit": _bucket_audit(selection),
         "eligible_cells": eligible,
         "near_threshold_diagnostics": near_threshold,
+        "sufficiently_populated_cells": sufficiently_populated,
         "findings": {
             "positive_cells": positive,
             "near_zero_cells": near_zero,
-            "best_eligible_cells": best[:20],
-            "worst_eligible_cells": worst[:20],
+            "best_eligible_cells": best[:15],
+            "worst_eligible_cells": worst[:15],
             "materially_worse_cells": materially_worse,
             "imbalance_fade_recent_shift_cells": sorted(
                 imbalance_recent,
@@ -190,6 +271,12 @@ def build_report(
             "positive_cell_count": len(positive),
             "near_zero_cell_count": len(near_zero),
             "materially_worse_cell_count": len(materially_worse),
+        },
+        "imbalance_fade_pivot": {
+            "minimum_trades": minimum_diagnostic_trades,
+            "average_net_bps": _pivot_rows(imbalance_fade, "average_net_bps"),
+            "profit_factor": _pivot_rows(imbalance_fade, "profit_factor"),
+            "trades": _pivot_rows(imbalance_fade, "trades"),
         },
         "frozen_untouched_window": {
             "trades": len(frozen),
@@ -206,6 +293,8 @@ def build_report(
             "pelt_eligible_for_live_gate": False,
             "interaction_used_for_scanner_gate": False,
             "interaction_used_for_execution": False,
+            "selection_derived_cell_feature_added_to_meta_model": False,
+            "cell_feature_requires_nested_discovery_validation": True,
             "can_trade": False,
             "can_promote": False,
         },
@@ -214,7 +303,11 @@ def build_report(
     }
 
 
-def write_artifacts(report: dict[str, Any], artifact_dir: Path) -> None:
+def write_artifacts(
+    report: dict[str, Any],
+    artifact_dir: Path,
+    interaction_parquet: Path,
+) -> None:
     artifact_dir.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(report["eligible_cells"]).to_csv(
         artifact_dir / "eligible_cells.csv", index=False
@@ -222,6 +315,25 @@ def write_artifacts(report: dict[str, Any], artifact_dir: Path) -> None:
     pd.DataFrame(report["near_threshold_diagnostics"]).to_csv(
         artifact_dir / "near_threshold_cells.csv", index=False
     )
+    pd.DataFrame(report["findings"]["best_eligible_cells"]).to_csv(
+        artifact_dir / "best_15_cells.csv", index=False
+    )
+    pd.DataFrame(report["findings"]["worst_eligible_cells"]).to_csv(
+        artifact_dir / "worst_15_cells.csv", index=False
+    )
+    for metric, rows in report["imbalance_fade_pivot"].items():
+        if metric == "minimum_trades":
+            continue
+        pd.DataFrame(rows).to_csv(
+            artifact_dir / f"imbalance_fade_pivot_{metric}.csv",
+            index=False,
+        )
+    interaction_parquet.parent.mkdir(parents=True, exist_ok=True)
+    temporary = interaction_parquet.with_suffix(interaction_parquet.suffix + ".tmp")
+    pd.DataFrame(report["sufficiently_populated_cells"]).to_parquet(
+        temporary, index=False
+    )
+    temporary.replace(interaction_parquet)
     _atomic_json(artifact_dir / "interaction_report.json", report)
 
 
@@ -235,7 +347,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         materially_worse_delta_bps=args.materially_worse_delta_bps,
     )
     _atomic_json(args.output, report)
-    write_artifacts(report, args.artifact_dir)
+    write_artifacts(report, args.artifact_dir, args.interaction_parquet)
     return report
 
 
@@ -244,6 +356,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--backtest", type=Path, default=DEFAULT_BACKTEST)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
+    parser.add_argument(
+        "--interaction-parquet",
+        type=Path,
+        default=DEFAULT_INTERACTION_PARQUET,
+    )
     parser.add_argument("--minimum-eligible-trades", type=int, default=100)
     parser.add_argument("--minimum-diagnostic-trades", type=int, default=80)
     parser.add_argument("--near-zero-average-bps", type=float, default=-1.0)
