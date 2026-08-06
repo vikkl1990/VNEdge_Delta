@@ -330,3 +330,11 @@ after-cost expectancy, PF, win rate, average model probability, and one column
 per causal SHAP contribution. The LightGBM split-importance table is retained as
 a comparison, but no model, scaler, or deployment threshold is saved while the
 selection profitability gates fail.
+
+If a future configuration clears both selection and untouched success gates,
+the research trainer additionally writes a native `meta_model_lgbm.txt` Booster,
+the fitted `meta_preprocessor.joblib`, and an approval-bearing `meta_config.json`.
+Saved-model SHAP must load the native model with `lightgbm.Booster(model_file=...)`;
+`load_approved_booster_artifacts` enforces the approval flags and complete bundle
+before returning that Booster. It does not reconstruct an `LGBMClassifier` and
+does not enable live integration.

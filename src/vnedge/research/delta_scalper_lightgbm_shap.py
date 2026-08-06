@@ -9,6 +9,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
+import joblib
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -16,7 +17,7 @@ import pandas as pd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import shap
-from lightgbm import early_stopping
+from lightgbm import Booster, early_stopping
 
 from vnedge.research.delta_scalper_lightgbm_meta import (
     CATEGORICAL_FEATURES,
@@ -56,6 +57,30 @@ PRIMARY_SIGNAL_FEATURES = (
     "scalper_probability",
     "confidence",
 )
+
+
+def load_approved_booster_artifacts(
+    artifact_dir: Path,
+) -> tuple[Booster, Any, dict[str, Any]]:
+    """Load a frozen-success Booster without reconstructing a classifier wrapper."""
+    config_path = artifact_dir / "meta_config.json"
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("approved LightGBM SHAP config is unavailable") from exc
+    if not (
+        config.get("approved_for_shap") is True
+        and config.get("frozen_after_untouched_success") is True
+        and config.get("live_integration_enabled") is False
+    ):
+        raise ValueError("LightGBM artifacts are not approved for SHAP loading")
+    booster_path = artifact_dir / str(config.get("native_booster") or "")
+    preprocessor_path = artifact_dir / str(config.get("preprocessor") or "")
+    if not booster_path.is_file() or not preprocessor_path.is_file():
+        raise ValueError("approved LightGBM SHAP bundle is incomplete")
+    booster = Booster(model_file=str(booster_path))
+    preprocessor = joblib.load(preprocessor_path)
+    return booster, preprocessor, config
 
 
 def _atomic_json(path: Path, payload: dict[str, Any]) -> None:

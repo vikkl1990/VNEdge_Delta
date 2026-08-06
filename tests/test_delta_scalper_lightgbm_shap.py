@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
+
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
+from lightgbm import LGBMClassifier
 
 pytest.importorskip("shap")
 
@@ -10,6 +14,7 @@ from vnedge.research.delta_scalper_lightgbm_shap import (
     _flat_grouped_attribution,
     aggregate_base_shap,
     base_feature_name,
+    load_approved_booster_artifacts,
 )
 
 
@@ -72,3 +77,41 @@ def test_flat_grouped_shap_includes_realized_economics_and_sample_control():
     assert grouped.loc[0, "profit_factor"] == pytest.approx(2.0)
     assert grouped.loc[0, "average_prediction_probability"] == pytest.approx(0.6)
     assert grouped.loc[0, "shap_scanner_id"] == pytest.approx(0.3)
+
+
+def test_saved_booster_loader_requires_approved_complete_bundle(tmp_path):
+    (tmp_path / "meta_config.json").write_text(
+        json.dumps(
+            {
+                "approved_for_shap": False,
+                "frozen_after_untouched_success": True,
+                "live_integration_enabled": False,
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="not approved"):
+        load_approved_booster_artifacts(tmp_path)
+
+    model = LGBMClassifier(n_estimators=2, verbosity=-1, random_state=42)
+    x = np.asarray([[0.0], [1.0], [2.0], [3.0]])
+    model.fit(x, np.asarray([0, 0, 1, 1]))
+    model.booster_.save_model(str(tmp_path / "meta_model_lgbm.txt"))
+    joblib.dump({"fitted": True}, tmp_path / "meta_preprocessor.joblib")
+    (tmp_path / "meta_config.json").write_text(
+        json.dumps(
+            {
+                "native_booster": "meta_model_lgbm.txt",
+                "preprocessor": "meta_preprocessor.joblib",
+                "approved_for_shap": True,
+                "frozen_after_untouched_success": True,
+                "live_integration_enabled": False,
+            }
+        )
+    )
+
+    booster, preprocessor, config = load_approved_booster_artifacts(tmp_path)
+
+    assert booster.num_trees() >= 1
+    assert booster.predict(x).shape == (4,)
+    assert preprocessor == {"fitted": True}
+    assert config["approved_for_shap"] is True

@@ -445,11 +445,31 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         temporary = args.artifact_dir / "meta_model_lgbm.joblib.tmp"
         joblib.dump(frozen_model_bundle, temporary)
         temporary.replace(args.artifact_dir / "meta_model_lgbm.joblib")
+        booster_temporary = args.artifact_dir / "meta_model_lgbm.txt.tmp"
+        model.booster_.save_model(str(booster_temporary))
+        booster_temporary.replace(args.artifact_dir / "meta_model_lgbm.txt")
+        preprocessor_temporary = args.artifact_dir / "meta_preprocessor.joblib.tmp"
+        joblib.dump(preprocessor, preprocessor_temporary)
+        preprocessor_temporary.replace(args.artifact_dir / "meta_preprocessor.joblib")
         _atomic_json(
             args.artifact_dir / "meta_threshold.json",
             {
                 "threshold": float(selected["threshold"]),
                 "frozen_after_untouched_success": True,
+                "live_integration_enabled": False,
+            },
+        )
+        _atomic_json(
+            args.artifact_dir / "meta_config.json",
+            {
+                "features": list(FEATURES),
+                "numeric_features": list(NUMERIC_FEATURES),
+                "categorical_features": list(CATEGORICAL_FEATURES),
+                "threshold": float(selected["threshold"]),
+                "native_booster": "meta_model_lgbm.txt",
+                "preprocessor": "meta_preprocessor.joblib",
+                "frozen_after_untouched_success": True,
+                "approved_for_shap": True,
                 "live_integration_enabled": False,
             },
         )
