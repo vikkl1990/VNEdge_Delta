@@ -26,6 +26,10 @@ class Scanner(ABC):
     def required_features(self) -> tuple[str, ...]:
         """Feature names consumed by this scanner."""
 
+    def regime_enabled(self, ctx: MarketContext) -> bool:
+        """Whether this scanner is permitted in the already-closed context."""
+        return True
+
 
 @dataclass(frozen=True)
 class MomentumBurstConfig:
@@ -38,6 +42,13 @@ class MomentumBurstConfig:
     min_history: int = 31
     time_stop_seconds: int = 28 * 60
     prefer_maker: bool = True
+    enabled_regimes: tuple[Regime, ...] = (
+        Regime.QUIET,
+        Regime.TRENDING_UP,
+        Regime.TRENDING_DOWN,
+        Regime.EXPANDING,
+        Regime.FUNDING_EXTREME,
+    )
 
 
 class MomentumBurstScanner(Scanner):
@@ -56,10 +67,13 @@ class MomentumBurstScanner(Scanner):
     def required_features(self) -> tuple[str, ...]:
         return ("volume_z", "body_ratio", "breakout_up_bps", "breakout_down_bps", "atr_bps")
 
+    def regime_enabled(self, ctx: MarketContext) -> bool:
+        return ctx.regime in self.config.enabled_regimes
+
     def evaluate(self, ctx: MarketContext) -> SignalCandidate | None:
         if len(ctx.candles.get("1m", ())) < self.config.min_history:
             return None
-        if ctx.regime is Regime.UNKNOWN:
+        if not self.regime_enabled(ctx):
             return None
         f = ctx.features
         if f.get("volume_z", 0.0) < self.config.min_volume_z:
@@ -121,6 +135,10 @@ class MomentumBurstScanner(Scanner):
             entry_is_maker=self.config.prefer_maker,
             metadata={
                 "regime": ctx.regime.value,
+                "regime_filter": {
+                    "allowed": True,
+                    "enabled_regimes": [regime.value for regime in self.config.enabled_regimes],
+                },
                 "breakout_bps": breakout,
                 "volume_z": f["volume_z"],
                 "l2_confirmation": {
@@ -151,6 +169,7 @@ class ImbalanceFadeConfig:
     min_history: int = 31
     time_stop_seconds: int = 28 * 60
     prefer_maker: bool = True
+    enabled_regimes: tuple[Regime, ...] = (Regime.QUIET, Regime.EXPANDING)
 
 
 class OrderFlowImbalanceFadeScanner(Scanner):
@@ -171,15 +190,13 @@ class OrderFlowImbalanceFadeScanner(Scanner):
     def required_features(self) -> tuple[str, ...]:
         return ("upper_wick_ratio", "lower_wick_ratio", "return_5_bps", "rsi_14", "atr_bps")
 
+    def regime_enabled(self, ctx: MarketContext) -> bool:
+        return ctx.regime in self.config.enabled_regimes
+
     def evaluate(self, ctx: MarketContext) -> SignalCandidate | None:
         if len(ctx.candles.get("1m", ())) < self.config.min_history:
             return None
-        if ctx.regime in {
-            Regime.UNKNOWN,
-            Regime.TRENDING_UP,
-            Regime.TRENDING_DOWN,
-            Regime.FUNDING_EXTREME,
-        }:
+        if not self.regime_enabled(ctx):
             return None
         f = ctx.features
         stretch = f.get("return_5_bps", 0.0)
@@ -236,6 +253,10 @@ class OrderFlowImbalanceFadeScanner(Scanner):
             entry_is_maker=self.config.prefer_maker,
             metadata={
                 "regime": ctx.regime.value,
+                "regime_filter": {
+                    "allowed": True,
+                    "enabled_regimes": [regime.value for regime in self.config.enabled_regimes],
+                },
                 "stretch_bps": stretch,
                 "wick_ratio": wick,
                 "l2_confirmation": {

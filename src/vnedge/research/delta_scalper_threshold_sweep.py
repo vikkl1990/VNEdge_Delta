@@ -13,11 +13,13 @@ import argparse
 import asyncio
 import json
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from statistics import fmean
 from tempfile import NamedTemporaryFile
+from typing import Protocol
 
 import numpy as np
 
@@ -65,6 +67,14 @@ class GateVariant:
 
     def to_dict(self) -> dict[str, object]:
         return self.__dict__.copy()
+
+
+class CandidateVariant(Protocol):
+    config_id: str
+
+    def accepts(self, candidate: SignalCandidate) -> bool: ...
+
+    def to_dict(self) -> dict[str, object]: ...
 
 
 @dataclass(frozen=True)
@@ -202,7 +212,7 @@ def simulate_variant(
     rows: list[Candle],
     ledger: CandidateLedger,
     resolver: CausalScalperBacktester,
-    variant: GateVariant,
+    variant: CandidateVariant,
 ) -> VariantSimulation:
     ordered = sorted(rows, key=lambda item: item.ts)
     pending: SignalCandidate | None = None
@@ -378,7 +388,15 @@ def _diagnostic_rank(row: dict) -> tuple[float, float, float, int]:
     )
 
 
-async def run(args: argparse.Namespace) -> dict:
+async def run_experiment(
+    args: argparse.Namespace,
+    *,
+    variant_factory: Callable[
+        [DeltaScalperConfig], tuple[CandidateVariant, ...]
+    ],
+    report_id: str,
+    experiment_constraints: dict[str, object],
+) -> dict:
     config = load_delta_scalper_config(args.config)
     baseline_backtest = json.loads(args.backtest.read_text(encoding="utf-8"))
     window = baseline_backtest.get("window") or {}
@@ -386,7 +404,7 @@ async def run(args: argparse.Namespace) -> dict:
     end = datetime.fromisoformat(args.end or str(window.get("end")))
     boundary = _frozen_boundary(baseline_backtest)
     symbols = tuple(args.symbols.split(",")) if args.symbols else config.engine.symbols
-    variants = preregistered_variants(config)
+    variants = variant_factory(config)
     rows_by_symbol: dict[str, list[Candle]] = {}
     ledgers: dict[str, CandidateLedger] = {}
     resolvers: dict[str, CausalScalperBacktester] = {}
@@ -493,7 +511,7 @@ async def run(args: argparse.Namespace) -> dict:
             },
         }
     payload = {
-        "report_id": "delta_scalper_threshold_sweep_v1",
+        "report_id": report_id,
         "generated_at": datetime.now(UTC).isoformat(),
         "preregistered_before_results": True,
         "candidate_ledger_shared_across_variants": True,
@@ -513,12 +531,12 @@ async def run(args: argparse.Namespace) -> dict:
         "selected_config": selected,
         "robust_validation": robustness.to_dict(),
         "research_constraints": {
-            "single_parameter_family_per_variant": True,
             "realistic_fees": True,
             "next_open_entries": True,
             "stop_first_ambiguity": True,
             "l2_hard_gate_tested": False,
             "l2_reason": "historical candle data cannot reconstruct causal L2 confirmation",
+            **experiment_constraints,
             "can_trade": False,
             "can_promote": False,
         },
@@ -527,6 +545,15 @@ async def run(args: argparse.Namespace) -> dict:
     }
     _atomic_json(args.output, payload)
     return payload
+
+
+async def run(args: argparse.Namespace) -> dict:
+    return await run_experiment(
+        args,
+        variant_factory=preregistered_variants,
+        report_id="delta_scalper_threshold_sweep_v1",
+        experiment_constraints={"single_parameter_family_per_variant": True},
+    )
 
 
 def _atomic_json(path: Path, payload: dict) -> None:

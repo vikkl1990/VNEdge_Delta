@@ -134,6 +134,19 @@ the fixed selection period. The frozen tail is evaluated once only if a variant
 first clears the preregistered selection gates; otherwise it remains unopened.
 Historical L2 is not fabricated and no L2 hard-gate result is claimed.
 
+## Run the preregistered hard-regime experiment
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_regime_sweep \
+  --scalper-opted-in
+```
+
+This experiment preserves the predictor, fee gates, candidate definitions,
+entry path, and exits. It changes only scanner-specific allow-lists over the
+existing causal regime labels. Filter decisions are journaled, accepted
+candidates remain self-describing, and the frozen tail stays unopened unless a
+selection-only variant first clears every preregistered gate.
+
 ## Promotion gates
 
 Paper trading remains locked until untouched results show all of:

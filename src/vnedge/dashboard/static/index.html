@@ -1496,7 +1496,7 @@
   }
   function renderDeltaAttribution(d){
     var el=$("deltaAttribution"),meta=$("deltaAttributionMeta"); if(!el)return;
-    var panels=(d||{}).panels||{},a=panels.attribution||{},s=(a.selection_window||{}).summary||{},sweep=panels.threshold_sweep||{};
+    var panels=(d||{}).panels||{},a=panels.attribution||{},s=(a.selection_window||{}).summary||{},sweep=panels.threshold_sweep||{},regimeSweep=panels.regime_sweep||{};
     var frozen=a.frozen_untouched_window||{},live=a.live_shadow||{},clusters=(a.selection_window||{}).largest_loss_clusters||[];
     if(!a.report_id){
       if(meta)meta.textContent="not generated";
@@ -1517,8 +1517,10 @@
     var liveText=live.status==='ready'?num((live.summary||{}).trades)+' completed live outcomes':'no completed live outcomes yet';
     var best=sweep.best_diagnostic_config||{},bestCfg=best.config||{},bestSummary=best.selection||{};
     var sweepText=sweep.report_id?('Sweep: '+safe(bestCfg.config_id||'none')+' · PF '+(bestSummary.profit_factor==null?'--':num(bestSummary.profit_factor).toFixed(2))+' · '+num(bestSummary.average_net_bps).toFixed(2)+' bps avg · frozen '+safe(String((sweep.frozen_window||{}).status||'not run').replace(/_/g,' '))):'Threshold sweep pending.';
+    var regimeBest=regimeSweep.best_diagnostic_config||{},regimeCfg=regimeBest.config||{},regimeSummary=regimeBest.selection||{};
+    var regimeText=regimeSweep.report_id?('Regime: '+safe(regimeCfg.config_id||'none')+' · PF '+(regimeSummary.profit_factor==null?'--':num(regimeSummary.profit_factor).toFixed(2))+' · '+num(regimeSummary.average_net_bps).toFixed(2)+' bps avg · frozen '+safe(String((regimeSweep.frozen_window||{}).status||'not run').replace(/_/g,' '))):'Regime experiment pending.';
     el.innerHTML=cards+'<div style="padding:0 15px 8px">'+losses+'</div>'+
-      '<div class="fblocker"><b>Read:</b> this is diagnosis, not optimization. Momentum/market/hour rows are selection-window evidence only. Frozen final '+(num(frozen.fraction)*100).toFixed(0)+'% is <span class="actstate ok">'+protectedTail+'</span> and remains aggregate-only · '+safe(liveText)+' · execution locked.<div style="margin-top:7px"><b>'+sweepText+'</b></div></div>';
+      '<div class="fblocker"><b>Read:</b> this is diagnosis, not optimization. Momentum/market/hour rows are selection-window evidence only. Frozen final '+(num(frozen.fraction)*100).toFixed(0)+'% is <span class="actstate ok">'+protectedTail+'</span> and remains aggregate-only · '+safe(liveText)+' · execution locked.<div style="margin-top:7px"><b>'+sweepText+'</b></div><div style="margin-top:4px"><b>'+regimeText+'</b></div></div>';
   }
   function eventRouteCls(route,state){
     route=String(route||""); state=String(state||"");

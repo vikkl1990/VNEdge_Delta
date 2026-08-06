@@ -7,6 +7,8 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from vnedge.scalping.delta_engine.types import Regime
+
 
 class _StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -69,6 +71,21 @@ class MomentumSettings(_StrictModel):
     min_body_ratio: float = Field(default=0.55, ge=0, le=1)
     min_breakout_bps: float = Field(default=0.4, ge=0)
     time_stop_seconds: int = Field(default=1_680, gt=0, le=1_800)
+    enabled_regimes: tuple[Regime, ...] = (
+        Regime.QUIET,
+        Regime.TRENDING_UP,
+        Regime.TRENDING_DOWN,
+        Regime.EXPANDING,
+        Regime.FUNDING_EXTREME,
+    )
+
+    @model_validator(mode="after")
+    def validate_enabled_regimes(self) -> MomentumSettings:
+        if not self.enabled_regimes or Regime.UNKNOWN in self.enabled_regimes:
+            raise ValueError("momentum enabled_regimes must be non-empty and exclude unknown")
+        if len(set(self.enabled_regimes)) != len(self.enabled_regimes):
+            raise ValueError("momentum enabled_regimes must be unique")
+        return self
 
 
 class ImbalanceFadeSettings(_StrictModel):
@@ -77,6 +94,15 @@ class ImbalanceFadeSettings(_StrictModel):
     min_wick_ratio: float = Field(default=0.48, ge=0, le=1)
     min_stretch_bps: float = Field(default=7.0, ge=0)
     time_stop_seconds: int = Field(default=1_680, gt=0, le=1_800)
+    enabled_regimes: tuple[Regime, ...] = (Regime.QUIET, Regime.EXPANDING)
+
+    @model_validator(mode="after")
+    def validate_enabled_regimes(self) -> ImbalanceFadeSettings:
+        if not self.enabled_regimes or Regime.UNKNOWN in self.enabled_regimes:
+            raise ValueError("fade enabled_regimes must be non-empty and exclude unknown")
+        if len(set(self.enabled_regimes)) != len(self.enabled_regimes):
+            raise ValueError("fade enabled_regimes must be unique")
+        return self
 
 
 class ScannerSettings(_StrictModel):

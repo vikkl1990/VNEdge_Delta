@@ -146,6 +146,19 @@ class DeltaScalperSignalGenerator:
         reasons: list[str] = []
         for scanner in self.scanners:
             scanner_started = perf_counter_ns()
+            if not scanner.regime_enabled(ctx):
+                reasons.append(
+                    f"{scanner.scanner_id}:regime_not_enabled:{ctx.regime.value}"
+                )
+                trace.append(
+                    PipelineStage(
+                        f"scanner:{scanner.scanner_id}",
+                        "regime_filtered",
+                        self._elapsed_us(scanner_started),
+                        ctx.regime.value,
+                    )
+                )
+                continue
             try:
                 candidate = scanner.evaluate(ctx)
             # Deliberate plugin boundary: one scanner cannot stop its peers.

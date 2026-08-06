@@ -76,6 +76,7 @@ def build_delta_scalper_assembly(
                         min_breakout_bps=config.scanners.momentum_burst.min_breakout_bps,
                         time_stop_seconds=config.scanners.momentum_burst.time_stop_seconds,
                         prefer_maker=config.scanners.momentum_burst.prefer_maker,
+                        enabled_regimes=config.scanners.momentum_burst.enabled_regimes,
                     ),
                 ),
             )
@@ -91,6 +92,7 @@ def build_delta_scalper_assembly(
                         min_stretch_bps=config.scanners.imbalance_fade.min_stretch_bps,
                         time_stop_seconds=config.scanners.imbalance_fade.time_stop_seconds,
                         prefer_maker=config.scanners.imbalance_fade.prefer_maker,
+                        enabled_regimes=config.scanners.imbalance_fade.enabled_regimes,
                     ),
                 ),
             )

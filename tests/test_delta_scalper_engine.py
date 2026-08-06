@@ -24,7 +24,11 @@ from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
 from vnedge.scalping.delta_engine.flow_store import ChannelSequenceTracker, L2TradeFlowStore
 from vnedge.scalping.delta_engine.forward_tracker import ForwardOutcomeTracker
 from vnedge.scalping.delta_engine.regime import build_features
-from vnedge.scalping.delta_engine.scanners import MomentumBurstScanner, Scanner
+from vnedge.scalping.delta_engine.scanners import (
+    MomentumBurstConfig,
+    MomentumBurstScanner,
+    Scanner,
+)
 from vnedge.scalping.delta_engine.signal_generator import (
     DeltaScalperSignalGenerator,
     EngineDecision,
@@ -79,6 +83,17 @@ def test_delta_fee_model_all_offer_and_deto_routes(deto, maker, hold, expected_f
 def test_checked_in_config_is_valid_and_cannot_unlock_live():
     config = load_delta_scalper_config()
     assert config.engine.symbols == ("BTCUSD", "ETHUSD")
+    assert config.scanners.momentum_burst.enabled_regimes == (
+        Regime.QUIET,
+        Regime.TRENDING_UP,
+        Regime.TRENDING_DOWN,
+        Regime.EXPANDING,
+        Regime.FUNDING_EXTREME,
+    )
+    assert config.scanners.imbalance_fade.enabled_regimes == (
+        Regime.QUIET,
+        Regime.EXPANDING,
+    )
     assert not config.engine.live_orders_enabled
     with pytest.raises(ValueError, match="research-only"):
         DeltaScalperConfig.model_validate(
@@ -335,6 +350,15 @@ def test_l2_never_changes_momentum_trigger_or_side():
     assert agrees.fee_adjusted_expectancy_bps == opposes.fee_adjusted_expectancy_bps
     assert agrees.metadata["l2_confirmation"]["used_for_signal"] is False
     assert opposes.metadata["l2_confirmation"]["used_for_execution"] is False
+    assert agrees.metadata["regime_filter"]["allowed"] is True
+
+
+def test_scanner_hard_regime_allowlist_blocks_before_candidate_creation():
+    scanner = MomentumBurstScanner(
+        DeltaFeeModel(scalper_opted_in=True),
+        config=MomentumBurstConfig(enabled_regimes=(Regime.QUIET,)),
+    )
+    assert scanner.evaluate(_momentum_context(0.9)) is None
 
 
 def _candidate() -> SignalCandidate:
@@ -375,6 +399,16 @@ class _BrokenScanner(Scanner):
 
     def required_features(self):
         return ()
+
+
+class _RegimeBlockedScanner(_StaticScanner):
+    scanner_id = "regime_blocked_scanner"
+
+    def regime_enabled(self, ctx):
+        return False
+
+    def evaluate(self, ctx):
+        raise AssertionError("regime-blocked scanner must not be evaluated")
 
 
 class _BrokenBuilder:
@@ -430,6 +464,25 @@ def test_generator_isolates_scanner_failure_and_keeps_other_scanners_running():
     assert "broken_scanner:scanner_error:RuntimeError" in decision.rejection_reasons
     broken = next(stage for stage in decision.pipeline_trace if "broken_scanner" in stage.name)
     assert broken.status == "error"
+
+
+def test_generator_journals_hard_regime_filter_decision():
+    generator = DeltaScalperSignalGenerator(
+        _StaticBuilder(),
+        (_RegimeBlockedScanner(),),
+        gates=SignalGateConfig(min_expectancy_bps=8, min_probability=0.7),
+    )
+    decision = generator.on_candle_closed("BTCUSD", "1m", now=NOW)
+    assert decision.selected is None
+    assert decision.rejection_reasons == (
+        "regime_blocked_scanner:regime_not_enabled:quiet",
+    )
+    stage = next(
+        item
+        for item in decision.pipeline_trace
+        if item.name == "scanner:regime_blocked_scanner"
+    )
+    assert stage.status == "regime_filtered"
 
 
 def test_generator_turns_context_failure_into_a_journalable_rejection():

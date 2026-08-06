@@ -33,12 +33,14 @@ scanners:
     min_body_ratio: 0.55
     min_breakout_bps: 0.4
     time_stop_seconds: 1680
+    enabled_regimes: [quiet, trending_up, trending_down, expanding, funding_extreme]
   imbalance_fade:
     enabled: true
     prefer_maker: true
     min_wick_ratio: 0.48
     min_stretch_bps: 7.0
     time_stop_seconds: 1680
+    enabled_regimes: [quiet, expanding]
 
 promotion:
   paper_only_after_all_gates: true
