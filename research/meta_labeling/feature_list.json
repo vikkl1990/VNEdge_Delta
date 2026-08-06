@@ -1,0 +1,34 @@
+{
+  "categorical": [
+    "scanner_id",
+    "symbol",
+    "side",
+    "regime",
+    "trend_regime",
+    "trend_direction",
+    "volatility_regime",
+    "session_regime",
+    "change_point_window",
+    "hour_utc"
+  ],
+  "categorical_encoder": "OneHotEncoder fitted on training only",
+  "historical_funding_included": false,
+  "historical_l2_included": false,
+  "label": "realized_net_bps_above_4",
+  "numeric": [
+    "expected_move_bps",
+    "expected_net_bps",
+    "scalper_probability",
+    "confidence",
+    "expected_fee_multiple",
+    "atr_percentile",
+    "bb_width_percentile",
+    "planned_stop_bps",
+    "planned_target_bps",
+    "bars_since_regime_change",
+    "change_point_return_score",
+    "change_point_volatility_score",
+    "cusum_alarm_recent"
+  ],
+  "numeric_scaler": "RobustScaler fitted on training only"
+}

@@ -210,9 +210,15 @@ The secondary model is a deterministic, regularized logistic classifier trained
 only on earlier resolved primary-scanner outcomes. Its inputs are fields known
 at the decision close: scanner, market, side, regime profile, session, CUSUM
 state, predicted move/net, primary probability/confidence, planned stop/target,
-and cyclical UTC time. Historical L2 and funding are explicitly excluded rather
-than reconstructed. Six preregistered probability thresholds own independent
-next-open simulations from the shared candidate ledger. The frozen tail remains
-unopened unless a threshold first clears minimum sample, frequency, validation
-PF, average-net, and positive-market gates. No trained model is promoted by this
-command.
+ATR/BB percentiles, expected fee multiple, and UTC hour. Numeric fields use a
+training-only `RobustScaler`; categoricals use a training-only one-hot encoder.
+The label is realized net above +4 bps. The first 70% of total time trains, the
+next 10% validates, and the final 20% remains frozen, with a 30-minute embargo
+on each side of split boundaries. Historical L2 and funding are explicitly
+excluded rather than reconstructed. Twenty-three preregistered probability
+thresholds from 0.50 through 0.94 own independent next-open simulations from the
+shared candidate ledger. The frozen tail remains unopened unless a threshold
+first clears minimum sample, frequency, validation PF, average-net,
+positive-market, and data-quality gates. Support evidence is written under
+`research/meta_labeling`; a model pipeline and threshold are written only after
+untouched success, and are never automatically loaded into the live scanner.

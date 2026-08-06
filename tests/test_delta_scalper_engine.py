@@ -671,6 +671,10 @@ def test_forward_tracker_enters_next_bar_and_journals_once():
     assert outcomes[0].net_bps == pytest.approx(20.0 - 2.36)
     assert outcomes[0].scalper_compliant
     assert outcomes[0].l2_quality == "unavailable"
+    assert outcomes[0].modeled_cost_bps == pytest.approx(candidate.modeled_cost_bps)
+    assert outcomes[0].expected_fee_multiple == pytest.approx(
+        candidate.fee_adjusted_expectancy_bps / candidate.modeled_cost_bps
+    )
 
 
 def test_backtest_rebases_exit_distances_on_next_open_fill():
@@ -699,6 +703,8 @@ def test_backtest_rebases_exit_distances_on_next_open_fill():
     assert len(report.trades) == 1
     assert report.trades[0].exit_reason == "target_1"
     assert report.trades[0].gross_bps == pytest.approx(20.0)
+    assert report.trades[0].modeled_cost_bps > 0
+    assert report.trades[0].expected_fee_multiple > 0
 
 
 def test_risk_adapter_uses_existing_gateway_and_never_submits(tmp_path):

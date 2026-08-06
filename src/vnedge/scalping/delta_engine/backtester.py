@@ -46,8 +46,14 @@ class BacktestTrade:
     change_point_bars_since_shift: int | None
     change_point_return_score: float
     change_point_volatility_score: float
+    atr_percentile_at_entry: float
+    atr_bps_at_entry: float
+    bb_width_percentile_at_entry: float
+    cusum_alarm_recent_at_entry: bool
     expected_move_bps: float
     expected_net_bps: float
+    modeled_cost_bps: float
+    expected_fee_multiple: float
     scalper_probability: float
     confidence: float
     deto_enabled: bool
@@ -249,6 +255,8 @@ class CausalScalperBacktester:
         profile = raw_profile if isinstance(raw_profile, dict) else {}
         raw_change_point = profile.get("change_point")
         change_point = raw_change_point if isinstance(raw_change_point, dict) else {}
+        raw_metrics = profile.get("metrics")
+        metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
         raw_bars_since_shift = change_point.get("bars_since_shift")
         return BacktestTrade(
             scanner_id=candidate.scanner_id,
@@ -292,8 +300,22 @@ class CausalScalperBacktester:
             change_point_volatility_score=float(
                 change_point.get("volatility_score") or 0.0
             ),
+            atr_percentile_at_entry=float(metrics.get("atr_percentile") or 0.0),
+            atr_bps_at_entry=float(metrics.get("atr_bps") or 0.0),
+            bb_width_percentile_at_entry=float(
+                metrics.get("bb_width_percentile") or 0.0
+            ),
+            cusum_alarm_recent_at_entry=(
+                str(change_point.get("shift_window")) == "00-30m"
+            ),
             expected_move_bps=candidate.expected_move_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,
+            modeled_cost_bps=candidate.modeled_cost_bps,
+            expected_fee_multiple=(
+                candidate.fee_adjusted_expectancy_bps / candidate.modeled_cost_bps
+                if candidate.modeled_cost_bps > 0
+                else 0.0
+            ),
             scalper_probability=candidate.scalper_probability,
             confidence=candidate.confidence,
             deto_enabled=costs.deto_enabled,

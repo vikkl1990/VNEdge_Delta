@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pandas as pd
 
 from vnedge.research.delta_scalper_meta_label import (
+    PREREGISTERED_THRESHOLDS,
     MetaLabelVariant,
     candidate_features,
     fit_model,
@@ -42,8 +43,13 @@ def _candidate() -> SignalCandidate:
                 "session": "europe",
                 "change_point": {
                     "shift_window": "00-30m",
+                    "bars_since_shift": 2,
                     "return_score": 4.0,
                     "volatility_score": 6.0,
+                },
+                "metrics": {
+                    "atr_percentile": 0.8,
+                    "bb_width_percentile": 0.7,
                 },
             },
         },
@@ -70,12 +76,17 @@ def _trade(index: int, *, winner: bool) -> dict:
         "expected_net_bps": 15.0 if winner else 8.0,
         "scalper_probability": 0.85 if winner else 0.72,
         "confidence": 0.82 if winner else 0.64,
+        "expected_fee_multiple": features["expected_fee_multiple"],
+        "atr_percentile_at_entry": features["atr_percentile"],
+        "bb_width_percentile_at_entry": features["bb_width_percentile"],
         "planned_stop_bps": features["planned_stop_bps"],
         "planned_target_bps": features["planned_target_bps"],
         "change_point_return_score": features["change_point_return_score"],
         "change_point_volatility_score": features[
             "change_point_volatility_score"
         ],
+        "change_point_bars_since_shift": features["bars_since_regime_change"],
+        "cusum_alarm_recent_at_entry": bool(features["cusum_alarm_recent"]),
         "net_bps": 8.0 if winner else -10.0,
     }
 
@@ -97,6 +108,11 @@ def test_candidate_and_trade_feature_contracts_match():
         "change_point_window",
         "planned_stop_bps",
         "planned_target_bps",
+        "expected_fee_multiple",
+        "atr_percentile",
+        "bb_width_percentile",
+        "bars_since_regime_change",
+        "cusum_alarm_recent",
     ):
         assert trade_row[key] == candidate_row[key]
 
@@ -124,3 +140,9 @@ def test_meta_label_model_and_threshold_are_deterministic():
 
     assert accepted.accepts(_candidate()) is True
     assert rejected.accepts(_candidate()) is False
+
+
+def test_meta_label_threshold_grid_matches_preregistered_design():
+    assert PREREGISTERED_THRESHOLDS[0] == 0.50
+    assert PREREGISTERED_THRESHOLDS[-1] == 0.94
+    assert len(PREREGISTERED_THRESHOLDS) == 23

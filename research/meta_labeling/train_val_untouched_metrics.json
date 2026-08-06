@@ -1,0 +1,1420 @@
+{
+  "baseline_validation": {
+    "average_net_bps": -6.372036672394794,
+    "data_quality_pass": false,
+    "false_signal_rate": 0.6477404403244496,
+    "gap_unresolved_trades_dropped": 0,
+    "market_breakdown": {
+      "BTCUSD": {
+        "average_net_bps": -6.85157211413626,
+        "false_signal_rate": 0.6592119275825347,
+        "net_bps": -6433.626215173948,
+        "profit_factor": 0.37052039215923965,
+        "trades": 939,
+        "trades_per_day": 17.78830215486621
+      },
+      "ETHUSD": {
+        "average_net_bps": -6.0991374119128325,
+        "false_signal_rate": 0.6412121212121212,
+        "net_bps": -10063.576729656173,
+        "profit_factor": 0.4483893018250379,
+        "trades": 1650,
+        "trades_per_day": 31.257399952640302
+      }
+    },
+    "max_drawdown_bps": 16497.202944830085,
+    "missing_one_minute_bars": 138,
+    "net_bps": -16497.202944830122,
+    "positive_markets": 0,
+    "profit_factor": 0.4204294919198524,
+    "trades": 2589,
+    "trades_per_day": 49.045702107506514,
+    "window_end_trades_censored": 0
+  },
+  "best_diagnostic_threshold": {
+    "config": {
+      "config_id": "meta_probability_0.56",
+      "model": "regularized_logistic_regression",
+      "threshold": 0.56
+    },
+    "selection_gate_pass": false,
+    "selection_gate_reasons": [
+      "validation_data_quality_failed",
+      "validation_profit_factor_below_1_10",
+      "validation_average_net_below_1_bps",
+      "no_positive_validation_market"
+    ],
+    "validation": {
+      "average_net_bps": -4.621253863128208,
+      "data_quality_pass": false,
+      "false_signal_rate": 0.5379061371841155,
+      "frequency_reduction_vs_baseline": 0.7860177674777906,
+      "gap_unresolved_trades_dropped": 0,
+      "market_breakdown": {
+        "BTCUSD": {
+          "average_net_bps": -4.385303591225819,
+          "false_signal_rate": 0.5291005291005291,
+          "net_bps": -828.8223787416797,
+          "profit_factor": 0.5471846180617481,
+          "trades": 189,
+          "trades_per_day": 3.580393085484253
+        },
+        "ETHUSD": {
+          "average_net_bps": -4.7434308532365685,
+          "false_signal_rate": 0.5424657534246575,
+          "net_bps": -1731.3522614313476,
+          "profit_factor": 0.5321812016122384,
+          "trades": 365,
+          "trades_per_day": 6.914515747099219
+        }
+      },
+      "max_drawdown_bps": 2560.1746401730293,
+      "missing_one_minute_bars": 138,
+      "net_bps": -2560.1746401730275,
+      "positive_markets": 0,
+      "profit_factor": 0.5371460370354973,
+      "trades": 554,
+      "trades_per_day": 10.494908832583471,
+      "window_end_trades_censored": 0
+    }
+  },
+  "can_promote": false,
+  "can_trade": false,
+  "embargo_minutes_each_boundary_side": 30,
+  "evaluated_thresholds": [
+    {
+      "config": {
+        "config_id": "meta_probability_0.56",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.56
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -4.621253863128208,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5379061371841155,
+        "frequency_reduction_vs_baseline": 0.7860177674777906,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -4.385303591225819,
+            "false_signal_rate": 0.5291005291005291,
+            "net_bps": -828.8223787416797,
+            "profit_factor": 0.5471846180617481,
+            "trades": 189,
+            "trades_per_day": 3.580393085484253
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.7434308532365685,
+            "false_signal_rate": 0.5424657534246575,
+            "net_bps": -1731.3522614313476,
+            "profit_factor": 0.5321812016122384,
+            "trades": 365,
+            "trades_per_day": 6.914515747099219
+          }
+        },
+        "max_drawdown_bps": 2560.1746401730293,
+        "missing_one_minute_bars": 138,
+        "net_bps": -2560.1746401730275,
+        "positive_markets": 0,
+        "profit_factor": 0.5371460370354973,
+        "trades": 554,
+        "trades_per_day": 10.494908832583471,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.60",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.6
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -4.742051228024311,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5415384615384615,
+        "frequency_reduction_vs_baseline": 0.8744689069138664,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -4.35451757277193,
+            "false_signal_rate": 0.5212765957446809,
+            "net_bps": -409.32465184056144,
+            "profit_factor": 0.5514031643392141,
+            "trades": 94,
+            "trades_per_day": 1.7807246033625383
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.899748905919218,
+            "false_signal_rate": 0.5497835497835498,
+            "net_bps": -1131.8419972673394,
+            "profit_factor": 0.5181302349312119,
+            "trades": 231,
+            "trades_per_day": 4.376035993369642
+          }
+        },
+        "max_drawdown_bps": 1541.1666491079013,
+        "missing_one_minute_bars": 138,
+        "net_bps": -1541.1666491079009,
+        "positive_markets": 0,
+        "profit_factor": 0.5274393981007869,
+        "trades": 325,
+        "trades_per_day": 6.15676059673218,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.58",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.58
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -4.7948267462098295,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5414847161572053,
+        "frequency_reduction_vs_baseline": 0.8230977211278486,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -4.535569639838996,
+            "false_signal_rate": 0.5294117647058824,
+            "net_bps": -693.9421548953663,
+            "profit_factor": 0.532687099706244,
+            "trades": 153,
+            "trades_per_day": 2.898413450153919
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.924880311045035,
+            "false_signal_rate": 0.5475409836065573,
+            "net_bps": -1502.0884948687356,
+            "profit_factor": 0.5168266432478411,
+            "trades": 305,
+            "trades_per_day": 5.777883021548662
+          }
+        },
+        "max_drawdown_bps": 2196.0306497641013,
+        "missing_one_minute_bars": 138,
+        "net_bps": -2196.030649764102,
+        "positive_markets": 0,
+        "profit_factor": 0.5219536371794183,
+        "trades": 458,
+        "trades_per_day": 8.676296471702582,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.54",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.54
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -4.837562790511845,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5510204081632653,
+        "frequency_reduction_vs_baseline": 0.735032831208961,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -4.980961976774877,
+            "false_signal_rate": 0.5491071428571429,
+            "net_bps": -1115.7354827975723,
+            "profit_factor": 0.5045186620931155,
+            "trades": 224,
+            "trades_per_day": 4.243428842055411
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.768035912323708,
+            "false_signal_rate": 0.551948051948052,
+            "net_bps": -2202.832591493553,
+            "profit_factor": 0.5253203156781436,
+            "trades": 462,
+            "trades_per_day": 8.752071986739285
+          }
+        },
+        "max_drawdown_bps": 3332.3629589237357,
+        "missing_one_minute_bars": 138,
+        "net_bps": -3318.5680742911254,
+        "positive_markets": 0,
+        "profit_factor": 0.5185242829656412,
+        "trades": 686,
+        "trades_per_day": 12.995500828794697,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.52",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.52
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -4.808643751366164,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5601799775028121,
+        "frequency_reduction_vs_baseline": 0.656624179219776,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -5.324965789509514,
+            "false_signal_rate": 0.5743243243243243,
+            "net_bps": -1576.1898736948162,
+            "profit_factor": 0.46949660114953523,
+            "trades": 296,
+            "trades_per_day": 5.6073881127160785
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.550918079712822,
+            "false_signal_rate": 0.5531197301854974,
+            "net_bps": -2698.6944212697035,
+            "profit_factor": 0.5377134100963784,
+            "trades": 593,
+            "trades_per_day": 11.233720104191333
+          }
+        },
+        "max_drawdown_bps": 4274.8842949645195,
+        "missing_one_minute_bars": 138,
+        "net_bps": -4274.8842949645195,
+        "positive_markets": 0,
+        "profit_factor": 0.5147046326465858,
+        "trades": 889,
+        "trades_per_day": 16.84110821690741,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.50",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.5
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -5.197380136486418,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.583904109589041,
+        "frequency_reduction_vs_baseline": 0.5488605639242952,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -6.061750437521722,
+            "false_signal_rate": 0.6111111111111112,
+            "net_bps": -2400.453173258602,
+            "profit_factor": 0.411513324423251,
+            "trades": 396,
+            "trades_per_day": 7.501775988633672
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.75399847947867,
+            "false_signal_rate": 0.5699481865284974,
+            "net_bps": -3670.086826157534,
+            "profit_factor": 0.5199034871832653,
+            "trades": 772,
+            "trades_per_day": 14.624674402083826
+          }
+        },
+        "max_drawdown_bps": 6070.539999416142,
+        "missing_one_minute_bars": 138,
+        "net_bps": -6070.539999416136,
+        "positive_markets": 0,
+        "profit_factor": 0.48219066594849697,
+        "trades": 1168,
+        "trades_per_day": 22.126450390717498,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.62",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.62
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -4.241391674182449,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5279187817258884,
+        "frequency_reduction_vs_baseline": 0.9239088451139437,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -4.861100685623417,
+            "false_signal_rate": 0.5416666666666666,
+            "net_bps": -233.33283290992404,
+            "profit_factor": 0.5292364492253605,
+            "trades": 48,
+            "trades_per_day": 0.9093061804404452
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.041753871839049,
+            "false_signal_rate": 0.5234899328859061,
+            "net_bps": -602.2213269040183,
+            "profit_factor": 0.5838234237076683,
+            "trades": 149,
+            "trades_per_day": 2.822637935117215
+          }
+        },
+        "max_drawdown_bps": 849.4551241719936,
+        "missing_one_minute_bars": 138,
+        "net_bps": -835.5541598139423,
+        "positive_markets": 0,
+        "profit_factor": 0.5698963269239423,
+        "trades": 197,
+        "trades_per_day": 3.7319441155576603,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.66",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.66
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -5.12156325180963,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5263157894736842,
+        "frequency_reduction_vs_baseline": 0.9926612591734261,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -9.996573862526473,
+            "false_signal_rate": 0.6666666666666666,
+            "net_bps": -29.989721587579417,
+            "profit_factor": 0.2902152923990804,
+            "trades": 3,
+            "trades_per_day": 0.056831636277527825
+          },
+          "ETHUSD": {
+            "average_net_bps": -4.207498762300222,
+            "false_signal_rate": 0.5,
+            "net_bps": -67.31998019680356,
+            "profit_factor": 0.5712113324347926,
+            "trades": 16,
+            "trades_per_day": 0.30310206014681507
+          }
+        },
+        "max_drawdown_bps": 97.30970178438301,
+        "missing_one_minute_bars": 138,
+        "net_bps": -97.30970178438298,
+        "positive_markets": 0,
+        "profit_factor": 0.5116255277524061,
+        "trades": 19,
+        "trades_per_day": 0.3599336964243429,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.64",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.64
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -6.328135253355249,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.5955056179775281,
+        "frequency_reduction_vs_baseline": 0.9656237929702588,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": -7.7279044906190055,
+            "false_signal_rate": 0.6363636363636364,
+            "net_bps": -170.01389879361813,
+            "profit_factor": 0.3600394901673169,
+            "trades": 22,
+            "trades_per_day": 0.4167653327018707
+          },
+          "ETHUSD": {
+            "average_net_bps": -5.868509533656702,
+            "false_signal_rate": 0.582089552238806,
+            "net_bps": -393.19013875499905,
+            "profit_factor": 0.4609113694175945,
+            "trades": 67,
+            "trades_per_day": 1.2692398768647881
+          }
+        },
+        "max_drawdown_bps": 572.9399565584836,
+        "missing_one_minute_bars": 138,
+        "net_bps": -563.2040375486172,
+        "positive_markets": 0,
+        "profit_factor": 0.43397941770268245,
+        "trades": 89,
+        "trades_per_day": 1.686005209566659,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.68",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.68
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -10.879576894496005,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.75,
+        "frequency_reduction_vs_baseline": 0.9984550019312476,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": -10.879576894496005,
+            "false_signal_rate": 0.75,
+            "net_bps": -43.51830757798402,
+            "profit_factor": 0.24842192274404426,
+            "trades": 4,
+            "trades_per_day": 0.07577551503670377
+          }
+        },
+        "max_drawdown_bps": 43.51830757798401,
+        "missing_one_minute_bars": 138,
+        "net_bps": -43.51830757798402,
+        "positive_markets": 0,
+        "profit_factor": 0.24842192274404426,
+        "trades": 4,
+        "trades_per_day": 0.07577551503670377,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.72",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.72
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.74",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.74
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.76",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.76
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.78",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.78
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.80",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.8
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.82",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.82
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.84",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.84
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.86",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.86
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.88",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.88
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.90",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.9
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.92",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.92
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.94",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.94
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": 0.0,
+        "data_quality_pass": false,
+        "false_signal_rate": 0.0,
+        "frequency_reduction_vs_baseline": 1.0,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          }
+        },
+        "max_drawdown_bps": 0.0,
+        "missing_one_minute_bars": 138,
+        "net_bps": 0,
+        "positive_markets": 0,
+        "profit_factor": null,
+        "trades": 0,
+        "trades_per_day": 0.0,
+        "window_end_trades_censored": 0
+      }
+    },
+    {
+      "config": {
+        "config_id": "meta_probability_0.70",
+        "model": "regularized_logistic_regression",
+        "threshold": 0.7
+      },
+      "selection_gate_pass": false,
+      "selection_gate_reasons": [
+        "validation_data_quality_failed",
+        "fewer_than_300_validation_trades",
+        "frequency_reduction_outside_20_90_pct",
+        "validation_profit_factor_below_1_10",
+        "validation_average_net_below_1_bps",
+        "no_positive_validation_market"
+      ],
+      "validation": {
+        "average_net_bps": -19.72476993010749,
+        "data_quality_pass": false,
+        "false_signal_rate": 1.0,
+        "frequency_reduction_vs_baseline": 0.9996137504828119,
+        "gap_unresolved_trades_dropped": 0,
+        "market_breakdown": {
+          "BTCUSD": {
+            "average_net_bps": 0.0,
+            "false_signal_rate": 0.0,
+            "net_bps": 0,
+            "profit_factor": null,
+            "trades": 0,
+            "trades_per_day": 0.0
+          },
+          "ETHUSD": {
+            "average_net_bps": -19.72476993010749,
+            "false_signal_rate": 1.0,
+            "net_bps": -19.72476993010749,
+            "profit_factor": 0.0,
+            "trades": 1,
+            "trades_per_day": 0.01894387875917594
+          }
+        },
+        "max_drawdown_bps": 19.72476993010749,
+        "missing_one_minute_bars": 138,
+        "net_bps": -19.72476993010749,
+        "positive_markets": 0,
+        "profit_factor": 0.0,
+        "trades": 1,
+        "trades_per_day": 0.01894387875917594,
+        "window_end_trades_censored": 0
+      }
+    }
+  ],
+  "frozen_window": {
+    "reason": "no preregistered meta-label threshold cleared validation gates",
+    "status": "not_run_selection_gate_failed",
+    "window_consumed": false
+  },
+  "generated_at": "2026-08-06T16:15:49.738920+00:00",
+  "label": "realized_net_bps_above_4",
+  "model": {
+    "C": 0.5,
+    "categorical_features": [
+      "scanner_id",
+      "symbol",
+      "side",
+      "regime",
+      "trend_regime",
+      "trend_direction",
+      "volatility_regime",
+      "session_regime",
+      "change_point_window",
+      "hour_utc"
+    ],
+    "class_weight": "balanced",
+    "historical_funding_included": false,
+    "historical_l2_included": false,
+    "numeric_features": [
+      "expected_move_bps",
+      "expected_net_bps",
+      "scalper_probability",
+      "confidence",
+      "expected_fee_multiple",
+      "atr_percentile",
+      "bb_width_percentile",
+      "planned_stop_bps",
+      "planned_target_bps",
+      "bars_since_regime_change",
+      "change_point_return_score",
+      "change_point_volatility_score",
+      "cusum_alarm_recent"
+    ],
+    "numeric_scaler": "RobustScaler",
+    "random_state": 17,
+    "type": "regularized_logistic_regression"
+  },
+  "policy": {
+    "can_promote": false,
+    "can_trade": false,
+    "candidate_features_available_at_decision": true,
+    "chronological_training": true,
+    "deployable_artifact_requires_untouched_success": true,
+    "historical_funding_not_fabricated": true,
+    "historical_l2_not_fabricated": true,
+    "meta_label_used_for_live_signal": false,
+    "model_artifact_promoted": false,
+    "next_open_entries": true,
+    "research_only": true,
+    "shared_candidate_ledger": true,
+    "stop_first_ambiguity": true
+  },
+  "preregistered_before_results": true,
+  "preregistered_thresholds": [
+    0.5,
+    0.52,
+    0.54,
+    0.56,
+    0.58,
+    0.6,
+    0.62,
+    0.64,
+    0.66,
+    0.68,
+    0.7,
+    0.72,
+    0.74,
+    0.76,
+    0.78,
+    0.8,
+    0.82,
+    0.84,
+    0.86,
+    0.88,
+    0.9,
+    0.92,
+    0.94
+  ],
+  "report_id": "delta_scalper_meta_label_v1",
+  "research_artifacts": {
+    "deployable_model_bundle_written": false,
+    "directory": "research/meta_labeling",
+    "support_files_written": true
+  },
+  "selected_threshold": null,
+  "train_fraction_of_selection_window": 0.875,
+  "training": {
+    "label_positive_rate": 0.35710995085995084,
+    "outcomes": 13024
+  },
+  "validation_classifier_diagnostics": {
+    "average_predicted_probability": 0.4891553923099762,
+    "brier_score": 0.24245067949176066,
+    "observations": 2589,
+    "positive_label_rate": 0.3522595596755504,
+    "roc_auc": 0.585971908378579,
+    "top_absolute_coefficients": [
+      {
+        "absolute_coefficient": 0.4929095213853146,
+        "coefficient": 0.4929095213853146,
+        "feature": "planned_stop_bps"
+      },
+      {
+        "absolute_coefficient": 0.2309557271074404,
+        "coefficient": 0.2309557271074404,
+        "feature": "hour_utc_06"
+      },
+      {
+        "absolute_coefficient": 0.17454406554667398,
+        "coefficient": -0.17454406554667398,
+        "feature": "planned_target_bps"
+      },
+      {
+        "absolute_coefficient": 0.16563546744872482,
+        "coefficient": 0.16563546744872482,
+        "feature": "atr_percentile"
+      },
+      {
+        "absolute_coefficient": 0.14529698018064763,
+        "coefficient": 0.14529698018064763,
+        "feature": "regime_expanding"
+      },
+      {
+        "absolute_coefficient": 0.13905481599896963,
+        "coefficient": -0.13905481599896963,
+        "feature": "expected_move_bps"
+      },
+      {
+        "absolute_coefficient": 0.13399546762532713,
+        "coefficient": 0.13399546762532713,
+        "feature": "volatility_regime_low"
+      },
+      {
+        "absolute_coefficient": 0.13396956449293523,
+        "coefficient": 0.13396956449293523,
+        "feature": "hour_utc_11"
+      },
+      {
+        "absolute_coefficient": 0.13040222099025559,
+        "coefficient": -0.13040222099025559,
+        "feature": "regime_trending_down"
+      },
+      {
+        "absolute_coefficient": 0.11506118884063224,
+        "coefficient": -0.11506118884063224,
+        "feature": "hour_utc_08"
+      },
+      {
+        "absolute_coefficient": 0.10981315287301746,
+        "coefficient": 0.10981315287301746,
+        "feature": "scanner_id_delta_imbalance_fade_v1"
+      },
+      {
+        "absolute_coefficient": 0.10805619242846624,
+        "coefficient": 0.10805619242846624,
+        "feature": "regime_quiet"
+      },
+      {
+        "absolute_coefficient": 0.1080181101043831,
+        "coefficient": 0.1080181101043831,
+        "feature": "hour_utc_23"
+      },
+      {
+        "absolute_coefficient": 0.10247095153159144,
+        "coefficient": -0.10247095153159144,
+        "feature": "regime_trending_up"
+      },
+      {
+        "absolute_coefficient": 0.10186242969167462,
+        "coefficient": -0.10186242969167462,
+        "feature": "hour_utc_12"
+      },
+      {
+        "absolute_coefficient": 0.10116806555461207,
+        "coefficient": -0.10116806555461207,
+        "feature": "bb_width_percentile"
+      },
+      {
+        "absolute_coefficient": 0.1005716627353287,
+        "coefficient": -0.1005716627353287,
+        "feature": "volatility_regime_high"
+      },
+      {
+        "absolute_coefficient": 0.08933315278574407,
+        "coefficient": -0.08933315278574407,
+        "feature": "scanner_id_delta_momentum_burst_v1"
+      },
+      {
+        "absolute_coefficient": 0.08447457761225247,
+        "coefficient": 0.08447457761225247,
+        "feature": "trend_direction_up"
+      },
+      {
+        "absolute_coefficient": 0.08021594122621253,
+        "coefficient": -0.08021594122621253,
+        "feature": "hour_utc_00"
+      }
+    ]
+  },
+  "windows": {
+    "frozen": {
+      "end": "2026-08-06T01:19:52.245636+00:00",
+      "start": "2026-02-27T15:50:00+00:00"
+    },
+    "train": {
+      "label_end_exclusive": "2026-01-05T18:55:00+00:00",
+      "start": "2025-01-01T00:00:00+00:00"
+    },
+    "validation": {
+      "end_exclusive": "2026-02-27T14:50:00+00:00",
+      "start": "2026-01-05T19:55:00+00:00"
+    }
+  }
+}

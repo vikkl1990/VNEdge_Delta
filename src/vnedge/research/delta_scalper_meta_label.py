@@ -12,19 +12,19 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import math
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+import joblib
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, roc_auc_score
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import OneHotEncoder, RobustScaler
 
 from vnedge.research.delta_scalper_backtest import _load_candles
 from vnedge.research.delta_scalper_threshold_sweep import (
@@ -44,6 +44,7 @@ DEFAULT_CONFIG = Path("configs/delta_scalper.yaml")
 DEFAULT_BACKTEST = Path("research/live_research/delta_scalper_backtest_latest.json")
 DEFAULT_CACHE = Path("data/delta_scalper_cache")
 DEFAULT_OUTPUT = Path("research/live_research/delta_scalper_meta_label_latest.json")
+DEFAULT_ARTIFACT_DIR = Path("research/meta_labeling")
 
 CATEGORICAL_FEATURES = (
     "scanner_id",
@@ -55,21 +56,25 @@ CATEGORICAL_FEATURES = (
     "volatility_regime",
     "session_regime",
     "change_point_window",
+    "hour_utc",
 )
 NUMERIC_FEATURES = (
     "expected_move_bps",
     "expected_net_bps",
     "scalper_probability",
     "confidence",
+    "expected_fee_multiple",
+    "atr_percentile",
+    "bb_width_percentile",
     "planned_stop_bps",
     "planned_target_bps",
+    "bars_since_regime_change",
     "change_point_return_score",
     "change_point_volatility_score",
-    "decision_hour_sin",
-    "decision_hour_cos",
+    "cusum_alarm_recent",
 )
 FEATURE_COLUMNS = (*CATEGORICAL_FEATURES, *NUMERIC_FEATURES)
-PREREGISTERED_THRESHOLDS = (0.50, 0.55, 0.60, 0.65, 0.70, 0.75)
+PREREGISTERED_THRESHOLDS = tuple(round(0.50 + 0.02 * index, 2) for index in range(23))
 
 
 def _stamp(value: object) -> datetime:
@@ -79,14 +84,8 @@ def _stamp(value: object) -> datetime:
     return stamp.astimezone(UTC)
 
 
-def _cyclical_hour(ts: datetime) -> tuple[float, float]:
-    angle = 2.0 * math.pi * (ts.hour * 60 + ts.minute) / (24 * 60)
-    return math.sin(angle), math.cos(angle)
-
-
 def trade_features(row: dict) -> dict[str, object]:
     decision = _stamp(row["decision_ts"])
-    hour_sin, hour_cos = _cyclical_hour(decision)
     return {
         "scanner_id": str(row.get("scanner_id") or "unknown"),
         "symbol": str(row.get("symbol") or "unknown").upper(),
@@ -117,20 +116,39 @@ def trade_features(row: dict) -> dict[str, object]:
             or row.get("change_point_window")
             or "unavailable"
         ),
+        "hour_utc": f"{decision.hour:02d}",
         "expected_move_bps": float(row.get("expected_move_bps") or 0.0),
         "expected_net_bps": float(row.get("expected_net_bps") or 0.0),
         "scalper_probability": float(row.get("scalper_probability") or 0.0),
         "confidence": float(row.get("confidence") or 0.0),
+        "expected_fee_multiple": float(row.get("expected_fee_multiple") or 0.0),
+        "atr_percentile": float(
+            row.get("atr_percentile_at_entry")
+            or row.get("atr_percentile")
+            or 0.0
+        ),
+        "bb_width_percentile": float(
+            row.get("bb_width_percentile_at_entry")
+            or row.get("bb_width_percentile")
+            or 0.0
+        ),
         "planned_stop_bps": float(row.get("planned_stop_bps") or 0.0),
         "planned_target_bps": float(row.get("planned_target_bps") or 0.0),
+        "bars_since_regime_change": float(
+            row.get("change_point_bars_since_shift") or 0.0
+        ),
         "change_point_return_score": float(
             row.get("change_point_return_score") or 0.0
         ),
         "change_point_volatility_score": float(
             row.get("change_point_volatility_score") or 0.0
         ),
-        "decision_hour_sin": hour_sin,
-        "decision_hour_cos": hour_cos,
+        "cusum_alarm_recent": float(
+            bool(
+                row.get("cusum_alarm_recent_at_entry")
+                or row.get("cusum_alarm_recent")
+            )
+        ),
     }
 
 
@@ -140,13 +158,15 @@ def candidate_features(candidate: SignalCandidate) -> dict[str, object]:
     profile = raw_profile if isinstance(raw_profile, dict) else {}
     raw_change_point = profile.get("change_point")
     change_point = raw_change_point if isinstance(raw_change_point, dict) else {}
+    raw_metrics = profile.get("metrics")
+    metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
     if candidate.side is Side.LONG:
         stop_bps = (1 - candidate.stop_loss / candidate.entry_price) * 10_000
         target_bps = (candidate.take_profits[0] / candidate.entry_price - 1) * 10_000
     else:
         stop_bps = (candidate.stop_loss / candidate.entry_price - 1) * 10_000
         target_bps = (1 - candidate.take_profits[0] / candidate.entry_price) * 10_000
-    hour_sin, hour_cos = _cyclical_hour(candidate.decision_ts)
+    bars_since_shift = change_point.get("bars_since_shift")
     return {
         "scanner_id": candidate.scanner_id,
         "symbol": candidate.symbol.upper(),
@@ -159,20 +179,36 @@ def candidate_features(candidate: SignalCandidate) -> dict[str, object]:
         "change_point_window": str(
             change_point.get("shift_window") or "unavailable"
         ),
+        "hour_utc": f"{candidate.decision_ts.hour:02d}",
         "expected_move_bps": candidate.expected_move_bps,
         "expected_net_bps": candidate.fee_adjusted_expectancy_bps,
         "scalper_probability": candidate.scalper_probability,
         "confidence": candidate.confidence,
+        "expected_fee_multiple": (
+            candidate.fee_adjusted_expectancy_bps / candidate.modeled_cost_bps
+            if candidate.modeled_cost_bps > 0
+            else 0.0
+        ),
+        "atr_percentile": float(metrics.get("atr_percentile") or 0.0),
+        "bb_width_percentile": float(
+            metrics.get("bb_width_percentile") or 0.0
+        ),
         "planned_stop_bps": stop_bps,
         "planned_target_bps": target_bps,
+        "bars_since_regime_change": (
+            float(bars_since_shift)
+            if isinstance(bars_since_shift, (int, float))
+            else 0.0
+        ),
         "change_point_return_score": float(
             change_point.get("return_score") or 0.0
         ),
         "change_point_volatility_score": float(
             change_point.get("volatility_score") or 0.0
         ),
-        "decision_hour_sin": hour_sin,
-        "decision_hour_cos": hour_cos,
+        "cusum_alarm_recent": float(
+            str(change_point.get("shift_window")) == "00-30m"
+        ),
     }
 
 
@@ -184,7 +220,7 @@ def build_model() -> Pipeline:
                 Pipeline(
                     (
                         ("imputer", SimpleImputer(strategy="median")),
-                        ("scale", StandardScaler()),
+                        ("scale", RobustScaler()),
                     )
                 ),
                 list(NUMERIC_FEATURES),
@@ -348,6 +384,47 @@ def _atomic_json(path: Path, payload: dict) -> None:
     temporary.replace(path)
 
 
+def _write_research_artifacts(
+    artifact_dir: Path,
+    payload: dict,
+    *,
+    frozen_model: Pipeline | None,
+    frozen_threshold: float | None,
+) -> bool:
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    _atomic_json(
+        artifact_dir / "feature_list.json",
+        {
+            "categorical": list(CATEGORICAL_FEATURES),
+            "numeric": list(NUMERIC_FEATURES),
+            "label": payload["label"],
+            "numeric_scaler": "RobustScaler fitted on training only",
+            "categorical_encoder": "OneHotEncoder fitted on training only",
+            "historical_l2_included": False,
+            "historical_funding_included": False,
+        },
+    )
+    _atomic_json(artifact_dir / "train_val_untouched_metrics.json", payload)
+    importance = (payload.get("validation_classifier_diagnostics") or {}).get(
+        "top_absolute_coefficients"
+    ) or []
+    pd.DataFrame(importance).to_csv(artifact_dir / "feature_importance.csv", index=False)
+    if frozen_model is None or frozen_threshold is None:
+        return False
+    temporary = artifact_dir / "meta_model_pipeline.joblib.tmp"
+    joblib.dump(frozen_model, temporary)
+    temporary.replace(artifact_dir / "meta_model_pipeline.joblib")
+    _atomic_json(
+        artifact_dir / "meta_threshold.json",
+        {
+            "threshold": frozen_threshold,
+            "frozen_after_untouched_success": True,
+            "live_integration_enabled": False,
+        },
+    )
+    return True
+
+
 async def run(args: argparse.Namespace) -> dict:
     config = load_delta_scalper_config(args.config)
     backtest = json.loads(args.backtest.read_text(encoding="utf-8"))
@@ -356,6 +433,11 @@ async def run(args: argparse.Namespace) -> dict:
     end = _stamp(args.end or window["end"])
     frozen_boundary = _frozen_boundary(backtest)
     train_end = start + (frozen_boundary - start) * args.train_fraction
+    embargo = timedelta(minutes=args.embargo_minutes)
+    train_label_cutoff = train_end - embargo
+    validation_start = train_end + embargo
+    validation_end = frozen_boundary - embargo
+    frozen_start = frozen_boundary + embargo
     all_historical = sorted(
         [
             trade
@@ -364,12 +446,14 @@ async def run(args: argparse.Namespace) -> dict:
         ],
         key=lambda row: str(row.get("exit_ts") or ""),
     )
-    train_rows = [row for row in all_historical if _stamp(row["exit_ts"]) < train_end]
+    train_rows = [
+        row for row in all_historical if _stamp(row["exit_ts"]) < train_label_cutoff
+    ]
     validation_rows = [
         row
         for row in all_historical
-        if train_end <= _stamp(row["decision_ts"])
-        and _stamp(row["exit_ts"]) < frozen_boundary
+        if validation_start <= _stamp(row["decision_ts"])
+        and _stamp(row["exit_ts"]) < validation_end
     ]
     model = fit_model(train_rows, label_net_bps=args.label_net_bps)
     symbols = tuple(args.symbols.split(",")) if args.symbols else config.engine.symbols
@@ -407,12 +491,12 @@ async def run(args: argparse.Namespace) -> dict:
         model,
         ledgers,
         baseline_gate,
-        start=train_end,
-        end=frozen_boundary,
+        start=validation_start,
+        end=validation_end,
     )
     baseline_simulations = [
         simulate_variant(
-            [bar for bar in candles if train_end <= bar.ts < frozen_boundary],
+            [bar for bar in candles if validation_start <= bar.ts < validation_end],
             ledgers[symbol],
             resolvers[symbol],
             baseline_gate,
@@ -425,7 +509,11 @@ async def run(args: argparse.Namespace) -> dict:
         variant = MetaLabelVariant(threshold, validation_scores, baseline_gate)
         simulations = [
             simulate_variant(
-                [bar for bar in candles if train_end <= bar.ts < frozen_boundary],
+                [
+                    bar
+                    for bar in candles
+                    if validation_start <= bar.ts < validation_end
+                ],
                 ledgers[symbol],
                 resolvers[symbol],
                 variant,
@@ -447,6 +535,8 @@ async def run(args: argparse.Namespace) -> dict:
         )
     best = max(evaluated, key=_rank)
     selected = best if best["selection_gate_pass"] else None
+    frozen_model: Pipeline | None = None
+    frozen_threshold: float | None = None
     if selected is None:
         frozen = {
             "status": "not_run_selection_gate_failed",
@@ -455,14 +545,16 @@ async def run(args: argparse.Namespace) -> dict:
         }
     else:
         final_rows = [
-            row for row in all_historical if _stamp(row["exit_ts"]) < frozen_boundary
+            row
+            for row in all_historical
+            if _stamp(row["exit_ts"]) < frozen_boundary - embargo
         ]
         final_model = fit_model(final_rows, label_net_bps=args.label_net_bps)
         frozen_scores = score_candidates(
             final_model,
             ledgers,
             baseline_gate,
-            start=frozen_boundary,
+            start=frozen_start,
             end=end,
         )
         final_variant = MetaLabelVariant(
@@ -472,7 +564,7 @@ async def run(args: argparse.Namespace) -> dict:
         )
         frozen_simulations: list[VariantSimulation] = [
             simulate_variant(
-                [bar for bar in candles if frozen_boundary <= bar.ts < end],
+                [bar for bar in candles if frozen_start <= bar.ts < end],
                 ledgers[symbol],
                 resolvers[symbol],
                 final_variant,
@@ -498,6 +590,9 @@ async def run(args: argparse.Namespace) -> dict:
                 ),
             },
         }
+        if all(bool(value) for value in frozen["success_gates"].values()):
+            frozen_model = final_model
+            frozen_threshold = float(selected["config"]["threshold"])
     payload = {
         "report_id": "delta_scalper_meta_label_v1",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -509,20 +604,25 @@ async def run(args: argparse.Namespace) -> dict:
             "C": 0.5,
             "class_weight": "balanced",
             "random_state": 17,
+            "numeric_scaler": "RobustScaler",
             "categorical_features": list(CATEGORICAL_FEATURES),
             "numeric_features": list(NUMERIC_FEATURES),
             "historical_l2_included": False,
             "historical_funding_included": False,
         },
         "windows": {
-            "train": {"start": start.isoformat(), "end_exclusive": train_end.isoformat()},
-            "validation": {
-                "start": train_end.isoformat(),
-                "end_exclusive": frozen_boundary.isoformat(),
+            "train": {
+                "start": start.isoformat(),
+                "label_end_exclusive": train_label_cutoff.isoformat(),
             },
-            "frozen": {"start": frozen_boundary.isoformat(), "end": end.isoformat()},
+            "validation": {
+                "start": validation_start.isoformat(),
+                "end_exclusive": validation_end.isoformat(),
+            },
+            "frozen": {"start": frozen_start.isoformat(), "end": end.isoformat()},
         },
         "train_fraction_of_selection_window": args.train_fraction,
+        "embargo_minutes_each_boundary_side": args.embargo_minutes,
         "training": {
             "outcomes": len(train_rows),
             "label_positive_rate": (
@@ -553,13 +653,27 @@ async def run(args: argparse.Namespace) -> dict:
             "historical_funding_not_fabricated": True,
             "meta_label_used_for_live_signal": False,
             "model_artifact_promoted": False,
+            "deployable_artifact_requires_untouched_success": True,
             "can_trade": False,
             "can_promote": False,
         },
         "can_trade": False,
         "can_promote": False,
     }
+    payload["research_artifacts"] = {
+        "directory": str(args.artifact_dir),
+        "support_files_written": True,
+        "deployable_model_bundle_written": False,
+    }
+    artifact_written = _write_research_artifacts(
+        args.artifact_dir,
+        payload,
+        frozen_model=frozen_model,
+        frozen_threshold=frozen_threshold,
+    )
+    payload["research_artifacts"]["deployable_model_bundle_written"] = artifact_written
     _atomic_json(args.output, payload)
+    _atomic_json(args.artifact_dir / "train_val_untouched_metrics.json", payload)
     return payload
 
 
@@ -569,11 +683,13 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--backtest", type=Path, default=DEFAULT_BACKTEST)
     parser.add_argument("--cache-dir", type=Path, default=DEFAULT_CACHE)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
     parser.add_argument("--symbols")
     parser.add_argument("--start")
     parser.add_argument("--end")
-    parser.add_argument("--train-fraction", type=float, default=0.65)
-    parser.add_argument("--label-net-bps", type=float, default=3.0)
+    parser.add_argument("--train-fraction", type=float, default=0.875)
+    parser.add_argument("--embargo-minutes", type=int, default=30)
+    parser.add_argument("--label-net-bps", type=float, default=4.0)
     parser.add_argument("--scalper-opted-in", action="store_true")
     parser.add_argument("--deto", action="store_true")
     parser.add_argument("--refresh", action="store_true")
@@ -582,8 +698,10 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _parser().parse_args()
-    if not 0.50 <= args.train_fraction <= 0.80:
-        raise ValueError("train fraction must be between 0.50 and 0.80")
+    if not 0.80 <= args.train_fraction <= 0.94:
+        raise ValueError("train fraction of the selection window must be 0.80 to 0.94")
+    if args.embargo_minutes < 0:
+        raise ValueError("embargo minutes cannot be negative")
     payload = asyncio.run(run(args))
     print(
         json.dumps(

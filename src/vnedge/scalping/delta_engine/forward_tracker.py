@@ -36,6 +36,10 @@ class ForwardOutcome:
     change_point_bars_since_shift: int | None
     change_point_return_score: float
     change_point_volatility_score: float
+    atr_percentile: float
+    atr_bps: float
+    bb_width_percentile: float
+    cusum_alarm_recent: bool
     decision_ts: str
     entry_ts: str
     exit_ts: str
@@ -45,6 +49,8 @@ class ForwardOutcome:
     hold_seconds: int
     expected_move_bps: float
     expected_net_bps: float
+    modeled_cost_bps: float
+    expected_fee_multiple: float
     gross_bps: float
     cost_bps: float
     net_bps: float
@@ -177,6 +183,8 @@ class ForwardOutcomeTracker:
         profile = raw_profile if isinstance(raw_profile, dict) else {}
         raw_change_point = profile.get("change_point")
         change_point = raw_change_point if isinstance(raw_change_point, dict) else {}
+        raw_metrics = profile.get("metrics")
+        metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
         raw_bars_since_shift = change_point.get("bars_since_shift")
         return ForwardOutcome(
             key=candidate.dedup_key,
@@ -203,6 +211,14 @@ class ForwardOutcomeTracker:
             change_point_volatility_score=float(
                 change_point.get("volatility_score") or 0.0
             ),
+            atr_percentile=float(metrics.get("atr_percentile") or 0.0),
+            atr_bps=float(metrics.get("atr_bps") or 0.0),
+            bb_width_percentile=float(
+                metrics.get("bb_width_percentile") or 0.0
+            ),
+            cusum_alarm_recent=(
+                str(change_point.get("shift_window")) == "00-30m"
+            ),
             decision_ts=candidate.decision_ts.isoformat(),
             entry_ts=active.entry_ts.isoformat(),
             exit_ts=bar.ts.isoformat(),
@@ -212,6 +228,12 @@ class ForwardOutcomeTracker:
             hold_seconds=hold,
             expected_move_bps=candidate.expected_move_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,
+            modeled_cost_bps=candidate.modeled_cost_bps,
+            expected_fee_multiple=(
+                candidate.fee_adjusted_expectancy_bps / candidate.modeled_cost_bps
+                if candidate.modeled_cost_bps > 0
+                else 0.0
+            ),
             gross_bps=gross_bps,
             cost_bps=costs.total_bps,
             net_bps=gross_bps - costs.total_bps,
