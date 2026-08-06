@@ -107,6 +107,19 @@ market breakdown, false-signal rate, and 1x/5x/10x/25x/50x arithmetic scenarios
 on $100 margin. Those leverage scenarios do not model liquidation and are not
 an execution recommendation.
 
+## Generate the loss-attribution report
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_attribution
+```
+
+The report decomposes only the chronological selection window by scanner,
+regime, symbol, side, UTC/IST entry hour, exit reason, hold bucket, and selected
+two-factor clusters. It reports net/gross/cost bps, hit and false-signal rates,
+profit factor, MFE, MAE, and expected-versus-realized error. The frozen final
+20% remains aggregate-only so it cannot be used for threshold selection. Live
+forward outcomes are reported separately and are never pooled with replay.
+
 ## Promotion gates
 
 Paper trading remains locked until untouched results show all of:

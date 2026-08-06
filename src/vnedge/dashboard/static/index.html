@@ -802,6 +802,14 @@
 
       <section class="panel">
         <div class="phead">
+          <h2>Delta Loss Attribution</h2>
+          <span class="meta" id="deltaAttributionMeta">loading…</span>
+        </div>
+        <div id="deltaAttribution"><div class="note">scanner, regime, market and hour attribution loading…</div></div>
+      </section>
+
+      <section class="panel">
+        <div class="phead">
           <h2>Delta 5m Event Clock</h2>
           <span class="meta" id="deltaEventMeta">loading…</span>
         </div>
@@ -1485,6 +1493,30 @@
     el.innerHTML='<div class="perfgrid">'+horizonRows+'</div>'+
       (marketRows?'<div style="padding:0 15px 8px">'+marketRows+'</div>':'<div class="note">No resolved forward market outcomes yet.</div>')+
       '<div class="fblocker"><b>Promotion:</b> <span class="actstate '+vcls+'">'+safe(verdict.toLowerCase().replace(/_/g,' '))+'</span><div style="margin-top:7px;line-height:2">'+gates+'</div><div style="margin-top:6px">L2 is confirmation only · execution locked · paper remains off until every gate passes and a human approves it.</div></div>';
+  }
+  function renderDeltaAttribution(d){
+    var el=$("deltaAttribution"),meta=$("deltaAttributionMeta"); if(!el)return;
+    var a=(((d||{}).panels||{}).attribution)||{},s=(a.selection_window||{}).summary||{};
+    var frozen=a.frozen_untouched_window||{},live=a.live_shadow||{},clusters=(a.selection_window||{}).largest_loss_clusters||[];
+    if(!a.report_id){
+      if(meta)meta.textContent="not generated";
+      el.innerHTML='<div class="note">Run the local Delta attribution report to populate this panel.</div>';
+      return;
+    }
+    if(meta)meta.textContent=num(s.trades).toLocaleString()+" selection trades · "+agoShort(a.generated_at)+" old";
+    var pf=s.profit_factor==null?"--":num(s.profit_factor).toFixed(2),avg=num(s.average_net_bps),err=num(s.expectation_error_bps);
+    var cards='<div class="perfgrid">'+
+      '<div class="perfk"><div class="l">Average net</div><div class="v num '+(avg>=0?'up':'dn')+'">'+avg.toFixed(2)+' bps</div><div class="s">after modeled costs</div></div>'+
+      '<div class="perfk"><div class="l">Profit factor</div><div class="v num '+(num(s.profit_factor)>=1.2?'up':'dn')+'">'+pf+'</div><div class="s">gate requires &gt; 1.20</div></div>'+
+      '<div class="perfk"><div class="l">False signals</div><div class="v num dn">'+(num(s.false_signal_rate)*100).toFixed(1)+'%</div><div class="s">net result ≤ 0 bps</div></div>'+
+      '<div class="perfk"><div class="l">Model error</div><div class="v num '+(err>=0?'up':'dn')+'">'+err.toFixed(1)+' bps</div><div class="s">realized minus expected</div></div></div>';
+    var losses=clusters.slice(0,5).map(function(r){
+      return '<div class="eventrow"><div><b>'+safe(String(r.key||'unknown').replace(/delta_/g,'').replace(/_v1/g,''))+'</b><small>'+num(r.trades).toLocaleString()+' trades · '+(num(r.false_signal_rate)*100).toFixed(1)+'% false</small></div><div class="eventroute"><span class="p dn">'+num(r.net_bps).toFixed(0)+' bps</span><span class="actstate bad">'+num(r.average_net_bps).toFixed(2)+' avg</span></div></div>';
+    }).join('');
+    var protectedTail=frozen.protected_from_threshold_selection?'protected':'warning';
+    var liveText=live.status==='ready'?num((live.summary||{}).trades)+' completed live outcomes':'no completed live outcomes yet';
+    el.innerHTML=cards+'<div style="padding:0 15px 8px">'+losses+'</div>'+
+      '<div class="fblocker"><b>Read:</b> this is diagnosis, not optimization. Momentum/market/hour rows are selection-window evidence only. Frozen final '+(num(frozen.fraction)*100).toFixed(0)+'% is <span class="actstate ok">'+protectedTail+'</span> and remains aggregate-only · '+safe(liveText)+' · execution locked.</div>';
   }
   function eventRouteCls(route,state){
     route=String(route||""); state=String(state||"");
@@ -2923,6 +2955,7 @@
   function pollScorecard(){ poll("/scorecard", applyScorecard); }
   function pollScanner(){ poll("/realtime-scanner", function(d){ renderScannerTape(d.rows||[]); }); }
   function pollScannerEvidence(){ poll("/scanner-evidence", renderScannerEvidence); }
+  function pollDeltaAttribution(){ poll("/delta-scalper", renderDeltaAttribution); }
   function pollDeltaEventClock(){ poll("/delta-5m-event-clock", renderDeltaEventClock); }
   function pollExternalRepoSynthesis(){ poll("/external-repo-synthesis", renderExternalRepoSynthesis); }
   function pollAgenticResearchOS(){ poll("/agentic-research-os", renderAgenticResearchOS); }
@@ -3119,8 +3152,8 @@
   }
   function pollMLStatus(){ poll("/ml-status", renderMLStatus); }
 
-  pollScorecard(); pollScanner(); pollScannerEvidence(); pollDeltaEventClock(); pollAgenticResearchOS(); pollExternalRepoSynthesis(); pollLaneReadiness(); pollCausality(); pollPaperActivation(); pollPaperRouteDoctor(); pollPaperCadence(); pollPaperPerformance(); pollTradeAnalyzerOS(); pollPaperTradeEntryAutopsy(); pollPaperTradeExitAutopsy(); pollMakerQuoteLifecycle(); pollPaperContractTruth(); pollPaperPromotionBridge(); pollOperatorActions(); pollLaneSurvival(); pollPaperLaneGovernor(); pollPaperRosterDrift(); pollPaperLaneRootCause(); pollDarwinianAgentSurvival(); pollTradeProfileMatrix(); pollSessionRegime(); pollPreLive(); pollMLStatus(); pollMeta(); pollFleet(); pollJournal();
-  if(!reduce){ setInterval(pollScanner,5000); setInterval(pollScannerEvidence,5000); setInterval(pollDeltaEventClock,5000); setInterval(pollScorecard,30000); setInterval(pollAgenticResearchOS,30000); setInterval(pollExternalRepoSynthesis,300000); setInterval(pollLaneReadiness,30000); setInterval(pollCausality,30000); setInterval(pollPaperActivation,30000); setInterval(pollPaperRouteDoctor,30000); setInterval(pollPaperCadence,30000); setInterval(pollPaperPerformance,30000); setInterval(pollTradeAnalyzerOS,30000); setInterval(pollPaperTradeEntryAutopsy,30000); setInterval(pollPaperTradeExitAutopsy,30000); setInterval(pollMakerQuoteLifecycle,30000); setInterval(pollPaperContractTruth,30000); setInterval(pollPaperPromotionBridge,30000); setInterval(pollOperatorActions,30000); setInterval(pollLaneSurvival,30000); setInterval(pollPaperLaneGovernor,30000); setInterval(pollPaperRosterDrift,30000); setInterval(pollPaperLaneRootCause,30000); setInterval(pollDarwinianAgentSurvival,30000); setInterval(pollTradeProfileMatrix,30000); setInterval(pollSessionRegime,60000); setInterval(pollPreLive,60000); setInterval(pollMLStatus,60000); setInterval(pollFleet,30000); setInterval(pollMeta,60000); setInterval(pollJournal,20000); }
+  pollScorecard(); pollScanner(); pollScannerEvidence(); pollDeltaAttribution(); pollDeltaEventClock(); pollAgenticResearchOS(); pollExternalRepoSynthesis(); pollLaneReadiness(); pollCausality(); pollPaperActivation(); pollPaperRouteDoctor(); pollPaperCadence(); pollPaperPerformance(); pollTradeAnalyzerOS(); pollPaperTradeEntryAutopsy(); pollPaperTradeExitAutopsy(); pollMakerQuoteLifecycle(); pollPaperContractTruth(); pollPaperPromotionBridge(); pollOperatorActions(); pollLaneSurvival(); pollPaperLaneGovernor(); pollPaperRosterDrift(); pollPaperLaneRootCause(); pollDarwinianAgentSurvival(); pollTradeProfileMatrix(); pollSessionRegime(); pollPreLive(); pollMLStatus(); pollMeta(); pollFleet(); pollJournal();
+  if(!reduce){ setInterval(pollScanner,5000); setInterval(pollScannerEvidence,5000); setInterval(pollDeltaAttribution,30000); setInterval(pollDeltaEventClock,5000); setInterval(pollScorecard,30000); setInterval(pollAgenticResearchOS,30000); setInterval(pollExternalRepoSynthesis,300000); setInterval(pollLaneReadiness,30000); setInterval(pollCausality,30000); setInterval(pollPaperActivation,30000); setInterval(pollPaperRouteDoctor,30000); setInterval(pollPaperCadence,30000); setInterval(pollPaperPerformance,30000); setInterval(pollTradeAnalyzerOS,30000); setInterval(pollPaperTradeEntryAutopsy,30000); setInterval(pollPaperTradeExitAutopsy,30000); setInterval(pollMakerQuoteLifecycle,30000); setInterval(pollPaperContractTruth,30000); setInterval(pollPaperPromotionBridge,30000); setInterval(pollOperatorActions,30000); setInterval(pollLaneSurvival,30000); setInterval(pollPaperLaneGovernor,30000); setInterval(pollPaperRosterDrift,30000); setInterval(pollPaperLaneRootCause,30000); setInterval(pollDarwinianAgentSurvival,30000); setInterval(pollTradeProfileMatrix,30000); setInterval(pollSessionRegime,60000); setInterval(pollPreLive,60000); setInterval(pollMLStatus,60000); setInterval(pollFleet,30000); setInterval(pollMeta,60000); setInterval(pollJournal,20000); }
 
   /* ---- leverage & PnL calculator · per-exchange fee models ---- */
   var COST=null, calcState={side:"long"};

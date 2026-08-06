@@ -134,6 +134,7 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     now = datetime.now(UTC)
     primary = tmp_path / "primary.json"
     scalper = tmp_path / "scalper.json"
+    attribution = tmp_path / "attribution.json"
     primary.write_text(json.dumps(mtf_payload(now)))
     scalper.write_text(
         json.dumps(
@@ -156,12 +157,19 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
         )
     )
     monkeypatch.setattr(scanner_live, "DELTA_SCALPER_PATH", scalper)
+    attribution.write_text(
+        json.dumps({"report_id": "delta_scalper_attribution_v1", "can_trade": False})
+    )
+    monkeypatch.setattr(scanner_live, "DELTA_SCALPER_ATTRIBUTION_PATH", attribution)
 
     combined = scanner_live.read_scanner_payload(primary)
 
     assert len(combined["rows"]) == 4
     assert any(row.get("strategy_id") == "delta_scalper_engine_v1" for row in combined["rows"])
     assert combined["delta_scalper"]["architecture"]["version"] == "1.0"
+    assert combined["delta_scalper"]["attribution"]["report_id"] == (
+        "delta_scalper_attribution_v1"
+    )
     assert combined["policy"]["order_route_present"] is False
     assert combined["can_trade"] is False
 

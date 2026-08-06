@@ -40,6 +40,12 @@ DELTA_SCALPER_PATH = Path(
         "research/live_research/delta_scalper_engine_latest.json",
     )
 )
+DELTA_SCALPER_ATTRIBUTION_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_DELTA_SCALPER_ATTRIBUTION_PATH",
+        "research/live_research/delta_scalper_attribution_latest.json",
+    )
+)
 COMBINED_SCANNER_PATH = Path(
     os.environ.get(
         "DASHBOARD_COMBINED_SCANNER_PATH",
@@ -59,6 +65,7 @@ def _read_payload(path: Path) -> dict[str, Any]:
 def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     primary = _read_payload(path)
     scalper = _read_payload(DELTA_SCALPER_PATH)
+    attribution = _read_payload(DELTA_SCALPER_ATTRIBUTION_PATH)
     if not primary and not scalper:
         return {
             "generated_at": None,
@@ -103,6 +110,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "fee_effectiveness": scalper.get("fee_effectiveness"),
             "robust_validation": scalper.get("robust_validation"),
             "untouched_window": scalper.get("untouched_window"),
+            "attribution": attribution or None,
         }
         if scalper
         else None,

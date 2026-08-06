@@ -137,6 +137,18 @@ def test_dashboard_scanner_tape_renders_trade_lifecycle_truth():
     assert "TP ladder journal-only" in html
 
 
+def test_dashboard_has_delta_loss_attribution_panel():
+    html = _index()
+    assert "Delta Loss Attribution" in html
+    assert 'id="deltaAttribution"' in html
+    assert 'id="deltaAttributionMeta"' in html
+    assert "function renderDeltaAttribution" in html
+    assert "function pollDeltaAttribution" in html
+    assert 'poll("/delta-scalper"' in html
+    assert "this is diagnosis, not optimization" in html
+    assert "protected_from_threshold_selection" in html
+
+
 def test_dashboard_renders_daily_signal_factory_lane_truth():
     html = _index()
     assert "function dailyFactoryView" in html
