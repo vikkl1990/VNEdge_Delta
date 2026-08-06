@@ -64,6 +64,12 @@ DELTA_SCALPER_CHANGE_POINTS_PATH = Path(
         "research/live_research/delta_scalper_change_points_latest.json",
     )
 )
+DELTA_SCALPER_META_LABEL_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_DELTA_SCALPER_META_LABEL_PATH",
+        "research/live_research/delta_scalper_meta_label_latest.json",
+    )
+)
 COMBINED_SCANNER_PATH = Path(
     os.environ.get(
         "DASHBOARD_COMBINED_SCANNER_PATH",
@@ -87,6 +93,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     threshold_sweep = _read_payload(DELTA_SCALPER_SWEEP_PATH)
     regime_sweep = _read_payload(DELTA_SCALPER_REGIME_SWEEP_PATH)
     change_points = _read_payload(DELTA_SCALPER_CHANGE_POINTS_PATH)
+    meta_label = _read_payload(DELTA_SCALPER_META_LABEL_PATH)
     if not primary and not scalper:
         return {
             "generated_at": None,
@@ -135,6 +142,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "threshold_sweep": threshold_sweep or None,
             "regime_sweep": regime_sweep or None,
             "change_points": change_points or None,
+            "meta_label": meta_label or None,
         }
         if scalper
         else None,

@@ -152,6 +152,7 @@ def test_dashboard_has_delta_loss_attribution_panel():
     assert "Trade frequency versus average net expectancy" in html
     assert "Causal CUSUM expectancy by time since shift" in html
     assert "future-aware PELT cannot gate signals" in html
+    assert "Meta-label research pending" in html
 
 
 def test_dashboard_renders_daily_signal_factory_lane_truth():

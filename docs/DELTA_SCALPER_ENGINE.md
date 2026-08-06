@@ -198,3 +198,21 @@ Paper trading remains locked until untouched results show all of:
 - Scalper window compliance.
 
 Failure of any gate leaves the engine in research mode.
+
+## Run the chronological meta-label experiment
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_meta_label \
+  --scalper-opted-in
+```
+
+The secondary model is a deterministic, regularized logistic classifier trained
+only on earlier resolved primary-scanner outcomes. Its inputs are fields known
+at the decision close: scanner, market, side, regime profile, session, CUSUM
+state, predicted move/net, primary probability/confidence, planned stop/target,
+and cyclical UTC time. Historical L2 and funding are explicitly excluded rather
+than reconstructed. Six preregistered probability thresholds own independent
+next-open simulations from the shared candidate ledger. The frozen tail remains
+unopened unless a threshold first clears minimum sample, frequency, validation
+PF, average-net, and positive-market gates. No trained model is promoted by this
+command.

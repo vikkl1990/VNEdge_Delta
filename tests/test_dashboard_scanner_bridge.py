@@ -138,6 +138,7 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     sweep = tmp_path / "sweep.json"
     regime_sweep = tmp_path / "regime-sweep.json"
     change_points = tmp_path / "change-points.json"
+    meta_label = tmp_path / "meta-label.json"
     primary.write_text(json.dumps(mtf_payload(now)))
     scalper.write_text(
         json.dumps(
@@ -180,6 +181,10 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     monkeypatch.setattr(
         scanner_live, "DELTA_SCALPER_CHANGE_POINTS_PATH", change_points
     )
+    meta_label.write_text(
+        json.dumps({"report_id": "delta_scalper_meta_label_v1", "can_trade": False})
+    )
+    monkeypatch.setattr(scanner_live, "DELTA_SCALPER_META_LABEL_PATH", meta_label)
 
     combined = scanner_live.read_scanner_payload(primary)
 
@@ -197,6 +202,9 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     )
     assert combined["delta_scalper"]["change_points"]["report_id"] == (
         "delta_scalper_change_points_v1"
+    )
+    assert combined["delta_scalper"]["meta_label"]["report_id"] == (
+        "delta_scalper_meta_label_v1"
     )
     assert combined["policy"]["order_route_present"] is False
     assert combined["can_trade"] is False
