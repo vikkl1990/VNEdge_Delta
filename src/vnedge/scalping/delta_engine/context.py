@@ -7,6 +7,10 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from vnedge.scalping.delta_engine.candle_store import MultiTimeframeCandleStore
+from vnedge.scalping.delta_engine.change_point import (
+    CausalCusumConfig,
+    CausalCusumDetector,
+)
 from vnedge.scalping.delta_engine.regime import (
     RegimeEngine,
     RegimeProfileConfig,
@@ -28,6 +32,7 @@ class MarketContextBuilder:
         candle_store: MultiTimeframeCandleStore,
         regime_engine: RegimeEngine | None = None,
         regime_profile_config: RegimeProfileConfig | None = None,
+        change_point_config: CausalCusumConfig | None = None,
         *,
         max_l2_age_seconds: float = 2.0,
     ) -> None:
@@ -36,12 +41,14 @@ class MarketContextBuilder:
         self.candle_store = candle_store
         self.regime_engine = regime_engine or RegimeEngine()
         self.regime_profile_config = regime_profile_config or RegimeProfileConfig()
+        self.change_point_config = change_point_config or CausalCusumConfig()
         self.max_l2_age_seconds = max_l2_age_seconds
         self._funding: dict[str, deque[tuple[datetime, float]]] = defaultdict(
             lambda: deque(maxlen=24)
         )
         self._l2: dict[str, L2Confirmation] = {}
         self._regime_profile_cache: dict[str, tuple[datetime | None, RegimeProfile]] = {}
+        self._change_point_detectors: dict[str, CausalCusumDetector] = {}
 
     def update_funding(self, symbol: str, rate: float, observed_at: datetime) -> None:
         ts = observed_at.replace(tzinfo=UTC) if observed_at.tzinfo is None else observed_at
@@ -141,6 +148,12 @@ class MarketContextBuilder:
             self._regime_profile_cache[native] = (source_ts, base_profile)
         else:
             base_profile = cached[1]
+        detector = self._change_point_detectors.setdefault(
+            native,
+            CausalCusumDetector(self.change_point_config),
+        )
+        change_point_rows = candles.get(self.change_point_config.source_timeframe, ())
+        change_point = detector.update(change_point_rows)
         profile = replace(
             base_profile,
             session=session_regime(latest.hour),
@@ -149,6 +162,7 @@ class MarketContextBuilder:
                 l2,
                 self.regime_profile_config,
             ),
+            change_point=change_point,
         )
         return MarketContext(
             symbol=native,

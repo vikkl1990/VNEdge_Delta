@@ -41,6 +41,11 @@ class BacktestTrade:
     trend_direction_at_entry: str
     volatility_regime_at_entry: str
     session_regime_at_entry: str
+    regime_shift_at_entry: bool
+    change_point_window_at_entry: str
+    change_point_bars_since_shift: int | None
+    change_point_return_score: float
+    change_point_volatility_score: float
     expected_move_bps: float
     expected_net_bps: float
     scalper_probability: float
@@ -242,6 +247,9 @@ class CausalScalperBacktester:
         )
         raw_profile = candidate.metadata.get("regime_profile")
         profile = raw_profile if isinstance(raw_profile, dict) else {}
+        raw_change_point = profile.get("change_point")
+        change_point = raw_change_point if isinstance(raw_change_point, dict) else {}
+        raw_bars_since_shift = change_point.get("bars_since_shift")
         return BacktestTrade(
             scanner_id=candidate.scanner_id,
             symbol=candidate.symbol,
@@ -269,6 +277,21 @@ class CausalScalperBacktester:
             ),
             volatility_regime_at_entry=str(profile.get("volatility") or "unknown"),
             session_regime_at_entry=str(profile.get("session") or "unknown"),
+            regime_shift_at_entry=bool(change_point.get("regime_shift")),
+            change_point_window_at_entry=str(
+                change_point.get("shift_window") or "unavailable"
+            ),
+            change_point_bars_since_shift=(
+                int(raw_bars_since_shift)
+                if isinstance(raw_bars_since_shift, (int, float))
+                else None
+            ),
+            change_point_return_score=float(
+                change_point.get("return_score") or 0.0
+            ),
+            change_point_volatility_score=float(
+                change_point.get("volatility_score") or 0.0
+            ),
             expected_move_bps=candidate.expected_move_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,
             scalper_probability=candidate.scalper_probability,

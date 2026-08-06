@@ -31,6 +31,11 @@ class ForwardOutcome:
     trend_direction: str
     volatility_regime: str
     session_regime: str
+    regime_shift: bool
+    change_point_window: str
+    change_point_bars_since_shift: int | None
+    change_point_return_score: float
+    change_point_volatility_score: float
     decision_ts: str
     entry_ts: str
     exit_ts: str
@@ -170,6 +175,9 @@ class ForwardOutcomeTracker:
             l2_imbalance_z = None
         raw_profile = candidate.metadata.get("regime_profile")
         profile = raw_profile if isinstance(raw_profile, dict) else {}
+        raw_change_point = profile.get("change_point")
+        change_point = raw_change_point if isinstance(raw_change_point, dict) else {}
+        raw_bars_since_shift = change_point.get("bars_since_shift")
         return ForwardOutcome(
             key=candidate.dedup_key,
             scanner_id=candidate.scanner_id,
@@ -180,6 +188,21 @@ class ForwardOutcomeTracker:
             trend_direction=str(profile.get("trend_direction") or "unknown"),
             volatility_regime=str(profile.get("volatility") or "unknown"),
             session_regime=str(profile.get("session") or "unknown"),
+            regime_shift=bool(change_point.get("regime_shift")),
+            change_point_window=str(
+                change_point.get("shift_window") or "unavailable"
+            ),
+            change_point_bars_since_shift=(
+                int(raw_bars_since_shift)
+                if isinstance(raw_bars_since_shift, (int, float))
+                else None
+            ),
+            change_point_return_score=float(
+                change_point.get("return_score") or 0.0
+            ),
+            change_point_volatility_score=float(
+                change_point.get("volatility_score") or 0.0
+            ),
             decision_ts=candidate.decision_ts.isoformat(),
             entry_ts=active.entry_ts.isoformat(),
             exit_ts=bar.ts.isoformat(),

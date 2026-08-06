@@ -17,6 +17,10 @@ from vnedge.scalping.delta_engine.candle_store import (
     ClosedCandleAggregator,
     MultiTimeframeCandleStore,
 )
+from vnedge.scalping.delta_engine.change_point import (
+    CausalCusumConfig,
+    CausalCusumDetector,
+)
 from vnedge.scalping.delta_engine.config import DeltaScalperConfig, load_delta_scalper_config
 from vnedge.scalping.delta_engine.context import MarketContextBuilder
 from vnedge.scalping.delta_engine.factory import build_delta_scalper_assembly
@@ -104,6 +108,8 @@ def test_checked_in_config_is_valid_and_cannot_unlock_live():
     assert config.features.regime_profile_timeframe == "5m"
     assert config.features.regime_profile_strong_trend_adx == 30.0
     assert config.features.regime_profile_high_vol_percentile == 0.75
+    assert config.features.change_point_timeframe == "5m"
+    assert config.features.change_point_cusum_threshold_z == 8.0
     assert not config.engine.live_orders_enabled
     with pytest.raises(ValueError, match="research-only"):
         DeltaScalperConfig.model_validate(
@@ -369,6 +375,53 @@ def test_structured_regime_profile_uses_rolling_atr_percentiles(
     )
     assert profile.trend is TrendStrength.RANGE
     assert profile.volatility is expected
+
+
+def test_causal_cusum_uses_only_prior_closed_bars_and_is_idempotent():
+    detector = CausalCusumDetector(
+        CausalCusumConfig(
+            minimum_history_bars=20,
+            baseline_window_bars=40,
+            drift_z=0.25,
+            threshold_z=3.0,
+            cooldown_bars=2,
+        )
+    )
+    rows = []
+    close = 100.0
+    for index in range(40):
+        move = 0.01 if index % 2 == 0 else -0.01
+        new_close = close + move
+        rows.append(
+            Candle(
+                NOW + timedelta(minutes=5 * index),
+                close,
+                max(close, new_close) + 0.05 + index % 3 * 0.005,
+                min(close, new_close) - 0.05,
+                new_close,
+                100,
+                "5m",
+            )
+        )
+        close = new_close
+    before = detector.update(tuple(rows))
+    assert before.detector_ready is True
+    assert before.regime_shift is False
+
+    shock = Candle(
+        NOW + timedelta(minutes=200),
+        close,
+        close + 2.1,
+        close - 0.1,
+        close + 2.0,
+        1_000,
+        "5m",
+    )
+    shifted = detector.update((shock,))
+    assert shifted.regime_shift is True
+    assert shifted.return_shift or shifted.volatility_shift
+    assert shifted.shift_window == "00-30m"
+    assert detector.update((shock,)) == shifted
 
 
 def test_live_context_and_research_use_identical_candle_feature_definitions():

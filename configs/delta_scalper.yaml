@@ -36,6 +36,12 @@ features:
   regime_profile_high_vol_percentile: 0.75
   regime_profile_low_vol_percentile: 0.30
   regime_profile_bollinger_window: 20
+  change_point_timeframe: 5m
+  change_point_minimum_history_bars: 50
+  change_point_baseline_window_bars: 200
+  change_point_cusum_drift_z: 0.50
+  change_point_cusum_threshold_z: 8.0
+  change_point_cooldown_bars: 6
 
 scanners:
   momentum_burst:

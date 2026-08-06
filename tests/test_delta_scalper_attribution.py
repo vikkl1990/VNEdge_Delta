@@ -24,6 +24,8 @@ def _trade(index: int) -> dict:
         "trend_direction_at_entry": "up" if index % 2 == 0 else "flat",
         "volatility_regime_at_entry": "high" if index % 2 == 0 else "low",
         "session_regime_at_entry": "overlap" if index % 2 == 0 else "asia",
+        "regime_shift_at_entry": index % 4 == 0,
+        "change_point_window_at_entry": "00-30m" if index % 4 == 0 else "04h+",
         "side": "long" if index % 2 == 0 else "short",
         "entry_ts": (START + timedelta(hours=index)).isoformat(),
         "exit_ts": (START + timedelta(hours=index, minutes=5)).isoformat(),
@@ -85,6 +87,8 @@ def test_attribution_decomposes_selection_and_protects_frozen_window():
     assert full_cross[0]["pct_of_all_trades"] > 0
     assert full_cross[0]["avg_hold_bars"] == 5.0
     assert selection["dimensions"]["scanner_symbol_trend_volatility"]
+    assert selection["dimensions"]["change_point_window"]
+    assert selection["dimensions"]["scanner_change_point_window"]
     assert {row["trend_regime"] for row in selection["dimensions"]["trend_regime"]} == {
         "strong_trend",
         "range",

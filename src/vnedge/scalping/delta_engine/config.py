@@ -68,6 +68,12 @@ class FeatureSettings(_StrictModel):
     regime_profile_high_vol_percentile: float = Field(default=0.75, gt=0, lt=1)
     regime_profile_low_vol_percentile: float = Field(default=0.30, gt=0, lt=1)
     regime_profile_bollinger_window: int = Field(default=20, ge=5)
+    change_point_timeframe: str = "5m"
+    change_point_minimum_history_bars: int = Field(default=50, ge=20)
+    change_point_baseline_window_bars: int = Field(default=200, ge=20)
+    change_point_cusum_drift_z: float = Field(default=0.50, gt=0)
+    change_point_cusum_threshold_z: float = Field(default=8.0, gt=0)
+    change_point_cooldown_bars: int = Field(default=6, ge=0)
 
     @model_validator(mode="after")
     def validate_regime_windows(self) -> FeatureSettings:
@@ -84,6 +90,18 @@ class FeatureSettings(_StrictModel):
             >= self.regime_profile_high_vol_percentile
         ):
             raise ValueError("low volatility percentile must be below high")
+        if self.change_point_timeframe not in {"1m", "5m"}:
+            raise ValueError("change_point_timeframe must be 1m or 5m")
+        if (
+            self.change_point_baseline_window_bars
+            < self.change_point_minimum_history_bars
+        ):
+            raise ValueError("change-point baseline must cover minimum history")
+        if (
+            self.change_point_cusum_threshold_z
+            <= self.change_point_cusum_drift_z
+        ):
+            raise ValueError("change-point CUSUM threshold must exceed drift")
         return self
 
 

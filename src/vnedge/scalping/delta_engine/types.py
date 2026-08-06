@@ -44,6 +44,42 @@ class SessionRegime(str, Enum):
     US = "us"
 
 
+@dataclass(frozen=True)
+class ChangePointProfile:
+    """Causal sequential shift state; observational until separately validated."""
+
+    source_timeframe: str = "unavailable"
+    detector_ready: bool = False
+    regime_shift: bool = False
+    return_shift: bool = False
+    volatility_shift: bool = False
+    return_score: float = 0.0
+    volatility_score: float = 0.0
+    bars_since_shift: int | None = None
+    minutes_since_shift: int | None = None
+
+    @property
+    def shift_window(self) -> str:
+        if self.minutes_since_shift is None:
+            return "no_prior_shift"
+        if self.minutes_since_shift <= 30:
+            return "00-30m"
+        if self.minutes_since_shift <= 60:
+            return "30-60m"
+        if self.minutes_since_shift <= 240:
+            return "01-04h"
+        return "04h+"
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            **self.__dict__,
+            "shift_window": self.shift_window,
+            "research_only": True,
+            "used_for_signal": False,
+            "used_for_execution": False,
+        }
+
+
 def _utc(ts: datetime) -> datetime:
     return ts.replace(tzinfo=UTC) if ts.tzinfo is None else ts.astimezone(UTC)
 
@@ -119,6 +155,7 @@ class RegimeProfile:
     source_timeframe: str = "unavailable"
     flags: Mapping[str, bool] = field(default_factory=dict)
     metrics: Mapping[str, float] = field(default_factory=dict)
+    change_point: ChangePointProfile = ChangePointProfile()
 
     def __post_init__(self) -> None:
         if self.trend_direction not in {"up", "down", "flat"}:
@@ -135,6 +172,7 @@ class RegimeProfile:
             "source_timeframe": self.source_timeframe,
             "flags": dict(self.flags),
             "metrics": dict(self.metrics),
+            "change_point": self.change_point.to_dict(),
         }
 
 

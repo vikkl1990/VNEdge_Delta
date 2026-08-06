@@ -136,6 +136,29 @@ every threshold, and the profile is journaled on every decision for identical
 live/replay attribution. These labels do not gate trades until a separately
 preregistered experiment passes selection and untouched validation.
 
+### Change-point research
+
+The same structured profile carries a frozen, two-sided sequential CUSUM over
+5m log returns and log true-range bps. Its rolling baseline is computed before
+the current closed candle is observed, duplicate context builds are idempotent,
+and every decision records the shift type, score, bars since shift, and the
+`00-30m`, `30-60m`, `01-04h`, or `04h+` attribution window. CUSUM is metadata
+only and cannot create, suppress, route, or execute a signal.
+
+Run the separate full-history PELT diagnostic with:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_change_points
+```
+
+It applies piecewise-mean PELT separately to 1m log returns and realized
+volatility using every 1m observation with a disclosed 15m change-candidate
+grid, then overlays merged change points on accepted-trade regime-label
+transitions, and measures selection-period expectancy after a detected change.
+PELT uses the complete series and is therefore explicitly future-aware: its
+labels are never eligible for live scanner gates. The frozen final window stays
+aggregate-only in both the PELT and CUSUM reports.
+
 ## Run the preregistered threshold sweep
 
 ```bash

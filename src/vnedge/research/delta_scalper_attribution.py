@@ -78,6 +78,9 @@ def normalize_trade(row: dict, *, source: str) -> dict:
     probability = _optional_float(row, "scalper_probability")
     confidence = _optional_float(row, "confidence")
     l2_quality = row.get("l2_quality")
+    regime_shift = bool(
+        row.get("regime_shift_at_entry") or row.get("regime_shift")
+    )
     if not l2_quality:
         l2_quality = (
             "historical_unavailable" if source == "historical_backtest" else "unavailable"
@@ -105,6 +108,14 @@ def normalize_trade(row: dict, *, source: str) -> dict:
             row.get("session_regime_at_entry")
             or row.get("session_regime")
             or "unknown"
+        ),
+        "regime_shift": (
+            "shift_source_bar" if regime_shift else "no_shift_source_bar"
+        ),
+        "change_point_window": str(
+            row.get("change_point_window_at_entry")
+            or row.get("change_point_window")
+            or "unavailable"
         ),
         "side": str(row.get("side") or "unknown").lower(),
         "exit_reason": str(row.get("exit_reason") or "unknown"),
@@ -278,6 +289,8 @@ DIMENSIONS: dict[str, tuple[str, ...]] = {
     "trend_direction": ("trend_direction",),
     "volatility_regime": ("volatility_regime",),
     "session_regime": ("session_regime",),
+    "regime_shift": ("regime_shift",),
+    "change_point_window": ("change_point_window",),
     "symbol": ("symbol",),
     "side": ("side",),
     "entry_hour_utc": ("entry_hour_utc",),
@@ -293,6 +306,8 @@ DIMENSIONS: dict[str, tuple[str, ...]] = {
     "scanner_trend_regime": ("scanner_id", "trend_regime"),
     "scanner_volatility_regime": ("scanner_id", "volatility_regime"),
     "scanner_session_regime": ("scanner_id", "session_regime"),
+    "scanner_change_point_window": ("scanner_id", "change_point_window"),
+    "symbol_change_point_window": ("symbol", "change_point_window"),
     "scanner_symbol_regime": ("scanner_id", "symbol", "regime"),
     "scanner_symbol_trend_volatility": (
         "scanner_id",
@@ -324,6 +339,8 @@ def _loss_clusters(tables: dict[str, list[dict]], minimum_trades: int) -> list[d
         "scanner_confidence",
         "scanner_symbol_regime",
         "scanner_symbol_trend_volatility",
+        "scanner_change_point_window",
+        "symbol_change_point_window",
         "symbol_regime",
         "symbol_hour_ist",
     }
@@ -351,6 +368,8 @@ def _false_signal_clusters(
         "scanner_confidence",
         "scanner_symbol_regime",
         "scanner_symbol_trend_volatility",
+        "scanner_change_point_window",
+        "symbol_change_point_window",
         "symbol_regime",
         "symbol_hour_ist",
     }
@@ -455,6 +474,10 @@ def load_decision_rejections(path: Path) -> list[dict]:
                 if isinstance(candidate_profile, dict)
                 else decision_profile
             )
+            raw_change_point = profile.get("change_point")
+            change_point = (
+                raw_change_point if isinstance(raw_change_point, dict) else {}
+            )
             l2 = metadata.get("l2_confirmation")
             l2 = l2 if isinstance(l2, dict) else {}
             rows.append(
@@ -471,6 +494,14 @@ def load_decision_rejections(path: Path) -> list[dict]:
                         profile.get("volatility") or "unknown"
                     ),
                     "session_regime": str(profile.get("session") or "unknown"),
+                    "regime_shift": (
+                        "shift_source_bar"
+                        if bool(change_point.get("regime_shift"))
+                        else "no_shift_source_bar"
+                    ),
+                    "change_point_window": str(
+                        change_point.get("shift_window") or "unavailable"
+                    ),
                     "reason": reason_code,
                     "reason_detail": ":".join(parts[2:]) if len(parts) > 2 else None,
                     "l2_status": str(l2.get("status") or "unavailable"),
@@ -486,6 +517,8 @@ def rejection_attribution(rows: list[dict]) -> dict:
         "trend_regime": ("trend_regime",),
         "volatility_regime": ("volatility_regime",),
         "session_regime": ("session_regime",),
+        "regime_shift": ("regime_shift",),
+        "change_point_window": ("change_point_window",),
         "scanner_regime": ("scanner_id", "regime"),
         "symbol_regime": ("symbol", "regime"),
         "scanner_symbol_regime": ("scanner_id", "symbol", "regime"),

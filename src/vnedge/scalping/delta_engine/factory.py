@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from vnedge.execution.journal import DecisionJournal
 from vnedge.scalping.delta_engine.candle_store import MultiTimeframeCandleStore
+from vnedge.scalping.delta_engine.change_point import CausalCusumConfig
 from vnedge.scalping.delta_engine.config import DeltaScalperConfig
 from vnedge.scalping.delta_engine.context import MarketContextBuilder
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
@@ -76,6 +77,18 @@ def build_delta_scalper_assembly(
                 config.features.regime_profile_low_vol_percentile
             ),
             bollinger_window=config.features.regime_profile_bollinger_window,
+        ),
+        CausalCusumConfig(
+            source_timeframe=config.features.change_point_timeframe,
+            minimum_history_bars=(
+                config.features.change_point_minimum_history_bars
+            ),
+            baseline_window_bars=(
+                config.features.change_point_baseline_window_bars
+            ),
+            drift_z=config.features.change_point_cusum_drift_z,
+            threshold_z=config.features.change_point_cusum_threshold_z,
+            cooldown_bars=config.features.change_point_cooldown_bars,
         ),
         max_l2_age_seconds=config.features.max_l2_age_seconds,
     )
