@@ -264,3 +264,22 @@ forward-journal rows. It preserves the original columns and adds `tb_label`,
 `net_gt_4bps`. Explicit shared-simulator labels take priority. Strict time stops
 remain failures; legacy MFE recovery is available only through
 `--allow-mfe-time-stop-recovery` and is marked as an approximation.
+
+### LightGBM meta-label diagnostic
+
+Install the research dependencies, create the Route A Parquet, then run:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_lightgbm_meta
+```
+
+The experiment uses disjoint chronological windows: 60% model fitting, 10%
+early stopping, 10% probability-threshold selection, and a frozen final 20%,
+with a 30-minute embargo at every boundary. It uses only causal columns present
+in the Parquet; historical L2, CVD, and funding are excluded rather than filled
+with fabricated values. The preregistered 0.45–0.875 threshold grid is evaluated
+on selection only. The final 20% remains sealed unless sample, frequency,
+after-cost PF, average-net, positive-market, and source-data-quality gates all
+pass. Research reports and feature importance are always written under
+`research/meta_labeling_lightgbm`; a model bundle and threshold are written only
+after untouched success and are never loaded into the live scanner automatically.

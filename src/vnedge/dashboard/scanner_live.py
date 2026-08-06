@@ -76,6 +76,12 @@ DELTA_SCALPER_TRIPLE_BARRIER_META_LABEL_PATH = Path(
         "research/live_research/delta_scalper_meta_label_triple_barrier_latest.json",
     )
 )
+DELTA_SCALPER_LIGHTGBM_META_LABEL_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_DELTA_SCALPER_LIGHTGBM_META_LABEL_PATH",
+        "research/live_research/delta_scalper_lightgbm_meta_latest.json",
+    )
+)
 COMBINED_SCANNER_PATH = Path(
     os.environ.get(
         "DASHBOARD_COMBINED_SCANNER_PATH",
@@ -103,6 +109,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     triple_barrier_meta_label = _read_payload(
         DELTA_SCALPER_TRIPLE_BARRIER_META_LABEL_PATH
     )
+    lightgbm_meta_label = _read_payload(DELTA_SCALPER_LIGHTGBM_META_LABEL_PATH)
     if not primary and not scalper:
         return {
             "generated_at": None,
@@ -153,6 +160,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "change_points": change_points or None,
             "meta_label": meta_label or None,
             "triple_barrier_meta_label": triple_barrier_meta_label or None,
+            "lightgbm_meta_label": lightgbm_meta_label or None,
         }
         if scalper
         else None,

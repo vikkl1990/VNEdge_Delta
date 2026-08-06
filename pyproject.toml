@@ -29,6 +29,7 @@ dev = [
 ]
 quant-research = [
     "duckdb>=1.0",
+    "lightgbm>=4.3",
     "polars>=1.0",
     "optuna>=3.6",
     "river>=0.21",
