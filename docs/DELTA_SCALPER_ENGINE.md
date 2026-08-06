@@ -283,3 +283,19 @@ after-cost PF, average-net, positive-market, and source-data-quality gates all
 pass. Research reports and feature importance are always written under
 `research/meta_labeling_lightgbm`; a model bundle and threshold are written only
 after untouched success and are never loaded into the live scanner automatically.
+
+### CUSUM interaction attribution
+
+Run the selection-only five-way interaction matrix with:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_cusum_interactions
+```
+
+Cells are `CUSUM window × scanner × symbol × trend regime × volatility regime`.
+At least 100 trades are required for an eligible cell; 80–99-trade cells are
+reported separately as near-threshold diagnostics. Each cell includes after-cost
+expectancy, PF, MFE/MAE, sample share, uplift versus the selection baseline, and
+a 95% interval for average net bps. The frozen final 20% remains aggregate-only.
+CUSUM remains journaled metadata for meta-labeling: this report cannot enable
+`require_shift`, `avoid_shift`, BOCPD, PELT gates, paper trading, or execution.
