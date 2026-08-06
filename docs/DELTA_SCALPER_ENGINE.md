@@ -114,11 +114,15 @@ an execution recommendation.
 ```
 
 The report decomposes only the chronological selection window by scanner,
-regime, symbol, side, UTC/IST entry hour, exit reason, hold bucket, and selected
-two-factor clusters. It reports net/gross/cost bps, hit and false-signal rates,
-profit factor, MFE, MAE, and expected-versus-realized error. The frozen final
-20% remains aggregate-only so it cannot be used for threshold selection. Live
-forward outcomes are reported separately and are never pooled with replay.
+regime, symbol, side, UTC/IST entry hour, exit reason, hold bucket, and the full
+scanner × symbol × regime cross. It reports trade share, net/gross/cost bps,
+hit and false-signal rates, profit factor, MFE, MAE, 1m hold bars, and
+expected-versus-realized error. A frequency-versus-expectancy dataset is
+included for dashboard diagnostics. The full period and frozen final 20% remain
+aggregate-only so subgroup inspection cannot silently turn validation data into
+training data. Live forward outcomes are never pooled with replay. Explicit
+live journal rejection reasons are attributed separately; historical rejection
+counts remain unavailable until replay persists every evaluated decision.
 
 ## Run the preregistered threshold sweep
 

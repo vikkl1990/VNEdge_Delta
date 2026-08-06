@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "src/vnedge/dashboard/static/index.html"
 QUANTIFIED = ROOT / "src/vnedge/dashboard/static/quantified_strategy_lab.html"
@@ -147,6 +146,9 @@ def test_dashboard_has_delta_loss_attribution_panel():
     assert 'poll("/delta-scalper"' in html
     assert "this is diagnosis, not optimization" in html
     assert "protected_from_threshold_selection" in html
+    assert "scanner_symbol_regime" in html
+    assert "frequency_expectancy_scatter" in html
+    assert "Trade frequency versus average net expectancy" in html
 
 
 def test_dashboard_renders_daily_signal_factory_lane_truth():

@@ -1497,7 +1497,7 @@
   function renderDeltaAttribution(d){
     var el=$("deltaAttribution"),meta=$("deltaAttributionMeta"); if(!el)return;
     var panels=(d||{}).panels||{},a=panels.attribution||{},s=(a.selection_window||{}).summary||{},sweep=panels.threshold_sweep||{},regimeSweep=panels.regime_sweep||{};
-    var frozen=a.frozen_untouched_window||{},live=a.live_shadow||{},clusters=(a.selection_window||{}).largest_loss_clusters||[];
+    var selection=a.selection_window||{},frozen=a.frozen_untouched_window||{},live=a.live_shadow||{},clusters=selection.largest_loss_clusters||[],rejections=a.live_rejections||{};
     if(!a.report_id){
       if(meta)meta.textContent="not generated";
       el.innerHTML='<div class="note">Run the local Delta attribution report to populate this panel.</div>';
@@ -1513,14 +1513,21 @@
     var losses=clusters.slice(0,5).map(function(r){
       return '<div class="eventrow"><div><b>'+safe(String(r.key||'unknown').replace(/delta_/g,'').replace(/_v1/g,''))+'</b><small>'+num(r.trades).toLocaleString()+' trades · '+(num(r.false_signal_rate)*100).toFixed(1)+'% false</small></div><div class="eventroute"><span class="p dn">'+num(r.net_bps).toFixed(0)+' bps</span><span class="actstate bad">'+num(r.average_net_bps).toFixed(2)+' avg</span></div></div>';
     }).join('');
+    var cross=(((selection.dimensions||{}).scanner_symbol_regime)||[]).slice().sort(function(x,y){return num(y.average_net_bps)-num(x.average_net_bps);});
+    var cells=cross.slice(0,6).map(function(r){
+      return '<div class="eventrow"><div><b>'+safe(String(r.key||'unknown').replace(/delta_/g,'').replace(/_v1/g,''))+'</b><small>'+num(r.trades).toLocaleString()+' trades · '+num(r.pct_of_all_trades).toFixed(1)+'% share · MFE '+num(r.avg_mfe_bps).toFixed(1)+' / MAE '+num(r.avg_mae_bps).toFixed(1)+'</small></div><div class="eventroute"><span class="p '+(num(r.average_net_bps)>=0?'up':'dn')+'">'+num(r.average_net_bps).toFixed(2)+' bps</span><span class="actstate '+(num(r.profit_factor)>=1.2?'ok':'bad')+'">PF '+num(r.profit_factor).toFixed(2)+'</span></div></div>';
+    }).join('');
+    var scatterRows=selection.frequency_expectancy_scatter||[],maxTrades=Math.max.apply(null,[1].concat(scatterRows.map(function(r){return num(r.trades);}))),ys=scatterRows.map(function(r){return num(r.average_net_bps);}),minY=Math.min.apply(null,[0].concat(ys)),maxY=Math.max.apply(null,[0].concat(ys)),yRange=Math.max(1,maxY-minY);
+    var points=scatterRows.map(function(r){var x=30+620*num(r.trades)/maxTrades,y=15+115*(maxY-num(r.average_net_bps))/yRange;return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="'+(num(r.average_net_bps)>=0?'#39d98a':'#ff6577')+'" opacity=".82"><title>'+safe(r.key)+' · '+num(r.trades)+' trades · '+num(r.average_net_bps).toFixed(2)+' bps</title></circle>';}).join('');
+    var scatter='<svg viewBox="0 0 680 150" role="img" aria-label="Trade frequency versus average net expectancy" style="width:100%;height:150px"><line x1="30" y1="130" x2="650" y2="130" stroke="rgba(255,255,255,.16)"/><line x1="30" y1="15" x2="30" y2="130" stroke="rgba(255,255,255,.16)"/>'+points+'<text x="340" y="147" text-anchor="middle" fill="rgba(255,255,255,.58)" font-size="11">trade count →</text><text x="8" y="72" text-anchor="middle" transform="rotate(-90 8 72)" fill="rgba(255,255,255,.58)" font-size="11">avg net bps →</text></svg>';
     var protectedTail=frozen.protected_from_threshold_selection?'protected':'warning';
     var liveText=live.status==='ready'?num((live.summary||{}).trades)+' completed live outcomes':'no completed live outcomes yet';
     var best=sweep.best_diagnostic_config||{},bestCfg=best.config||{},bestSummary=best.selection||{};
     var sweepText=sweep.report_id?('Sweep: '+safe(bestCfg.config_id||'none')+' · PF '+(bestSummary.profit_factor==null?'--':num(bestSummary.profit_factor).toFixed(2))+' · '+num(bestSummary.average_net_bps).toFixed(2)+' bps avg · frozen '+safe(String((sweep.frozen_window||{}).status||'not run').replace(/_/g,' '))):'Threshold sweep pending.';
     var regimeBest=regimeSweep.best_diagnostic_config||{},regimeCfg=regimeBest.config||{},regimeSummary=regimeBest.selection||{};
     var regimeText=regimeSweep.report_id?('Regime: '+safe(regimeCfg.config_id||'none')+' · PF '+(regimeSummary.profit_factor==null?'--':num(regimeSummary.profit_factor).toFixed(2))+' · '+num(regimeSummary.average_net_bps).toFixed(2)+' bps avg · frozen '+safe(String((regimeSweep.frozen_window||{}).status||'not run').replace(/_/g,' '))):'Regime experiment pending.';
-    el.innerHTML=cards+'<div style="padding:0 15px 8px">'+losses+'</div>'+
-      '<div class="fblocker"><b>Read:</b> this is diagnosis, not optimization. Momentum/market/hour rows are selection-window evidence only. Frozen final '+(num(frozen.fraction)*100).toFixed(0)+'% is <span class="actstate ok">'+protectedTail+'</span> and remains aggregate-only · '+safe(liveText)+' · execution locked.<div style="margin-top:7px"><b>'+sweepText+'</b></div><div style="margin-top:4px"><b>'+regimeText+'</b></div></div>';
+    el.innerHTML=cards+'<div class="note"><b>Least-bad scanner × market × regime cells</b></div><div style="padding:0 15px 8px">'+cells+'</div><div style="padding:0 15px 8px">'+scatter+'</div><div class="note"><b>Largest loss clusters</b></div><div style="padding:0 15px 8px">'+losses+'</div>'+
+      '<div class="fblocker"><b>Read:</b> this is diagnosis, not optimization. Momentum/market/hour rows are selection-window evidence only. Frozen final '+(num(frozen.fraction)*100).toFixed(0)+'% is <span class="actstate ok">'+protectedTail+'</span> and remains aggregate-only · '+safe(liveText)+' · '+num(rejections.rejected_reasons).toLocaleString()+' explicit live rejection reasons · execution locked.<div style="margin-top:7px"><b>'+sweepText+'</b></div><div style="margin-top:4px"><b>'+regimeText+'</b></div></div>';
   }
   function eventRouteCls(route,state){
     route=String(route||""); state=String(state||"");

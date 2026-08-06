@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
-from vnedge.research.delta_scalper_attribution import build_attribution_report
+from vnedge.research.delta_scalper_attribution import (
+    build_attribution_report,
+    load_decision_rejections,
+)
 
 START = datetime(2025, 1, 1, tzinfo=UTC)
 
@@ -72,6 +76,12 @@ def test_attribution_decomposes_selection_and_protects_frozen_window():
         "historical_unavailable"
     )
     assert selection["largest_loss_clusters"]
+    full_cross = selection["dimensions"]["scanner_symbol_regime"]
+    assert full_cross
+    assert full_cross[0]["pct_of_all_trades"] > 0
+    assert full_cross[0]["avg_hold_bars"] == 5.0
+    assert selection["frequency_expectancy_scatter"]
+    assert report["full_period_aggregate"]["subgroup_attribution_performed"] is False
     assert selection["signal_quality_diagnostics"]["scalper_probability"][
         "observations"
     ] == 8
@@ -100,3 +110,55 @@ def test_live_shadow_outcomes_are_attributed_separately():
     assert report["live_shadow"]["status"] == "ready"
     assert report["live_shadow"]["summary"]["trades"] == 1
     assert report["selection_window"]["summary"]["trades"] == 1
+
+
+def test_live_rejection_attribution_uses_real_journal_reasons(tmp_path):
+    journal = tmp_path / "shadow.jsonl"
+    journal.write_text(
+        json.dumps(
+            {
+                "kind": "delta_scalper_research_decision",
+                "payload": {
+                    "symbol": "BTCUSD",
+                    "decision_ts": START.isoformat(),
+                    "selected": None,
+                    "evaluated": [
+                        {
+                            "scanner_id": "delta_momentum_burst_v1",
+                            "metadata": {
+                                "regime": "quiet",
+                                "l2_confirmation": {"status": "fresh"},
+                            },
+                        }
+                    ],
+                    "rejection_reasons": [
+                        "delta_momentum_burst_v1:fee_adjusted_expectancy_below_gate"
+                    ],
+                    "pipeline_trace": [
+                        {
+                            "name": "context_builder",
+                            "status": "complete",
+                            "detail": "quiet",
+                        }
+                    ],
+                },
+            }
+        )
+        + "\n"
+    )
+    rejections = load_decision_rejections(journal)
+    report = build_attribution_report(
+        {"markets": {}, "untouched_window": {"untouched_fraction": 0.2}},
+        [],
+        rejections,
+        minimum_cluster_trades=1,
+    )
+
+    live = report["live_rejections"]
+    assert live["status"] == "ready"
+    assert live["rejected_reasons"] == 1
+    assert live["dimensions"]["scanner_symbol_regime"][0]["key"] == (
+        "delta_momentum_burst_v1 | BTCUSD | quiet"
+    )
+    assert live["dimensions"]["l2_status"][0]["l2_status"] == "fresh"
+    assert live["historical_status"].startswith("unavailable")

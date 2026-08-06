@@ -128,22 +128,30 @@ def summarize(rows: Iterable[dict]) -> dict:
     mfe = [_float(row, "mfe_bps") for row in members]
     mae = [_float(row, "mae_bps") for row in members]
     expected = [_float(row, "expected_net_bps") for row in members]
+    hold_seconds = [_float(row, "hold_seconds") for row in members]
     count = len(members)
-    return {
+    average_net = fmean(net) if net else 0.0
+    hit_rate = len(wins) / count if count else 0.0
+    average_mfe = fmean(mfe) if mfe else 0.0
+    average_mae = fmean(mae) if mae else 0.0
+    average_hold_seconds = fmean(hold_seconds) if hold_seconds else 0.0
+    summary = {
         "trades": count,
         "net_bps": sum(net),
-        "average_net_bps": fmean(net) if net else 0.0,
+        "average_net_bps": average_net,
         "median_net_bps": median(net) if net else 0.0,
         "gross_bps": sum(gross),
         "cost_bps": sum(costs),
         "average_cost_bps": fmean(costs) if costs else 0.0,
-        "hit_rate": len(wins) / count if count else 0.0,
+        "hit_rate": hit_rate,
         "false_signal_rate": sum(value <= 0 for value in net) / count if count else 0.0,
         "profit_factor": sum(wins) / sum(losses) if losses else None,
         "average_win_bps": fmean(wins) if wins else 0.0,
         "average_loss_bps": fmean(losses) if losses else 0.0,
-        "average_mfe_bps": fmean(mfe) if mfe else 0.0,
-        "average_mae_bps": fmean(mae) if mae else 0.0,
+        "average_mfe_bps": average_mfe,
+        "average_mae_bps": average_mae,
+        "average_hold_seconds": average_hold_seconds,
+        "average_hold_bars_1m": average_hold_seconds / 60.0,
         "average_expected_net_bps": fmean(expected) if expected else 0.0,
         "expectation_error_bps": (
             fmean(realized - predicted for realized, predicted in zip(net, expected))
@@ -156,6 +164,17 @@ def summarize(rows: Iterable[dict]) -> dict:
             else 0.0
         ),
     }
+    summary.update(
+        {
+            "win_rate": hit_rate,
+            "avg_net_bps": average_net,
+            "total_net_bps": summary["net_bps"],
+            "avg_mfe_bps": average_mfe,
+            "avg_mae_bps": average_mae,
+            "avg_hold_bars": summary["average_hold_bars_1m"],
+        }
+    )
+    return summary
 
 
 def _pearson(left: list[float], right: list[float]) -> float | None:
@@ -217,6 +236,7 @@ def _dimension(
     for row in rows:
         groups[tuple(str(row.get(field) or "unknown") for field in fields)].append(row)
     output = []
+    total_trades = len(rows)
     for values, members in groups.items():
         labels = dict(zip(fields, values))
         output.append(
@@ -225,6 +245,9 @@ def _dimension(
                 "dimension": key_name,
                 **labels,
                 **summarize(members),
+                "pct_of_all_trades": (
+                    len(members) / total_trades * 100.0 if total_trades else 0.0
+                ),
             }
         )
     return sorted(output, key=lambda item: (-int(item["trades"]), str(item["key"])))
@@ -245,6 +268,7 @@ DIMENSIONS: dict[str, tuple[str, ...]] = {
     "l2_quality": ("l2_quality",),
     "scanner_symbol": ("scanner_id", "symbol"),
     "scanner_regime": ("scanner_id", "regime"),
+    "scanner_symbol_regime": ("scanner_id", "symbol", "regime"),
     "scanner_move_size": ("scanner_id", "move_size_bucket"),
     "scanner_probability": ("scanner_id", "probability_bucket"),
     "scanner_confidence": ("scanner_id", "confidence_bucket"),
@@ -267,6 +291,7 @@ def _loss_clusters(tables: dict[str, list[dict]], minimum_trades: int) -> list[d
         "scanner_move_size",
         "scanner_probability",
         "scanner_confidence",
+        "scanner_symbol_regime",
         "symbol_regime",
         "symbol_hour_ist",
     }
@@ -292,6 +317,7 @@ def _false_signal_clusters(
         "scanner_move_size",
         "scanner_probability",
         "scanner_confidence",
+        "scanner_symbol_regime",
         "symbol_regime",
         "symbol_hour_ist",
     }
@@ -338,6 +364,108 @@ def load_forward_outcomes(path: Path) -> list[dict]:
     return sorted(outcomes, key=lambda row: str(row.get("exit_ts") or ""))
 
 
+def load_decision_rejections(path: Path) -> list[dict]:
+    """Return one row per explicit live rejection reason.
+
+    Historical replay artifacts currently retain completed trades only, so this
+    table intentionally covers the live shadow journal and never invents a
+    historical rejection population.
+    """
+    rows: list[dict] = []
+    if not path.exists():
+        return rows
+    for line in path.read_text(encoding="utf-8").splitlines():
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if record.get("kind") != "delta_scalper_research_decision":
+            continue
+        payload = record.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        evaluated = [
+            candidate
+            for candidate in (payload.get("evaluated") or [])
+            if isinstance(candidate, dict)
+        ]
+        context_regime = next(
+            (
+                str(stage.get("detail"))
+                for stage in (payload.get("pipeline_trace") or [])
+                if isinstance(stage, dict)
+                and stage.get("name") == "context_builder"
+                and stage.get("detail")
+            ),
+            "unknown",
+        )
+        for raw_reason in payload.get("rejection_reasons") or []:
+            reason = str(raw_reason)
+            parts = reason.split(":")
+            scanner_id = parts[0] if len(parts) >= 2 else "engine"
+            reason_code = parts[1] if len(parts) >= 2 else parts[0]
+            candidate = next(
+                (
+                    item
+                    for item in evaluated
+                    if str(item.get("scanner_id")) == scanner_id
+                ),
+                {},
+            )
+            metadata = candidate.get("metadata")
+            metadata = metadata if isinstance(metadata, dict) else {}
+            l2 = metadata.get("l2_confirmation")
+            l2 = l2 if isinstance(l2, dict) else {}
+            rows.append(
+                {
+                    "decision_ts": payload.get("decision_ts"),
+                    "symbol": str(payload.get("symbol") or "unknown").upper(),
+                    "scanner_id": scanner_id,
+                    "regime": str(metadata.get("regime") or context_regime),
+                    "reason": reason_code,
+                    "reason_detail": ":".join(parts[2:]) if len(parts) > 2 else None,
+                    "l2_status": str(l2.get("status") or "unavailable"),
+                }
+            )
+    return rows
+
+
+def rejection_attribution(rows: list[dict]) -> dict:
+    dimensions = {
+        "reason": ("reason",),
+        "regime": ("regime",),
+        "scanner_regime": ("scanner_id", "regime"),
+        "symbol_regime": ("symbol", "regime"),
+        "scanner_symbol_regime": ("scanner_id", "symbol", "regime"),
+        "l2_status": ("l2_status",),
+    }
+    output: dict[str, list[dict]] = {}
+    total = len(rows)
+    for name, fields in dimensions.items():
+        groups: dict[tuple[str, ...], int] = defaultdict(int)
+        for row in rows:
+            groups[tuple(str(row.get(field) or "unknown") for field in fields)] += 1
+        output[name] = sorted(
+            [
+                {
+                    "key": " | ".join(values),
+                    **dict(zip(fields, values)),
+                    "rejected_count": count,
+                    "pct_of_all_rejections": count / total * 100.0 if total else 0.0,
+                }
+                for values, count in groups.items()
+            ],
+            key=lambda item: (-int(item["rejected_count"]), str(item["key"])),
+        )
+    return {
+        "status": "ready" if rows else "no_explicit_rejections_yet",
+        "rejected_reasons": total,
+        "dimensions": output,
+        "scope": "live_shadow_journal_only",
+        "historical_status": "unavailable_backtest_artifact_contains_resolved_trades_only",
+    }
+
+
 def _automated_findings(tables: dict[str, list[dict]], summary: dict) -> list[dict]:
     findings: list[dict] = []
     symbols = tables.get("symbol", [])
@@ -379,6 +507,7 @@ def _automated_findings(tables: dict[str, list[dict]], summary: dict) -> list[di
 def _attribution_section(rows: list[dict], *, minimum_cluster_trades: int) -> dict:
     tables = dimension_tables(rows)
     summary = summarize(rows)
+    full_cross = tables.get("scanner_symbol_regime", [])
     return {
         "summary": summary,
         "signal_quality_diagnostics": signal_quality_diagnostics(rows),
@@ -388,12 +517,25 @@ def _attribution_section(rows: list[dict], *, minimum_cluster_trades: int) -> di
             tables, minimum_cluster_trades
         ),
         "automated_findings": _automated_findings(tables, summary),
+        "frequency_expectancy_scatter": [
+            {
+                "key": row["key"],
+                "scanner_id": row["scanner_id"],
+                "symbol": row["symbol"],
+                "regime": row["regime"],
+                "trades": row["trades"],
+                "average_net_bps": row["average_net_bps"],
+                "profit_factor": row["profit_factor"],
+            }
+            for row in full_cross
+        ],
     }
 
 
 def build_attribution_report(
     backtest: dict,
     live_outcomes: list[dict],
+    live_rejections: list[dict] | None = None,
     *,
     minimum_cluster_trades: int = 50,
 ) -> dict:
@@ -412,6 +554,11 @@ def build_attribution_report(
         "report_id": "delta_scalper_attribution_v1",
         "generated_at": datetime.now(UTC).isoformat(),
         "backtest_generated_at": backtest.get("generated_at"),
+        "full_period_aggregate": {
+            "summary": summarize(historical),
+            "subgroup_attribution_performed": False,
+            "reason": "subgroups are selection-only to protect the frozen tail",
+        },
         "selection_window": {
             "start_exit_ts": selection[0].get("exit_ts") if selection else None,
             "end_exit_ts": selection[-1].get("exit_ts") if selection else None,
@@ -434,11 +581,14 @@ def build_attribution_report(
                 normalized_live, minimum_cluster_trades=max(1, minimum_cluster_trades)
             ),
         },
+        "live_rejections": rejection_attribution(live_rejections or []),
         "policy": {
             "research_only": True,
             "diagnostic_not_optimization": True,
             "thresholds_changed": False,
             "frozen_untouched_decomposed": False,
+            "mae_sign_convention": "positive adverse magnitude in bps",
+            "hold_bar_definition": "hold_seconds divided by 60 for 1m replay",
             "can_trade": False,
             "can_promote": False,
         },
@@ -467,6 +617,7 @@ def generate_report(
     report = build_attribution_report(
         backtest,
         load_forward_outcomes(journal_path),
+        load_decision_rejections(journal_path),
         minimum_cluster_trades=minimum_cluster_trades,
     )
     report["sources"] = {
