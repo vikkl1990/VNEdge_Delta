@@ -201,6 +201,48 @@ def _cusum_by_window(
     return sorted(output, key=lambda row: str(row["cusum_window"]))
 
 
+def _flat_grouped_attribution(
+    selection: pd.DataFrame,
+    base_shap: pd.DataFrame,
+    probabilities: np.ndarray,
+    group_fields: tuple[str, ...],
+    *,
+    minimum_trades: int = 1,
+) -> pd.DataFrame:
+    """Return attribution and realized economics in a dashboard-friendly table."""
+    working = selection.reset_index(drop=True).copy()
+    working["prediction_probability"] = probabilities
+    rows: list[dict[str, Any]] = []
+    groups = working.groupby(list(group_fields), observed=True, sort=False).indices
+    for values, raw_indices in groups.items():
+        values = values if isinstance(values, tuple) else (values,)
+        positions = np.asarray(raw_indices, dtype=int)
+        if len(positions) < minimum_trades:
+            continue
+        members = working.iloc[positions]
+        contributions = base_shap.iloc[positions].mean()
+        row: dict[str, Any] = {
+            "key": " | ".join(map(str, values)),
+            **dict(zip(group_fields, values)),
+            **_economic_metrics(members),
+            "average_prediction_probability": float(
+                members["prediction_probability"].mean()
+            ),
+        }
+        row.update(
+            {
+                f"shap_{feature}": float(value)
+                for feature, value in contributions.items()
+            }
+        )
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values(
+        ["average_prediction_probability", "trades"],
+        ascending=[False, False],
+        ignore_index=True,
+    )
+
+
 def _local_attributions(
     selection: pd.DataFrame,
     base_shap: pd.DataFrame,
@@ -371,6 +413,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     base_shap = aggregate_base_shap(shap_values, transformed_names)
     global_importance = _global_importance(base_shap)
     encoded_importance = _encoded_importance(shap_values, transformed_names)
+    split_importance = pd.DataFrame(
+        {
+            "feature": [name.split("__", 1)[-1] for name in transformed_names],
+            "base_feature": [base_feature_name(name) for name in transformed_names],
+            "split_importance": model.feature_importances_,
+        }
+    ).sort_values(["split_importance", "feature"], ascending=[False, True])
     grouped = _grouped_attribution(
         selection,
         base_shap,
@@ -378,6 +427,30 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         minimum_trades=args.minimum_group_trades,
     )
     cusum = _cusum_by_window(selection, base_shap, probabilities)
+    scanner_vol = _flat_grouped_attribution(
+        selection,
+        base_shap,
+        probabilities,
+        ("scanner_id", "volatility_regime_at_entry"),
+    )
+    scanner_cusum = _flat_grouped_attribution(
+        selection,
+        base_shap,
+        probabilities,
+        ("scanner_id", "change_point_window_at_entry"),
+    )
+    full_interaction = _flat_grouped_attribution(
+        selection,
+        base_shap,
+        probabilities,
+        (
+            "scanner_id",
+            "trend_regime_at_entry",
+            "volatility_regime_at_entry",
+            "change_point_window_at_entry",
+        ),
+        minimum_trades=args.minimum_group_trades,
+    )
     local = _local_attributions(
         selection,
         base_shap,
@@ -441,6 +514,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "global_importance": global_importance.to_dict(orient="records"),
         "encoded_importance": encoded_importance.to_dict(orient="records"),
         "grouped_attribution": grouped,
+        "grouped_views": {
+            "scanner_volatility": scanner_vol.to_dict(orient="records"),
+            "scanner_cusum": scanner_cusum.to_dict(orient="records"),
+            "full_interaction": full_interaction.to_dict(orient="records"),
+        },
         "cusum_attribution_by_window": cusum,
         "local_high_probability_attribution": local,
         "manual_interaction_comparison": manual_comparison,
@@ -457,6 +535,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "shap_used_for_scanner_gate": False,
             "shap_used_for_execution": False,
             "historical_l2_cvd_not_fabricated": True,
+            "deployable_model_saved": False,
+            "reason_model_not_saved": "selection profitability gates failed",
             "can_trade": False,
             "can_promote": False,
         },
@@ -465,7 +545,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
     global_importance.to_csv(args.artifact_dir / "global_base_shap.csv", index=False)
+    global_importance.to_csv(
+        args.artifact_dir / "shap_global_importance.csv", index=False
+    )
     encoded_importance.to_csv(args.artifact_dir / "global_encoded_shap.csv", index=False)
+    split_importance.to_csv(args.artifact_dir / "lgbm_importance.csv", index=False)
+    scanner_vol.to_csv(
+        args.artifact_dir / "shap_grouped_scanner_vol.csv", index=False
+    )
+    scanner_cusum.to_csv(
+        args.artifact_dir / "shap_grouped_scanner_cusum.csv", index=False
+    )
+    full_interaction.to_csv(
+        args.artifact_dir / "shap_grouped_full_interaction.csv", index=False
+    )
     pd.DataFrame(grouped).to_json(
         args.artifact_dir / "grouped_shap.json", orient="records", indent=2
     )

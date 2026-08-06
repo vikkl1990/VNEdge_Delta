@@ -323,3 +323,10 @@ contributions are added back to their causal base feature. The frozen final 20%
 receives neither predictions nor SHAP values. These explanations are diagnostics
 only: they cannot alter scanner thresholds, promote a model, route an order, or
 invent missing historical L2/CVD inputs.
+
+Flat CSV views are also written for scanner × volatility, scanner × CUSUM, and
+scanner × trend × volatility × CUSUM. Each row carries trade count, realized
+after-cost expectancy, PF, win rate, average model probability, and one column
+per causal SHAP contribution. The LightGBM split-importance table is retained as
+a comparison, but no model, scaler, or deployment threshold is saved while the
+selection profitability gates fail.
