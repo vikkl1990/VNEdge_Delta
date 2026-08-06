@@ -30,6 +30,16 @@ def _float(row: dict, key: str) -> float:
         return 0.0
 
 
+def _optional_float(row: dict, key: str) -> float | None:
+    value = row.get(key)
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _timestamp(value: object) -> datetime:
     stamp = datetime.fromisoformat(str(value))
     if stamp.tzinfo is None:
@@ -49,8 +59,29 @@ def _hold_bucket(seconds: float) -> str:
     return "30m+"
 
 
+def _numeric_bucket(
+    value: float | None,
+    boundaries: tuple[float, ...],
+    labels: tuple[str, ...],
+) -> str:
+    if value is None:
+        return "unavailable"
+    for boundary, label in zip(boundaries, labels):
+        if value < boundary:
+            return label
+    return labels[-1]
+
+
 def normalize_trade(row: dict, *, source: str) -> dict:
     entry_ts = _timestamp(row["entry_ts"])
+    expected_move = _optional_float(row, "expected_move_bps")
+    probability = _optional_float(row, "scalper_probability")
+    confidence = _optional_float(row, "confidence")
+    l2_quality = row.get("l2_quality")
+    if not l2_quality:
+        l2_quality = (
+            "historical_unavailable" if source == "historical_backtest" else "unavailable"
+        )
     return {
         **row,
         "source": source,
@@ -62,6 +93,22 @@ def normalize_trade(row: dict, *, source: str) -> dict:
         "entry_hour_utc": f"{entry_ts.hour:02d}:00 UTC",
         "entry_hour_ist": f"{entry_ts.astimezone(IST).hour:02d}:00 IST",
         "hold_bucket": _hold_bucket(_float(row, "hold_seconds")),
+        "move_size_bucket": _numeric_bucket(
+            expected_move,
+            (12.0, 18.0, 24.0, 30.0),
+            ("<12bps", "12-18bps", "18-24bps", "24-30bps", "30bps+"),
+        ),
+        "probability_bucket": _numeric_bucket(
+            probability,
+            (0.74, 0.78, 0.82, 0.86),
+            ("<0.74", "0.74-0.78", "0.78-0.82", "0.82-0.86", "0.86+"),
+        ),
+        "confidence_bucket": _numeric_bucket(
+            confidence,
+            (0.68, 0.76, 0.84, 0.90),
+            ("<0.68", "0.68-0.76", "0.76-0.84", "0.84-0.90", "0.90+"),
+        ),
+        "l2_quality": str(l2_quality),
         "net_bps": _float(row, "net_bps"),
         "gross_bps": _float(row, "gross_bps"),
         "cost_bps": _float(row, "cost_bps"),
@@ -111,6 +158,55 @@ def summarize(rows: Iterable[dict]) -> dict:
     }
 
 
+def _pearson(left: list[float], right: list[float]) -> float | None:
+    if len(left) < 2 or len(left) != len(right):
+        return None
+    left_mean = fmean(left)
+    right_mean = fmean(right)
+    numerator = sum(
+        (x_value - left_mean) * (y_value - right_mean)
+        for x_value, y_value in zip(left, right)
+    )
+    left_scale = sum((value - left_mean) ** 2 for value in left) ** 0.5
+    right_scale = sum((value - right_mean) ** 2 for value in right) ** 0.5
+    denominator = left_scale * right_scale
+    return numerator / denominator if denominator else None
+
+
+def signal_quality_diagnostics(rows: list[dict]) -> dict[str, dict]:
+    diagnostics: dict[str, dict] = {}
+    for field in ("expected_move_bps", "scalper_probability", "confidence"):
+        samples = [
+            (value, _float(row, "net_bps"))
+            for row in rows
+            if (value := _optional_float(row, field)) is not None
+        ]
+        values = [value for value, _ in samples]
+        net = [realized for _, realized in samples]
+        wins = [float(realized > 0) for realized in net]
+        diagnostics[field] = {
+            "observations": len(samples),
+            "correlation_with_net_bps": _pearson(values, net),
+            "correlation_with_win": _pearson(values, wins),
+            "higher_score_improves_outcomes": (
+                _pearson(values, net) is not None
+                and float(_pearson(values, net) or 0.0) > 0
+            ),
+        }
+        if field == "scalper_probability" and samples:
+            diagnostics[field].update(
+                {
+                    "average_predicted_probability": fmean(values),
+                    "empirical_hit_rate": fmean(wins),
+                    "brier_score": fmean(
+                        (probability - won) ** 2
+                        for probability, won in zip(values, wins)
+                    ),
+                }
+            )
+    return diagnostics
+
+
 def _dimension(
     rows: list[dict],
     fields: tuple[str, ...],
@@ -143,8 +239,15 @@ DIMENSIONS: dict[str, tuple[str, ...]] = {
     "entry_hour_ist": ("entry_hour_ist",),
     "exit_reason": ("exit_reason",),
     "hold_bucket": ("hold_bucket",),
+    "move_size_bucket": ("move_size_bucket",),
+    "probability_bucket": ("probability_bucket",),
+    "confidence_bucket": ("confidence_bucket",),
+    "l2_quality": ("l2_quality",),
     "scanner_symbol": ("scanner_id", "symbol"),
     "scanner_regime": ("scanner_id", "regime"),
+    "scanner_move_size": ("scanner_id", "move_size_bucket"),
+    "scanner_probability": ("scanner_id", "probability_bucket"),
+    "scanner_confidence": ("scanner_id", "confidence_bucket"),
     "symbol_regime": ("symbol", "regime"),
     "symbol_hour_ist": ("symbol", "entry_hour_ist"),
 }
@@ -158,7 +261,15 @@ def dimension_tables(rows: list[dict]) -> dict[str, list[dict]]:
 
 
 def _loss_clusters(tables: dict[str, list[dict]], minimum_trades: int) -> list[dict]:
-    allowed = {"scanner_symbol", "scanner_regime", "symbol_regime", "symbol_hour_ist"}
+    allowed = {
+        "scanner_symbol",
+        "scanner_regime",
+        "scanner_move_size",
+        "scanner_probability",
+        "scanner_confidence",
+        "symbol_regime",
+        "symbol_hour_ist",
+    }
     candidates = [
         row
         for name, rows in tables.items()
@@ -175,7 +286,15 @@ def _loss_clusters(tables: dict[str, list[dict]], minimum_trades: int) -> list[d
 def _false_signal_clusters(
     tables: dict[str, list[dict]], minimum_trades: int
 ) -> list[dict]:
-    allowed = {"scanner_symbol", "scanner_regime", "symbol_regime", "symbol_hour_ist"}
+    allowed = {
+        "scanner_symbol",
+        "scanner_regime",
+        "scanner_move_size",
+        "scanner_probability",
+        "scanner_confidence",
+        "symbol_regime",
+        "symbol_hour_ist",
+    }
     candidates = [
         row
         for name, rows in tables.items()
@@ -262,6 +381,7 @@ def _attribution_section(rows: list[dict], *, minimum_cluster_trades: int) -> di
     summary = summarize(rows)
     return {
         "summary": summary,
+        "signal_quality_diagnostics": signal_quality_diagnostics(rows),
         "dimensions": tables,
         "largest_loss_clusters": _loss_clusters(tables, minimum_cluster_trades),
         "highest_false_signal_clusters": _false_signal_clusters(

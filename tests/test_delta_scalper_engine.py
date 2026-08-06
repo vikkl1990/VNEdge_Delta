@@ -487,6 +487,7 @@ def test_forward_tracker_enters_next_bar_and_journals_once():
     assert outcomes[0].gross_bps == pytest.approx(20.0)
     assert outcomes[0].net_bps == pytest.approx(20.0 - 2.36)
     assert outcomes[0].scalper_compliant
+    assert outcomes[0].l2_quality == "unavailable"
 
 
 def test_backtest_rebases_exit_distances_on_next_open_fill():

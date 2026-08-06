@@ -120,6 +120,20 @@ profit factor, MFE, MAE, and expected-versus-realized error. The frozen final
 20% remains aggregate-only so it cannot be used for threshold selection. Live
 forward outcomes are reported separately and are never pooled with replay.
 
+## Run the preregistered threshold sweep
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_threshold_sweep \
+  --scalper-opted-in
+```
+
+The sweep generates the candle/scanner candidate ledger once and replays 20
+single-family probability, confidence, expectancy, move-size, and fee-multiple
+gates through independent next-open trade states. Configurations are ranked on
+the fixed selection period. The frozen tail is evaluated once only if a variant
+first clears the preregistered selection gates; otherwise it remains unopened.
+Historical L2 is not fabricated and no L2 hard-gate result is claimed.
+
 ## Promotion gates
 
 Paper trading remains locked until untouched results show all of:

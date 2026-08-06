@@ -41,6 +41,10 @@ class ForwardOutcome:
     net_bps: float
     mfe_bps: float
     mae_bps: float
+    l2_quality: str
+    l2_status: str
+    l2_sequence_healthy: bool | None
+    l2_imbalance_z: float | None
     scalper_compliant: bool
     same_bar_ambiguous: bool
 
@@ -141,6 +145,25 @@ class ForwardOutcomeTracker:
             gross_bps = (exit_price / entry - 1) * 10_000
         else:
             gross_bps = (entry / exit_price - 1) * 10_000
+        l2 = candidate.metadata.get("l2_confirmation")
+        l2_context = dict(l2) if isinstance(l2, dict) else {}
+        l2_status = str(l2_context.get("status") or "unavailable")
+        l2_sequence_healthy = l2_context.get("sequence_healthy")
+        if l2_sequence_healthy is False:
+            l2_quality = "unhealthy_sequence"
+        elif l2_status == "stale":
+            l2_quality = "stale"
+        elif l2_status in {"fresh", "aligned"}:
+            l2_quality = "healthy_fresh"
+        else:
+            l2_quality = "unavailable"
+        raw_imbalance_z = l2_context.get("imbalance_z")
+        try:
+            l2_imbalance_z = (
+                float(raw_imbalance_z) if raw_imbalance_z is not None else None
+            )
+        except (TypeError, ValueError):
+            l2_imbalance_z = None
         return ForwardOutcome(
             key=candidate.dedup_key,
             scanner_id=candidate.scanner_id,
@@ -161,6 +184,12 @@ class ForwardOutcomeTracker:
             net_bps=gross_bps - costs.total_bps,
             mfe_bps=active.mfe_bps,
             mae_bps=active.mae_bps,
+            l2_quality=l2_quality,
+            l2_status=l2_status,
+            l2_sequence_healthy=(
+                l2_sequence_healthy if isinstance(l2_sequence_healthy, bool) else None
+            ),
+            l2_imbalance_z=l2_imbalance_z,
             scalper_compliant=costs.scalper_eligible,
             same_bar_ambiguous=stop_hit and target_hit,
         )

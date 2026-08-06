@@ -27,6 +27,9 @@ def _trade(index: int) -> dict:
         "mfe_bps": 15.0 if winner else 4.0,
         "mae_bps": 3.0 if winner else 10.0,
         "expected_net_bps": 9.0,
+        "expected_move_bps": 20.0,
+        "scalper_probability": 0.8,
+        "confidence": 0.82,
         "same_bar_ambiguous": False,
     }
 
@@ -56,7 +59,25 @@ def test_attribution_decomposes_selection_and_protects_frozen_window():
     assert selection["dimensions"]["entry_hour_ist"][0]["entry_hour_ist"].endswith(
         "IST"
     )
+    assert selection["dimensions"]["move_size_bucket"][0]["move_size_bucket"] == (
+        "18-24bps"
+    )
+    assert selection["dimensions"]["probability_bucket"][0]["probability_bucket"] == (
+        "0.78-0.82"
+    )
+    assert selection["dimensions"]["confidence_bucket"][0]["confidence_bucket"] == (
+        "0.76-0.84"
+    )
+    assert selection["dimensions"]["l2_quality"][0]["l2_quality"] == (
+        "historical_unavailable"
+    )
     assert selection["largest_loss_clusters"]
+    assert selection["signal_quality_diagnostics"]["scalper_probability"][
+        "observations"
+    ] == 8
+    assert "brier_score" in selection["signal_quality_diagnostics"][
+        "scalper_probability"
+    ]
     assert report["live_shadow"]["status"] == "insufficient_completed_outcomes"
     assert report["policy"]["thresholds_changed"] is False
 

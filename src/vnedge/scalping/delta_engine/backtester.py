@@ -39,6 +39,8 @@ class BacktestTrade:
     regime_at_entry: str
     expected_move_bps: float
     expected_net_bps: float
+    scalper_probability: float
+    confidence: float
     deto_enabled: bool
     entry_is_maker: bool
 
@@ -105,7 +107,7 @@ class BacktestReport:
 
 
 @dataclass
-class _OpenBacktestTrade:
+class OpenBacktestTrade:
     candidate: SignalCandidate
     entry_bar: Candle
     mfe_bps: float = 0.0
@@ -132,7 +134,7 @@ class CausalScalperBacktester:
             raise ValueError("backtester accepts closed 1m candles only")
         aggregator = ClosedCandleAggregator()
         pending: SignalCandidate | None = None
-        open_trade: _OpenBacktestTrade | None = None
+        open_trade: OpenBacktestTrade | None = None
         trades: list[BacktestTrade] = []
         previous_ts: datetime | None = None
         missing_bars = 0
@@ -161,10 +163,10 @@ class CausalScalperBacktester:
                     volume=bar.volume,
                     tf=bar.tf,
                 )
-                open_trade = _OpenBacktestTrade(pending, entry_bar)
+                open_trade = OpenBacktestTrade(pending, entry_bar)
                 pending = None
             if open_trade is not None:
-                resolved = self._resolve_on_bar(open_trade, bar)
+                resolved = self.resolve_on_bar(open_trade, bar)
                 if resolved is not None:
                     trades.append(resolved)
                     open_trade = None
@@ -183,9 +185,9 @@ class CausalScalperBacktester:
             unresolved_dropped=unresolved_dropped,
         )
 
-    def _resolve_on_bar(
+    def resolve_on_bar(
         self,
-        active: _OpenBacktestTrade,
+        active: OpenBacktestTrade,
         bar: Candle,
     ) -> BacktestTrade | None:
         candidate = active.candidate
@@ -257,6 +259,8 @@ class CausalScalperBacktester:
             regime_at_entry=str(candidate.metadata.get("regime") or "unknown"),
             expected_move_bps=candidate.expected_move_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,
+            scalper_probability=candidate.scalper_probability,
+            confidence=candidate.confidence,
             deto_enabled=costs.deto_enabled,
             entry_is_maker=candidate.entry_is_maker,
         )
