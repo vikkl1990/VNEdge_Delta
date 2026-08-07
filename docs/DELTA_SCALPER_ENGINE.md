@@ -147,6 +147,13 @@ the preregistration commit, reproduce it with:
 .venv/bin/python -m vnedge.research.btc_eth_transfer_entropy
 ```
 
+The frozen TE study found statistically stable BTC→ETH information, particularly
+at three-bar histories, but every cell remained below the preregistered 0.005
+normalized-effect threshold. The best rolling median was 0.004869 at 1m and
+0.004586 at 5m. The threshold was not lowered after this near miss; no v2 or
+scanner replay is authorized. See the
+[`transfer-entropy result`](BTC_ETH_TRANSFER_ENTROPY_V1_RESULT.md).
+
 ## Complete-module HLD coverage
 
 - Public ingestion uses Delta REST backfill plus heartbeat/reconnecting WS.

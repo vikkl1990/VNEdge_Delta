@@ -568,6 +568,9 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 14. **Linear BTC→ETH precedence did not generalize.** Corrected 1m Granger tests
     were frequently significant, but every tested BTC→ETH lag had negative
     median rolling OOS MSE improvement. No lead-lag v2 is authorized.
+15. **Non-linear dependence was stable but below the frozen effect gate.** TE
+    favored BTC→ETH, especially at 5m, yet all normalized rolling medians were
+    below 0.005. The near-miss threshold was not relaxed; no v2 is authorized.
 
 ## 18. Reproduction commands
 
