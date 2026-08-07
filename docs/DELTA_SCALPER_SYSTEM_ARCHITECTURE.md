@@ -1,5 +1,9 @@
 # VNEDGE Delta India Scalper Engine — System Architecture
 
+For the peer-review inventory of every implemented module, runtime path,
+research program, safety boundary, current evidence, and known gap, see
+[Implemented Architecture and Code Flow](DELTA_SCALPER_PEER_REVIEW.md).
+
 Version 1.0, implemented 5 August 2026.
 
 ## Deployed topology
