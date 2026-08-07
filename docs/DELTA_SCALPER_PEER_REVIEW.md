@@ -201,6 +201,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `configs/research/delta_scalper_htf_pullback_v1.yaml` | Frozen enabled configuration that reproduces the rejected hierarchical hypothesis. |
 | `configs/research/btc_eth_lead_lag_v1.yaml` | Preregistered synchronized-pair hypothesis, cost contract, selection gates, and sealed untouched rule. |
 | `configs/research/btc_eth_lead_lag_causal_discovery_v1.yaml` | Frozen bidirectional 1m/5m rolling Granger study over the already-open selection window only. |
+| `configs/research/btc_eth_transfer_entropy_v1.yaml` | Frozen non-linear directed-information study with tertile encoding and segment-preserving surrogates. |
 
 ### Research programs
 
@@ -219,6 +220,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `delta_scalper_lightgbm_shap.py` | Global, grouped, local and interaction SHAP reports and plots. | Selection-only; guarded Booster bundle; no live integration. |
 | `btc_eth_lead_lag_backtest.py` | Exact-timestamp paired replay using the canonical next-open, stop-first path resolver. | First 80% is selection; final 20% is never simulated unless every frozen selection gate passes. |
 | `btc_eth_lead_lag_causal_discovery.py` | Gap-safe synchronized returns, nested OLS F-tests, rolling chronological prediction, BH correction, and directionality summaries. | Cannot load the old v1 tail; a pass authorizes only a distinct v2 preregistration, never a scanner or trade. |
+| `btc_eth_transfer_entropy.py` | Discrete TE in bits, surrogate bias correction, empirical significance, rolling stability, and reverse-direction comparison. | Selection-only; no regime slicing, scanner threshold, cost claim, tail access, or execution authority. |
 
 ## 6. Contracts and state invariants
 

@@ -130,6 +130,23 @@ at all 1m and 5m lags, and seven of eight cells also reduced sign accuracy. No
 v2 or scanner replay is authorized. See the
 [`causal-discovery result`](BTC_ETH_LEAD_LAG_CAUSAL_DISCOVERY_V1_RESULT.md).
 
+`btc_eth_transfer_entropy_v1` is a final non-linear, model-free diagnostic on
+the same already-open selection period. It quantizes rolling-window log returns
+into three states, tests 1–3 bar histories in both directions at 1m and 5m, and
+subtracts finite-sample bias estimated from 99 deterministic segment-preserving
+circular-shift surrogates. Empirical p-values are corrected across all 12 cells
+per rolling window. Volatility conditioning is deliberately excluded because
+adding it after results would create another search dimension.
+
+The study cannot access the old final 20%, construct a scanner, or make a cost
+or profitability claim. See the
+[`transfer-entropy contract`](BTC_ETH_TRANSFER_ENTROPY_V1_CONTRACT.md). After
+the preregistration commit, reproduce it with:
+
+```bash
+.venv/bin/python -m vnedge.research.btc_eth_transfer_entropy
+```
+
 ## Complete-module HLD coverage
 
 - Public ingestion uses Delta REST backfill plus heartbeat/reconnecting WS.
