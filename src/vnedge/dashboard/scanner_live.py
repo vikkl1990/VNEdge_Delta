@@ -82,6 +82,12 @@ DELTA_SCALPER_LIGHTGBM_META_LABEL_PATH = Path(
         "research/live_research/delta_scalper_lightgbm_meta_latest.json",
     )
 )
+DELTA_SCALPER_CATEGORICAL_ENCODING_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_DELTA_SCALPER_CATEGORICAL_ENCODING_PATH",
+        "research/live_research/delta_scalper_categorical_encoding_latest.json",
+    )
+)
 DELTA_SCALPER_CUSUM_INTERACTIONS_PATH = Path(
     os.environ.get(
         "DASHBOARD_DELTA_SCALPER_CUSUM_INTERACTIONS_PATH",
@@ -118,10 +124,9 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     regime_sweep = _read_payload(DELTA_SCALPER_REGIME_SWEEP_PATH)
     change_points = _read_payload(DELTA_SCALPER_CHANGE_POINTS_PATH)
     meta_label = _read_payload(DELTA_SCALPER_META_LABEL_PATH)
-    triple_barrier_meta_label = _read_payload(
-        DELTA_SCALPER_TRIPLE_BARRIER_META_LABEL_PATH
-    )
+    triple_barrier_meta_label = _read_payload(DELTA_SCALPER_TRIPLE_BARRIER_META_LABEL_PATH)
     lightgbm_meta_label = _read_payload(DELTA_SCALPER_LIGHTGBM_META_LABEL_PATH)
+    categorical_encoding = _read_payload(DELTA_SCALPER_CATEGORICAL_ENCODING_PATH)
     cusum_interactions = _read_payload(DELTA_SCALPER_CUSUM_INTERACTIONS_PATH)
     lightgbm_shap = _read_payload(DELTA_SCALPER_LIGHTGBM_SHAP_PATH)
     if not primary and not scalper:
@@ -135,16 +140,9 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
         }
     current = datetime.now(UTC)
     bridges = [
-        dashboard_scanner_payload(payload, now=current)
-        for payload in (primary, scalper)
-        if payload
+        dashboard_scanner_payload(payload, now=current) for payload in (primary, scalper) if payload
     ]
-    rows = [
-        row
-        for bridge in bridges
-        for row in bridge.get("rows", [])
-        if isinstance(row, dict)
-    ]
+    rows = [row for bridge in bridges for row in bridge.get("rows", []) if isinstance(row, dict)]
     generated_values = [
         bridge.get("generated_at") for bridge in bridges if bridge.get("generated_at")
     ]
@@ -175,6 +173,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "meta_label": meta_label or None,
             "triple_barrier_meta_label": triple_barrier_meta_label or None,
             "lightgbm_meta_label": lightgbm_meta_label or None,
+            "categorical_encoding": categorical_encoding or None,
             "cusum_interactions": cusum_interactions or None,
             "lightgbm_shap": lightgbm_shap or None,
         }

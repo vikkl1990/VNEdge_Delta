@@ -284,6 +284,29 @@ pass. Research reports and feature importance are always written under
 `research/meta_labeling_lightgbm`; a model bundle and threshold are written only
 after untouched success and are never loaded into the live scanner automatically.
 
+### LightGBM categorical-encoding comparison
+
+The guarded baseline uses fit-window-only one-hot encoding. Compare that
+baseline with LightGBM's native pandas-categorical handling using:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_categorical_encoding
+```
+
+Both variants share the same 60/10/10/20 chronological boundaries, fit-only
+numeric median/RobustScaler state, shallow LightGBM parameters, early-stopping
+slice, triple-barrier label, and preregistered threshold grid. The native path
+learns category vocabularies from the fit window only and maps later unseen
+values to an explicit unknown category. It also publishes per-category average
+probability, target rate, and realized after-cost expectancy so categorical
+overfit can be inspected directly.
+
+This is an A/B diagnostic on the already-designated selection window. It never
+scores the protected final 20%, declares a winner, writes a model/preprocessor,
+or changes the live scanner. A future native model would need to be
+preregistered and validated independently; choosing an encoding on this same
+selection window and then calling it untouched would be leakage.
+
 ### CUSUM interaction attribution
 
 Run the selection-only five-way interaction matrix with:

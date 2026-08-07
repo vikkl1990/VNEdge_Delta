@@ -211,6 +211,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `delta_scalper_triple_barrier_labels.py` | Exports simulator or Route A outcomes to Parquet. | Explicit labels win; time-stop MFE recovery is opt-in and approximate. |
 | `delta_scalper_meta_label.py` | Regularized logistic meta-label experiment with net or barrier labels. | 70/10/20 chronology and embargo; model only after untouched success. |
 | `delta_scalper_lightgbm_meta.py` | LightGBM fit, early stop, selection threshold search, and sealed tail. | 60/10/10/20 chronology; absent L2/CVD/funding not fabricated. |
+| `delta_scalper_categorical_encoding.py` | Selection-only one-hot versus native categorical A/B diagnostic with category-level probability and economics. | Shared chronological windows; final 20% never scored; no winner or artifact promoted from the comparison. |
 | `delta_scalper_lightgbm_shap.py` | Global, grouped, local and interaction SHAP reports and plots. | Selection-only; guarded Booster bundle; no live integration. |
 
 ## 6. Contracts and state invariants
@@ -404,6 +405,23 @@ PF 1.414. It failed source quality, minimum 300 trades, and allowed frequency
 reduction. No threshold was selected, final data stayed sealed, and no
 deployable bundle was written.
 
+### Categorical-encoding A/B result
+
+Native LightGBM categoricals were tested against the fit-window-only one-hot
+baseline on the same fit, early-stop, and selection windows. The comparison did
+not score the protected final window.
+
+| Encoding | Columns | Best iteration | Selection AUC | Brier | Threshold | Trades | Average net | PF | Gate |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| One-hot baseline | 65 | 21 | 0.5724 | 0.22211 | 0.475 | 9 | +2.94 bps | 1.414 | Failed |
+| Native categorical | 24 | 38 | 0.5654 | 0.22224 | 0.500 | 18 | +2.92 bps | 1.439 | Failed |
+
+Native handling is more compact, but selection AUC was 0.0070 lower and Brier
+score was 0.00013 worse. Both attractive PF values are sparse diagnostic cells,
+not viable filters. Both failed source quality, minimum 300 trades, and allowed
+frequency reduction. One-hot therefore remains the frozen baseline; native is
+not promoted and target encoding is not introduced.
+
 SHAP explains the selection diagnostic only. Scanner identity dominates; CUSUM
 is small and several regime categories are zero. The protected 2,268 trades have
 neither predictions nor SHAP. Nothing is loaded by the live scanner.
@@ -452,6 +470,7 @@ OHLCV and must not be zero-filled as if observed.
 | `research/live_research/delta_scalper_with_tb_labels.parquet` | Flat barrier-label training data. |
 | `research/live_research/delta_scalper_meta_label_latest.json` | Logistic meta-label report. |
 | `research/live_research/delta_scalper_lightgbm_meta_latest.json` | Guarded LightGBM report. |
+| `research/live_research/delta_scalper_categorical_encoding_latest.json` | Selection-only one-hot/native comparison and category diagnostics. |
 | `research/live_research/delta_scalper_lightgbm_shap_latest.json` | SHAP and interaction report. |
 
 ## 15. Failure and degradation behavior

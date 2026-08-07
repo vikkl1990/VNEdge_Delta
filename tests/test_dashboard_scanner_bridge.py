@@ -141,6 +141,7 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     meta_label = tmp_path / "meta-label.json"
     triple_meta_label = tmp_path / "triple-meta-label.json"
     lightgbm_meta_label = tmp_path / "lightgbm-meta-label.json"
+    categorical_encoding = tmp_path / "categorical-encoding.json"
     cusum_interactions = tmp_path / "cusum-interactions.json"
     lightgbm_shap = tmp_path / "lightgbm-shap.json"
     primary.write_text(json.dumps(mtf_payload(now)))
@@ -176,15 +177,11 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     regime_sweep.write_text(
         json.dumps({"report_id": "delta_scalper_regime_sweep_v1", "can_trade": False})
     )
-    monkeypatch.setattr(
-        scanner_live, "DELTA_SCALPER_REGIME_SWEEP_PATH", regime_sweep
-    )
+    monkeypatch.setattr(scanner_live, "DELTA_SCALPER_REGIME_SWEEP_PATH", regime_sweep)
     change_points.write_text(
         json.dumps({"report_id": "delta_scalper_change_points_v1", "can_trade": False})
     )
-    monkeypatch.setattr(
-        scanner_live, "DELTA_SCALPER_CHANGE_POINTS_PATH", change_points
-    )
+    monkeypatch.setattr(scanner_live, "DELTA_SCALPER_CHANGE_POINTS_PATH", change_points)
     meta_label.write_text(
         json.dumps({"report_id": "delta_scalper_meta_label_v1", "can_trade": False})
     )
@@ -214,6 +211,19 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
         scanner_live,
         "DELTA_SCALPER_LIGHTGBM_META_LABEL_PATH",
         lightgbm_meta_label,
+    )
+    categorical_encoding.write_text(
+        json.dumps(
+            {
+                "report_id": "delta_scalper_categorical_encoding_v1",
+                "can_trade": False,
+            }
+        )
+    )
+    monkeypatch.setattr(
+        scanner_live,
+        "DELTA_SCALPER_CATEGORICAL_ENCODING_PATH",
+        categorical_encoding,
     )
     cusum_interactions.write_text(
         json.dumps(
@@ -247,9 +257,7 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     assert len(combined["rows"]) == 4
     assert any(row.get("strategy_id") == "delta_scalper_engine_v1" for row in combined["rows"])
     assert combined["delta_scalper"]["architecture"]["version"] == "1.0"
-    assert combined["delta_scalper"]["attribution"]["report_id"] == (
-        "delta_scalper_attribution_v1"
-    )
+    assert combined["delta_scalper"]["attribution"]["report_id"] == ("delta_scalper_attribution_v1")
     assert combined["delta_scalper"]["threshold_sweep"]["report_id"] == (
         "delta_scalper_threshold_sweep_v1"
     )
@@ -259,14 +267,15 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     assert combined["delta_scalper"]["change_points"]["report_id"] == (
         "delta_scalper_change_points_v1"
     )
-    assert combined["delta_scalper"]["meta_label"]["report_id"] == (
-        "delta_scalper_meta_label_v1"
-    )
+    assert combined["delta_scalper"]["meta_label"]["report_id"] == ("delta_scalper_meta_label_v1")
     assert combined["delta_scalper"]["triple_barrier_meta_label"]["report_id"] == (
         "delta_scalper_meta_label_triple_barrier_v1"
     )
     assert combined["delta_scalper"]["lightgbm_meta_label"]["report_id"] == (
         "delta_scalper_lightgbm_meta_v1"
+    )
+    assert combined["delta_scalper"]["categorical_encoding"]["report_id"] == (
+        "delta_scalper_categorical_encoding_v1"
     )
     assert combined["delta_scalper"]["cusum_interactions"]["report_id"] == (
         "delta_scalper_cusum_interactions_v1"
