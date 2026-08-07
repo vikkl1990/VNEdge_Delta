@@ -1,7 +1,12 @@
 # VNEDGE Delta India Scalper — Implemented Architecture and Code Flow
 
+The future-state professional design is documented separately in
+[`DELTA_PRO_SCALPER_TARGET_ARCHITECTURE.md`](DELTA_PRO_SCALPER_TARGET_ARCHITECTURE.md)
+so unimplemented liquidation, OI, queue/fill, paper, and live components are not
+confused with this implemented inventory.
+
 Peer-review baseline: 7 August 2026  
-Repository state reviewed: `feat/scanner-forward-evidence` at `817af4d`  
+Repository state reviewed: `feat/scanner-forward-evidence` through `ebe8614`
 Runtime role: local, research-only shadow service  
 Execution authority: none
 
@@ -537,7 +542,7 @@ OHLCV and must not be zero-filled as if observed.
 
 ## 16. Verification coverage
 
-The repository suite reports 1,930 passing tests and one warning. Delta tests
+The repository suite reports 1,953 passing tests and one warning. Delta tests
 cover candle closure/aggregation/gaps, context parity, fees, scanners, gates,
 dedup, journaling failure, forward paths, safety manifest, public WS behavior,
 dashboard merging, replay summaries, attribution, sweeps, PELT/CUSUM,

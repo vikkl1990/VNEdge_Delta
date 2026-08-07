@@ -3,6 +3,9 @@
 For the peer-review inventory of every implemented module, runtime path,
 research program, safety boundary, current evidence, and known gap, see
 [Implemented Architecture and Code Flow](DELTA_SCALPER_PEER_REVIEW.md).
+For the corrected professional target design—including liquidation/OI, event
+replay, execution, and promotion components that are not yet implemented—see
+[Professional BTC/ETH Scalper Target Architecture](DELTA_PRO_SCALPER_TARGET_ARCHITECTURE.md).
 
 Version 1.0, implemented 5 August 2026.
 
