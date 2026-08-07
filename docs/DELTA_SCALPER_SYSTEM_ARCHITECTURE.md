@@ -71,7 +71,7 @@ attached confirmation field and never changes the candle trigger.
 |---|---|---|
 | Data | Public WS, REST backfill, candle gaps, sequence checks | Active |
 | Intelligence | Shared features, regimes, hierarchy context, legacy predictor | Active research support |
-| Decision | Three versioned scanner hypotheses, costs, ranking, exits | Available; all rejected and disabled |
+| Decision | Three assembly scanners plus one paired research hypothesis, costs, ranking, exits | Available; all rejected and disabled |
 | Research | Causal replay, untouched split, fee sensitivity, forward outcomes | Active |
 | Control | Strict YAML, snapshots, journal, authenticated dashboard | Active |
 | Existing risk core | Risk adapter using the existing gateway | Available, not invoked |

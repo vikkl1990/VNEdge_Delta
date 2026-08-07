@@ -558,6 +558,9 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 12. **The hierarchical scanner solved frequency, not expectancy.** Its gross
     result was already negative before fees; adding more hierarchy is not the
     next valid tuning step on the observed window.
+13. **BTC to ETH lead-lag v1 also had negative gross expectancy.** Its first
+    selection replay averaged -0.22 bps gross and -15.02 bps net over 73 trades;
+    all frozen gates except frequency failed, so the final 20% remains sealed.
 
 ## 18. Reproduction commands
 
