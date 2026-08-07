@@ -103,6 +103,27 @@ halves lost money and 113 synchronized minutes were missing. Only the frequency
 gate passed; the final 20% therefore remained sealed. See the
 [`frozen first-replay result`](BTC_ETH_LEAD_LAG_V1_RESULT.md).
 
+### BTC–ETH causal-discovery diagnostic
+
+`btc_eth_lead_lag_causal_discovery_v1` is a separate selection-only diagnostic,
+not a revision of the rejected scanner. It tests linear predictive precedence
+in both directions on gap-safe synchronized 1m and complete 5m log returns.
+Frozen maximum lags are 1, 2, 3, and 6 bars. Primary evidence comes from 90-day
+rolling windows stepped by 30 days, with a chronological 70/30 train/test split
+inside every window and Benjamini–Hochberg correction across the 16 tests in
+each window.
+
+The old lead-lag final 20% is outside the configured data boundary and cannot be
+loaded. Even a positive diagnostic can only authorize writing a distinct v2
+contract; it cannot authorize a scanner replay or trading. See the
+[`causal-discovery contract`](BTC_ETH_LEAD_LAG_CAUSAL_DISCOVERY_V1_CONTRACT.md).
+
+After committing the study contract and code, run:
+
+```bash
+.venv/bin/python -m vnedge.research.btc_eth_lead_lag_causal_discovery
+```
+
 ## Complete-module HLD coverage
 
 - Public ingestion uses Delta REST backfill plus heartbeat/reconnecting WS.
