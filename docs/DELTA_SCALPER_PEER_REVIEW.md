@@ -563,6 +563,9 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 13. **BTC to ETH lead-lag v1 also had negative gross expectancy.** Its first
     selection replay averaged -0.22 bps gross and -15.02 bps net over 73 trades;
     all frozen gates except frequency failed, so the final 20% remains sealed.
+14. **Linear BTC→ETH precedence did not generalize.** Corrected 1m Granger tests
+    were frequently significant, but every tested BTC→ETH lag had negative
+    median rolling OOS MSE improvement. No lead-lag v2 is authorized.
 
 ## 18. Reproduction commands
 

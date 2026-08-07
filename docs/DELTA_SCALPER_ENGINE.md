@@ -124,6 +124,12 @@ After committing the study contract and code, run:
 .venv/bin/python -m vnedge.research.btc_eth_lead_lag_causal_discovery
 ```
 
+The frozen study rejected every BTC→ETH cell. Although 1m F-tests were often
+significant after correction, median rolling OOS MSE improvement was negative
+at all 1m and 5m lags, and seven of eight cells also reduced sign accuracy. No
+v2 or scanner replay is authorized. See the
+[`causal-discovery result`](BTC_ETH_LEAD_LAG_CAUSAL_DISCOVERY_V1_RESULT.md).
+
 ## Complete-module HLD coverage
 
 - Public ingestion uses Delta REST backfill plus heartbeat/reconnecting WS.
