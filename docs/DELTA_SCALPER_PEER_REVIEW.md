@@ -64,7 +64,7 @@ flowchart LR
         Flow -->|"Confirmation metadata only"| Context
         Funding --> Context
         Context --> Regime["Regime profile and causal CUSUM"]
-        Regime --> Scanners["Momentum and imbalance-fade scanners"]
+        Regime --> Scanners["Versioned scanner hypotheses<br/>all rejected and disabled"]
         Scanners --> Predictor["Deterministic move estimator"]
         Predictor --> Fees["Fee model<br/>Delta India round-trip costs applied<br/>to every candidate and expected net bps"]
         Fees --> Gates["Causal expectancy, probability and confidence gates"]
@@ -181,7 +181,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `context.py` | Joins immutable candles, funding, L2, features, regime, and CUSUM. | Returns `MarketContext`; L2 older than two seconds is visibly stale. |
 | `predictor.py` | Deterministic v1 move/probability/confidence heuristic. | Returns `MoveEstimate`; this is not a trained model. |
 | `fee_model.py` | Maker/taker, GST, DETO, slippage, Scalper Offer and hold-window model. | Returns a complete expected cost breakdown. |
-| `scanners.py` | Momentum Burst and candle-based Imbalance Fade. | Zero or one complete candidate per scanner; L2 copied as metadata only. |
+| `scanners.py` | Hierarchical Pullback plus retired Momentum Burst and candle-based Imbalance Fade. | Closed-candle candidates; one-shot hierarchical setup identity; L2 metadata only. |
 | `signal_generator.py` | Context, scanner isolation, gates, ranking, dedup and journal fail-closed behavior. | Returns `EngineDecision`; includes an unused risk adapter. |
 | `forward_tracker.py` | Measures accepted alerts without positions. | Exactly-once next-open outcome with MFE, MAE, costs, net and barriers. |
 | `backtester.py` | Causal one-position-at-a-time historical replay. | Complete trade rows/report; gaps reset state and fail data quality. |
@@ -197,6 +197,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `src/vnedge/dashboard/scanner_live.py` | Merges live snapshot, backtest, attribution, sweep, change-point, meta-label, CUSUM, and SHAP artifacts. |
 | `src/vnedge/dashboard/app.py` | Authenticated local UI and `/delta-scalper`; trade and promotion remain false. |
 | `configs/delta_scalper.yaml` | Frozen engine, fee, feature, CUSUM, scanner, and promotion parameters. |
+| `configs/research/delta_scalper_htf_pullback_v1.yaml` | Frozen enabled configuration that reproduces the rejected hierarchical hypothesis. |
 
 ### Research programs
 
@@ -274,6 +275,21 @@ cooldown. Its baseline excludes the current observation and duplicate context
 builds are idempotent. All CUSUM outputs remain metadata.
 
 ## 9. Scanner logic
+
+### Hierarchical Pullback Continuation v1
+
+Requires a closed 4h 20/50 EMA bias with ADX ≥22, a closed 1h pullback and
+higher-low/lower-high around EMA20, a fresh directional 5m body with volume,
+and a closed 1m break of the previous bar with volume. Each 1h setup can emit
+once; a four-hour cooldown bounds repeated observations. Entry is next 1m open,
+the stop is bounded 5m ATR, and the target is at least 2.5R and 3.5× modeled
+cost. L2 cannot change the trigger or candidate geometry.
+
+The frozen first replay produced 506 trades at 0.89/day across BTC and ETH,
+-0.23 gross bps/trade before 14.80 bps configured costs, -15.03 net bps/trade,
+PF 0.319, and a final-20% PF of 0.226. It had no positive market or month and
+is disabled as a rejected hypothesis. These results must not be used to tune
+the same historical window.
 
 ### Momentum Burst v1
 
@@ -536,6 +552,9 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 10. **Nine diagnostic meta-model trades are not statistical evidence.**
 11. **Any paper route must be a separately reviewed change through VNEDGE's
     existing journaled risk and execution kernel.**
+12. **The hierarchical scanner solved frequency, not expectancy.** Its gross
+    result was already negative before fees; adding more hierarchy is not the
+    next valid tuning step on the observed window.
 
 ## 18. Reproduction commands
 

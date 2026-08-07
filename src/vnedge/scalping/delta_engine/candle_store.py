@@ -111,7 +111,7 @@ class MultiTimeframeCandleStore:
         limit: int | None = None,
         limits: dict[str, int] | None = None,
     ) -> dict[str, tuple[Candle, ...]]:
-        bounded = limits or {"1m": 64, "5m": 64, "15m": 32, "1h": 48, "4h": 16}
+        bounded = limits or {"1m": 96, "5m": 96, "15m": 64, "1h": 96, "4h": 64}
         return {
             tf: self.recent(symbol, tf, limit if limit is not None else bounded.get(tf, 64))
             for tf in timeframes

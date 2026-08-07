@@ -1,3 +1,5 @@
+# Frozen rejected-hypothesis configuration.
+# First and only replay window: 2025-01-01 through 2026-07-25 UTC.
 engine:
   mode: research
   symbols: [BTCUSD, ETHUSD]
@@ -45,8 +47,7 @@ features:
 
 scanners:
   hierarchical_pullback:
-    # Rejected by the frozen 2025-01-01 through 2026-07-25 causal replay.
-    enabled: false
+    enabled: true
     prefer_maker: false
     min_four_hour_adx: 22.0
     pullback_tolerance_atr: 0.35

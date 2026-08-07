@@ -85,28 +85,19 @@ class FeatureSettings(_StrictModel):
             raise ValueError("regime profile slow EMA must exceed fast EMA")
         if self.regime_profile_strong_trend_adx <= self.regime_profile_range_adx_max:
             raise ValueError("strong trend ADX must exceed range ADX")
-        if (
-            self.regime_profile_low_vol_percentile
-            >= self.regime_profile_high_vol_percentile
-        ):
+        if self.regime_profile_low_vol_percentile >= self.regime_profile_high_vol_percentile:
             raise ValueError("low volatility percentile must be below high")
         if self.change_point_timeframe not in {"1m", "5m"}:
             raise ValueError("change_point_timeframe must be 1m or 5m")
-        if (
-            self.change_point_baseline_window_bars
-            < self.change_point_minimum_history_bars
-        ):
+        if self.change_point_baseline_window_bars < self.change_point_minimum_history_bars:
             raise ValueError("change-point baseline must cover minimum history")
-        if (
-            self.change_point_cusum_threshold_z
-            <= self.change_point_cusum_drift_z
-        ):
+        if self.change_point_cusum_threshold_z <= self.change_point_cusum_drift_z:
             raise ValueError("change-point CUSUM threshold must exceed drift")
         return self
 
 
 class MomentumSettings(_StrictModel):
-    enabled: bool = True
+    enabled: bool = False
     prefer_maker: bool = True
     min_volume_z: float = 0.75
     min_body_ratio: float = Field(default=0.55, ge=0, le=1)
@@ -130,7 +121,7 @@ class MomentumSettings(_StrictModel):
 
 
 class ImbalanceFadeSettings(_StrictModel):
-    enabled: bool = True
+    enabled: bool = False
     prefer_maker: bool = True
     min_wick_ratio: float = Field(default=0.48, ge=0, le=1)
     min_stretch_bps: float = Field(default=7.0, ge=0)
@@ -146,7 +137,25 @@ class ImbalanceFadeSettings(_StrictModel):
         return self
 
 
+class HierarchicalPullbackSettings(_StrictModel):
+    enabled: bool = False
+    prefer_maker: bool = False
+    min_four_hour_adx: float = Field(default=22.0, gt=0)
+    pullback_tolerance_atr: float = Field(default=0.35, gt=0)
+    min_five_minute_body_ratio: float = Field(default=0.55, ge=0, le=1)
+    min_five_minute_volume_z: float = 0.50
+    min_one_minute_body_ratio: float = Field(default=0.50, ge=0, le=1)
+    min_one_minute_volume_z: float = 0.75
+    reward_risk: float = Field(default=2.50, gt=1)
+    minimum_target_cost_multiple: float = Field(default=3.50, gt=1)
+    research_probability_prior: float = Field(default=0.75, ge=0.5, le=1)
+    research_confidence_prior: float = Field(default=0.65, ge=0, le=1)
+    cooldown_minutes: int = Field(default=240, ge=0)
+    time_stop_seconds: int = Field(default=1_680, gt=0, le=1_800)
+
+
 class ScannerSettings(_StrictModel):
+    hierarchical_pullback: HierarchicalPullbackSettings = HierarchicalPullbackSettings()
     momentum_burst: MomentumSettings = MomentumSettings()
     imbalance_fade: ImbalanceFadeSettings = ImbalanceFadeSettings()
 

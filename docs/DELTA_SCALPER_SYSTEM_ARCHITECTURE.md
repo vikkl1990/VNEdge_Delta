@@ -15,7 +15,7 @@ flowchart TD
     Ingest --> Flow["L2 and trade-flow store"]
     Candles --> Context["Context builder<br/>indicators, regime, trend, volatility,<br/>session, CUSUM alarm, bars-since-shift,<br/>shift-age bucket, return and vol scores"]
     Flow --> Context
-    Context --> Scanners["Pluggable momentum and imbalance-fade scanners"]
+    Context --> Scanners["Versioned scanner hypotheses<br/>all currently rejected and disabled"]
     Scanners --> Signal["Causal signal gates and exit plan<br/>Fee model applies Delta India round-trip costs<br/>to every candidate and produces expected net bps"]
     Signal --> Journal["Exactly-once research journal"]
     Signal --> Forward["Next-bar orderless forward outcomes"]
@@ -70,8 +70,8 @@ attached confirmation field and never changes the candle trigger.
 | Layer | Implementation | Status |
 |---|---|---|
 | Data | Public WS, REST backfill, candle gaps, sequence checks | Active |
-| Intelligence | Shared features, regimes, deterministic move predictor | Active |
-| Decision | Two scanners, costs, ranking, complete exit path | Active |
+| Intelligence | Shared features, regimes, hierarchy context, legacy predictor | Active research support |
+| Decision | Three versioned scanner hypotheses, costs, ranking, exits | Available; all rejected and disabled |
 | Research | Causal replay, untouched split, fee sensitivity, forward outcomes | Active |
 | Control | Strict YAML, snapshots, journal, authenticated dashboard | Active |
 | Existing risk core | Risk adapter using the existing gateway | Available, not invoked |
@@ -88,13 +88,14 @@ Consequently the machine-readable architecture manifest and dashboard enforce
 ## Detailed stage ownership
 
 The supplied sequence places fee and move enrichment after scanner evaluation.
-In the implemented interface, each scanner asks the shared deterministic
-`MovePredictor` and `DeltaFeeModel` while constructing its complete immutable
-candidate. The signal generator then applies global gates, ranking, and dedup.
-This keeps every candidate self-describing and makes replay/live candidates
-identical.
+In the implemented interface, legacy scanners ask the shared deterministic
+`MovePredictor`; the hierarchical scanner uses an explicitly uncalibrated,
+non-promotable structural prior. Every scanner asks `DeltaFeeModel` while
+constructing its complete immutable candidate. The signal generator then
+applies global gates, ranking, and dedup. This keeps every candidate
+self-describing and makes replay/live candidates identical.
 
-L2 and CVD are attached to both scanner outputs as confirmation metadata. They
+L2 and CVD are attached to scanner outputs as confirmation metadata. They
 are not consulted by the entry predicates, even for Imbalance Fade. This is an
 intentional correction to the supplied diagram and preserves causal replay
 parity when historical event-level books are unavailable.

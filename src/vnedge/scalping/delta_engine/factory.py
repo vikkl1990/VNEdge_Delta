@@ -16,6 +16,8 @@ from vnedge.scalping.delta_engine.regime import (
     RegimeProfileConfig,
 )
 from vnedge.scalping.delta_engine.scanners import (
+    HierarchicalPullbackConfig,
+    HierarchicalPullbackScanner,
     ImbalanceFadeConfig,
     MomentumBurstConfig,
     MomentumBurstScanner,
@@ -63,29 +65,17 @@ def build_delta_scalper_assembly(
             range_adx_max=config.features.regime_profile_range_adx_max,
             ema_fast=config.features.regime_profile_ema_fast,
             ema_slow=config.features.regime_profile_ema_slow,
-            ema_separation_atr_min=(
-                config.features.regime_profile_ema_separation_atr_min
-            ),
+            ema_separation_atr_min=(config.features.regime_profile_ema_separation_atr_min),
             atr_window=config.features.regime_profile_atr_window,
-            volatility_percentile_window=(
-                config.features.regime_profile_percentile_window
-            ),
-            high_volatility_percentile=(
-                config.features.regime_profile_high_vol_percentile
-            ),
-            low_volatility_percentile=(
-                config.features.regime_profile_low_vol_percentile
-            ),
+            volatility_percentile_window=(config.features.regime_profile_percentile_window),
+            high_volatility_percentile=(config.features.regime_profile_high_vol_percentile),
+            low_volatility_percentile=(config.features.regime_profile_low_vol_percentile),
             bollinger_window=config.features.regime_profile_bollinger_window,
         ),
         CausalCusumConfig(
             source_timeframe=config.features.change_point_timeframe,
-            minimum_history_bars=(
-                config.features.change_point_minimum_history_bars
-            ),
-            baseline_window_bars=(
-                config.features.change_point_baseline_window_bars
-            ),
+            minimum_history_bars=(config.features.change_point_minimum_history_bars),
+            baseline_window_bars=(config.features.change_point_baseline_window_bars),
             drift_z=config.features.change_point_cusum_drift_z,
             threshold_z=config.features.change_point_cusum_threshold_z,
             cooldown_bars=config.features.change_point_cooldown_bars,
@@ -99,12 +89,50 @@ def build_delta_scalper_assembly(
         taker_fee_bps_pre_tax=config.fee_model.taker_fee_bps_pre_tax,
         gst_rate=config.fee_model.gst_rate,
         default_slippage_bps_per_leg=(
-            config.fee_model.default_slippage_bps_per_leg
-            if slippage_bps is None
-            else slippage_bps
+            config.fee_model.default_slippage_bps_per_leg if slippage_bps is None else slippage_bps
         ),
     )
     scanners: tuple[Scanner, ...] = (
+        *(
+            (
+                HierarchicalPullbackScanner(
+                    fee_model,
+                    config=HierarchicalPullbackConfig(
+                        min_four_hour_adx=(config.scanners.hierarchical_pullback.min_four_hour_adx),
+                        pullback_tolerance_atr=(
+                            config.scanners.hierarchical_pullback.pullback_tolerance_atr
+                        ),
+                        min_five_minute_body_ratio=(
+                            config.scanners.hierarchical_pullback.min_five_minute_body_ratio
+                        ),
+                        min_five_minute_volume_z=(
+                            config.scanners.hierarchical_pullback.min_five_minute_volume_z
+                        ),
+                        min_one_minute_body_ratio=(
+                            config.scanners.hierarchical_pullback.min_one_minute_body_ratio
+                        ),
+                        min_one_minute_volume_z=(
+                            config.scanners.hierarchical_pullback.min_one_minute_volume_z
+                        ),
+                        reward_risk=config.scanners.hierarchical_pullback.reward_risk,
+                        minimum_target_cost_multiple=(
+                            config.scanners.hierarchical_pullback.minimum_target_cost_multiple
+                        ),
+                        research_probability_prior=(
+                            config.scanners.hierarchical_pullback.research_probability_prior
+                        ),
+                        research_confidence_prior=(
+                            config.scanners.hierarchical_pullback.research_confidence_prior
+                        ),
+                        cooldown_minutes=(config.scanners.hierarchical_pullback.cooldown_minutes),
+                        time_stop_seconds=(config.scanners.hierarchical_pullback.time_stop_seconds),
+                        prefer_maker=config.scanners.hierarchical_pullback.prefer_maker,
+                    ),
+                ),
+            )
+            if config.scanners.hierarchical_pullback.enabled
+            else ()
+        ),
         *(
             (
                 MomentumBurstScanner(

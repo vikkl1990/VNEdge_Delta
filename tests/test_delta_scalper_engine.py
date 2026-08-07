@@ -33,6 +33,7 @@ from vnedge.scalping.delta_engine.regime import (
     build_regime_profile,
 )
 from vnedge.scalping.delta_engine.scanners import (
+    HierarchicalPullbackScanner,
     MomentumBurstConfig,
     MomentumBurstScanner,
     Scanner,
@@ -94,6 +95,11 @@ def test_delta_fee_model_all_offer_and_deto_routes(deto, maker, hold, expected_f
 def test_checked_in_config_is_valid_and_cannot_unlock_live():
     config = load_delta_scalper_config()
     assert config.engine.symbols == ("BTCUSD", "ETHUSD")
+    assert config.scanners.hierarchical_pullback.enabled is False
+    assert config.scanners.hierarchical_pullback.prefer_maker is False
+    assert config.scanners.hierarchical_pullback.min_four_hour_adx == 22.0
+    assert config.scanners.momentum_burst.enabled is False
+    assert config.scanners.imbalance_fade.enabled is False
     assert config.scanners.momentum_burst.enabled_regimes == (
         Regime.QUIET,
         Regime.TRENDING_UP,
@@ -121,6 +127,11 @@ def test_checked_in_config_is_valid_and_cannot_unlock_live():
             }
         )
 
+    frozen = load_delta_scalper_config("configs/research/delta_scalper_htf_pullback_v1.yaml")
+    assert frozen.scanners.hierarchical_pullback.enabled is True
+    assert frozen.scanners.momentum_burst.enabled is False
+    assert frozen.scanners.imbalance_fade.enabled is False
+
 
 def test_engine_config_rejects_empty_symbols_and_primary_timeframes():
     with pytest.raises(ValueError, match="symbol"):
@@ -135,15 +146,14 @@ def test_shared_assembly_applies_yaml_scanner_fee_and_timeframe_settings():
             "engine": {"symbols": ["BTCUSD"], "primary_timeframes": ["5m"]},
             "fee_model": {"default_slippage_bps_per_leg": 2.3},
             "scanners": {
+                "hierarchical_pullback": {"enabled": False},
                 "momentum_burst": {"enabled": False},
                 "imbalance_fade": {"enabled": True, "min_wick_ratio": 0.61},
             },
         }
     )
     assembly = build_delta_scalper_assembly(MultiTimeframeCandleStore(), config)
-    assert [scanner.scanner_id for scanner in assembly.scanners] == [
-        "delta_imbalance_fade_v1"
-    ]
+    assert [scanner.scanner_id for scanner in assembly.scanners] == ["delta_imbalance_fade_v1"]
     assert assembly.generator.gates.primary_timeframes == ("5m",)
     assert assembly.fee_model.default_slippage_bps_per_leg == 2.3
 
@@ -152,17 +162,15 @@ def test_architecture_manifest_reports_deployed_research_boundary():
     manifest = architecture_manifest()
     assert manifest["runtime"]["process_model"] == "single_process_asyncio_research_sidecar"
     assert manifest["runtime"]["offline_replay_uses_live_modules"] is True
-    assert manifest["components"]["existing_risk_gateway_adapter"] == (
-        "available_not_invoked"
-    )
+    assert manifest["components"]["existing_risk_gateway_adapter"] == ("available_not_invoked")
     assert manifest["safety"]["order_route_present"] is False
     assert manifest["safety"]["can_trade"] is False
 
 
 def test_scalper_offer_is_never_assumed_without_opt_in():
-    result = DeltaFeeModel(
-        scalper_opted_in=False, default_slippage_bps_per_leg=0
-    ).breakdown("ETHUSD", entry_is_maker=True, hold_seconds=300)
+    result = DeltaFeeModel(scalper_opted_in=False, default_slippage_bps_per_leg=0).breakdown(
+        "ETHUSD", entry_is_maker=True, hold_seconds=300
+    )
     assert not result.scalper_eligible
     assert result.total_bps == pytest.approx(2.36 + 5.90)
 
@@ -182,9 +190,7 @@ def test_delta_rollover_is_close_proof_despite_small_local_clock_skew():
     store = MultiTimeframeCandleStore()
     start = NOW - timedelta(minutes=1)
     row = [start.timestamp() * 1000, 99.0, 101.0, 98.0, 100.0, 25.0]
-    assert store.from_delta_row(
-        "BTCUSD", "1m", row, observed_at=NOW - timedelta(milliseconds=500)
-    )
+    assert store.from_delta_row("BTCUSD", "1m", row, observed_at=NOW - timedelta(milliseconds=500))
 
 
 def test_closed_candle_aggregator_emits_only_complete_higher_bar():
@@ -235,9 +241,7 @@ def test_l2_trade_flow_store_computes_causal_confirmation_features():
     ]
     store.on_book("BTCUSD", bids, asks, observed_at=NOW, sequence=1)
     store.on_book("BTCUSD", bids, asks, observed_at=NOW, sequence=2)
-    snapshot = store.on_trade(
-        "BTCUSD", price=100, size=2, side="buy", observed_at=NOW, sequence=1
-    )
+    snapshot = store.on_trade("BTCUSD", price=100, size=2, side="buy", observed_at=NOW, sequence=1)
     assert snapshot.raw_imbalance > 0
     assert snapshot.cvd_usd == 200
     assert snapshot.buy_aggression_ratio == 1
@@ -295,8 +299,7 @@ def test_context_marks_old_l2_confirmation_stale():
 
 def test_feature_engine_includes_complete_hld_feature_categories():
     rows = tuple(
-        candle(NOW - timedelta(minutes=50 - index), close=100 + index * 0.1)
-        for index in range(50)
+        candle(NOW - timedelta(minutes=50 - index), close=100 + index * 0.1) for index in range(50)
     )
     features = build_features({"1m": rows, "1h": rows[-40:], "4h": rows[-16:]})
     assert {
@@ -350,9 +353,7 @@ def test_structured_regime_profile_is_causal_and_directional():
     ("recent_half_range", "expected"),
     [(2.0, VolatilityRegime.HIGH), (0.05, VolatilityRegime.LOW)],
 )
-def test_structured_regime_profile_uses_rolling_atr_percentiles(
-    recent_half_range, expected
-):
+def test_structured_regime_profile_uses_rolling_atr_percentiles(recent_half_range, expected):
     rows = []
     for index in range(220):
         baseline = 0.5 if expected is VolatilityRegime.LOW else 0.1
@@ -481,6 +482,153 @@ def test_l2_never_changes_momentum_trigger_or_side():
     assert agrees.metadata["regime_filter"]["allowed"] is True
 
 
+def _hierarchical_context(l2: float = 0.0) -> MarketContext:
+    four_hour = tuple(
+        Candle(
+            NOW - timedelta(hours=4 * (54 - index)),
+            99.7 + index * 0.35,
+            100.5 + index * 0.35,
+            99.4 + index * 0.35,
+            100.0 + index * 0.35,
+            1_000.0,
+            "4h",
+        )
+        for index in range(55)
+    )
+    one_hour_prior = tuple(
+        Candle(
+            NOW - timedelta(hours=30 - index),
+            99.9 + index * 0.20,
+            100.4 + index * 0.20,
+            99.6 + index * 0.20,
+            100.0 + index * 0.20,
+            500.0,
+            "1h",
+        )
+        for index in range(30)
+    )
+    one_hour = one_hour_prior + (Candle(NOW, 104.0, 104.8, 103.7, 104.6, 900.0, "1h"),)
+    five_minute_prior = tuple(
+        Candle(
+            NOW - timedelta(minutes=5 * (24 - index)),
+            103.4 + index * 0.03,
+            103.6 + index * 0.03,
+            103.3 + index * 0.03,
+            103.5 + index * 0.03,
+            100.0 + (index % 3),
+            "5m",
+        )
+        for index in range(24)
+    )
+    five_minute = five_minute_prior + (Candle(NOW, 104.1, 104.9, 104.0, 104.8, 500.0, "5m"),)
+    one_minute_prior = tuple(
+        Candle(
+            NOW - timedelta(minutes=24 - index),
+            103.8 + index * 0.02,
+            104.0 + index * 0.02,
+            103.7 + index * 0.02,
+            103.9 + index * 0.02,
+            100.0 + (index % 3),
+            "1m",
+        )
+        for index in range(24)
+    )
+    one_minute = one_minute_prior + (Candle(NOW, 104.45, 104.9, 104.4, 104.85, 500.0, "1m"),)
+    return MarketContext(
+        symbol="BTCUSD",
+        ts=NOW,
+        candles={
+            "1m": one_minute,
+            "5m": five_minute,
+            "1h": one_hour,
+            "4h": four_hour,
+        },
+        regime=Regime.TRENDING_UP,
+        funding_rate=0.0,
+        funding_velocity=0.0,
+        l2=L2Confirmation(
+            imbalance=l2,
+            cvd=l2 * 1_000,
+            status="fresh",
+            observed_at=NOW,
+        ),
+    )
+
+
+def test_hierarchical_scanner_emits_one_identified_candidate_per_setup():
+    scanner = HierarchicalPullbackScanner(DeltaFeeModel(scalper_opted_in=False))
+
+    candidate = scanner.evaluate(_hierarchical_context())
+
+    assert candidate is not None
+    assert candidate.scanner_id == "delta_htf_pullback_continuation_v1"
+    assert candidate.side is Side.LONG
+    assert candidate.metadata["signal_type"] == "htf_pullback_continuation"
+    assert candidate.metadata["htf_bias"] == 1
+    assert candidate.metadata["setup"] == "1h_pullback_to_ema_20"
+    assert candidate.metadata["calibration"]["promotion_eligible"] is False
+    assert candidate.fee_adjusted_expectancy_bps >= 8.0
+    assert scanner.evaluate(_hierarchical_context()) is None
+
+
+def test_hierarchical_scanner_l2_is_observational_only():
+    agrees = HierarchicalPullbackScanner(DeltaFeeModel(scalper_opted_in=False)).evaluate(
+        _hierarchical_context(0.8)
+    )
+    opposes = HierarchicalPullbackScanner(DeltaFeeModel(scalper_opted_in=False)).evaluate(
+        _hierarchical_context(-0.8)
+    )
+
+    assert agrees is not None and opposes is not None
+    assert agrees.side is opposes.side
+    assert agrees.stop_loss == opposes.stop_loss
+    assert agrees.take_profits == opposes.take_profits
+    assert agrees.fee_adjusted_expectancy_bps == opposes.fee_adjusted_expectancy_bps
+    assert agrees.metadata["l2_confirmation"]["used_for_signal"] is False
+
+
+def test_hierarchical_scanner_mirrors_the_short_hierarchy():
+    context = _hierarchical_context()
+
+    def invert(row: Candle) -> Candle:
+        return Candle(
+            row.ts,
+            250.0 - row.open,
+            250.0 - row.low,
+            250.0 - row.high,
+            250.0 - row.close,
+            row.volume,
+            row.tf,
+        )
+
+    mirrored = replace(
+        context,
+        candles={
+            timeframe: tuple(invert(row) for row in rows)
+            for timeframe, rows in context.candles.items()
+        },
+        regime=Regime.TRENDING_DOWN,
+    )
+    scanner = HierarchicalPullbackScanner(DeltaFeeModel(scalper_opted_in=False))
+
+    candidate = scanner.evaluate(mirrored)
+
+    assert candidate is not None
+    assert candidate.side is Side.SHORT
+    assert candidate.metadata["htf_bias"] == -1
+
+
+def test_hierarchical_scanner_fails_closed_without_complete_four_hour_history():
+    context = _hierarchical_context()
+    incomplete = replace(
+        context,
+        candles={**context.candles, "4h": context.candles["4h"][-20:]},
+    )
+    scanner = HierarchicalPullbackScanner(DeltaFeeModel())
+
+    assert scanner.evaluate(incomplete) is None
+
+
 def test_scanner_hard_regime_allowlist_blocks_before_candidate_creation():
     scanner = MomentumBurstScanner(
         DeltaFeeModel(scalper_opted_in=True),
@@ -604,13 +752,9 @@ def test_generator_journals_hard_regime_filter_decision():
     )
     decision = generator.on_candle_closed("BTCUSD", "1m", now=NOW)
     assert decision.selected is None
-    assert decision.rejection_reasons == (
-        "regime_blocked_scanner:regime_not_enabled:quiet",
-    )
+    assert decision.rejection_reasons == ("regime_blocked_scanner:regime_not_enabled:quiet",)
     stage = next(
-        item
-        for item in decision.pipeline_trace
-        if item.name == "scanner:regime_blocked_scanner"
+        item for item in decision.pipeline_trace if item.name == "scanner:regime_blocked_scanner"
     )
     assert stage.status == "regime_filtered"
 
@@ -704,9 +848,7 @@ def test_backtest_rebases_exit_distances_on_next_open_fill():
         (_StaticScanner(),),
         gates=SignalGateConfig(min_expectancy_bps=8, min_probability=0.7),
     )
-    fee = DeltaFeeModel(
-        scalper_opted_in=True, default_slippage_bps_per_leg=0
-    )
+    fee = DeltaFeeModel(scalper_opted_in=True, default_slippage_bps_per_leg=0)
     rows = [
         Candle(NOW, 99.9, 100.1, 99.8, 100.0, 1, "1m"),
         Candle(
@@ -758,9 +900,7 @@ def test_risk_adapter_uses_existing_gateway_and_never_submits(tmp_path):
 def test_robust_validation_requires_a_config_family_then_completes():
     one = robust_validation_report(np.ones((30, 1)), selected_config=0)
     assert one.status == "requires_multiple_preregistered_configs"
-    matrix = np.column_stack(
-        [np.linspace(-0.01, 0.02, 60), np.linspace(0.01, -0.005, 60)]
-    )
+    matrix = np.column_stack([np.linspace(-0.01, 0.02, 60), np.linspace(0.01, -0.005, 60)])
     report = robust_validation_report(matrix, selected_config=0)
     assert report.status == "complete"
     assert report.deflated_sharpe is not None

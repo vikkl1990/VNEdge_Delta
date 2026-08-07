@@ -10,6 +10,9 @@ Research-only. The engine has no broker, account client, order manager, or
 submission method. A selected candidate can be converted to an `OrderIntent`
 and evaluated by the existing `ScalperRiskGateway`; submission remains the
 responsibility of VNEDGE's normal journaled execution path after promotion.
+All three implemented scanner hypotheses are currently disabled: Momentum
+Burst and Imbalance Fade failed the original replay, and the independently
+implemented hierarchical pullback v1 also failed its frozen first replay.
 
 ## Implemented flow
 
@@ -19,7 +22,9 @@ responsibility of VNEDGE's normal journaled execution path after promotion.
 4. The context builder computes the same deterministic features used by replay.
 5. The regime engine classifies quiet, trending up/down, expanding, funding
    extreme, or unknown.
-6. Momentum Burst and Imbalance Fade evaluate completed 1m/5m bars.
+6. Enabled scanner hypotheses evaluate completed candles. The available
+   hierarchical scanner requires 4h bias, 1h pullback, 5m confirmation, and a
+   1m trigger; legacy Momentum Burst and Imbalance Fade remain benchmarks.
 7. L2 imbalance and CVD are recorded as confirmation fields only. They cannot
    create, suppress, route, or promote a signal.
 8. Candidates are costed with maker/taker fees, GST, optional DETO discount,
@@ -28,6 +33,44 @@ responsibility of VNEDGE's normal journaled execution path after promotion.
    candidate and journal the decision exactly once per scanner/market/side/bar.
 10. The dashboard consumes the research snapshot. `can_trade` and
     `can_promote` remain false.
+
+### Hierarchical pullback v1 verdict
+
+`delta_htf_pullback_continuation_v1` implements the proposed
+4h → 1h → 5m → 1m hierarchy with complete closed candles, one candidate per
+1h setup identity, a four-hour per-market cooldown, next-open entry, and L2 as
+observational metadata only. Targets are at least 2.5R and 3.5 times modeled
+round-trip costs. Its probability/confidence fields are explicitly marked as
+uncalibrated structural priors and are ineligible for promotion.
+
+The unchanged first replay covered 1 January 2025 through 25 July 2026:
+
+| Metric | Result |
+|---|---:|
+| Trades / combined frequency | 506 / 0.89 per day |
+| Average gross | -0.23 bps per trade |
+| Average configured cost | 14.80 bps per trade |
+| Average net / PF | -15.03 bps / 0.319 |
+| BTC gross / net | +0.29 / -14.51 bps per trade |
+| ETH gross / net | -0.81 / -15.61 bps per trade |
+| Target / stop / time-stop exits | 70 / 337 / 99 |
+| Final chronological 20% | -16.49 bps per trade, PF 0.226 |
+
+No month and no market was profitable after costs. The source cache also had
+86 missing BTC minutes and 113 missing ETH minutes, so the data-quality gate
+failed independently. Even the best fixed-trade-set fee scenario remained
+negative at -7.66 bps per trade. The hypothesis is therefore retained as a
+reproducible rejected artifact and disabled in checked-in YAML. It must not be
+threshold-tuned on this observed window.
+
+Reproduce the frozen hypothesis—not the disabled default—with:
+
+```bash
+.venv/bin/python -m vnedge.research.delta_scalper_backtest \
+  --config configs/research/delta_scalper_htf_pullback_v1.yaml \
+  --start 2025-01-01 --end 2026-07-24 \
+  --output research/live_research/delta_scalper_hierarchical_backtest_latest.json
+```
 
 ## Complete-module HLD coverage
 
