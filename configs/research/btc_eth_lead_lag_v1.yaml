@@ -1,0 +1,75 @@
+contract_id: btc_eth_lead_lag_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  leader_symbol: BTCUSD
+  follower_symbol: ETHUSD
+  timeframe: 1m
+  start: "2025-01-01T00:00:00+00:00"
+  end: "2026-07-25T00:00:00+00:00"
+  require_exact_timestamp_match: true
+  require_closed_candles: true
+  require_zero_missing_minutes: true
+
+signal:
+  impulse_lookback_bars: 5
+  volume_window_bars: 20
+  min_btc_impulse_bps: 20.0
+  min_btc_last_bar_bps: 5.0
+  min_btc_volume_z: 1.0
+  max_eth_absolute_lag_bps: 12.0
+  max_eth_follow_ratio: 0.40
+  min_lead_gap_bps: 12.0
+  min_eth_trigger_body_ratio: 0.50
+  min_eth_trigger_volume_z: 0.50
+  cooldown_minutes: 240
+
+exit:
+  atr_window_bars: 14
+  stop_atr_fraction: 0.80
+  min_stop_bps: 12.0
+  max_stop_bps: 40.0
+  reward_risk: 2.50
+  minimum_target_cost_multiple: 3.50
+  expected_hold_seconds: 900
+  time_stop_seconds: 1680
+
+structural_prior:
+  probability: 0.75
+  confidence: 0.65
+  calibrated: false
+  promotion_eligible: false
+
+costs:
+  prefer_maker: false
+  scalper_opted_in: false
+  deto_enabled: false
+  maker_fee_bps_pre_tax: 2.0
+  taker_fee_bps_pre_tax: 5.0
+  gst_rate: 0.18
+  slippage_bps_per_leg: 1.5
+
+validation:
+  selection_fraction: 0.80
+  untouched_fraction: 0.20
+  split_embargo_minutes: 30
+  minimum_selection_trades: 100
+  minimum_selection_trades_per_half: 35
+  minimum_selection_average_net_bps: 3.0
+  minimum_selection_profit_factor: 1.20
+  minimum_trades_per_day: 0.10
+  maximum_trades_per_day: 4.0
+  require_positive_selection_halves: true
+  open_untouched_only_after_selection_pass: true
+
+policy:
+  decision: synchronized BTC and ETH closed 1m bars
+  entry: next synchronized ETH 1m open
+  same_bar_stop_and_target: stop_first
+  duplicate_policy: one candidate per BTC impulse close and direction
+  active_observation_policy: one pending or open ETH observation at a time
+  l2_role: unavailable_and_not_used
+  parameter_search: forbidden_on_this_window

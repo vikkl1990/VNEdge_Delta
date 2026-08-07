@@ -13,6 +13,9 @@ responsibility of VNEDGE's normal journaled execution path after promotion.
 All three implemented scanner hypotheses are currently disabled: Momentum
 Burst and Imbalance Fade failed the original replay, and the independently
 implemented hierarchical pullback v1 also failed its frozen first replay.
+`btc_eth_lead_lag_v1` is separately preregistered as a synchronized-pair
+research hypothesis. It is not part of the live assembly and has no result
+until its committed contract is replayed once.
 
 ## Implemented flow
 
@@ -70,6 +73,28 @@ Reproduce the frozen hypothesis—not the disabled default—with:
   --config configs/research/delta_scalper_htf_pullback_v1.yaml \
   --start 2025-01-01 --end 2026-07-24 \
   --output research/live_research/delta_scalper_hierarchical_backtest_latest.json
+```
+
+### BTC to ETH lead-lag v1 preregistration
+
+`btc_eth_lead_lag_v1` evaluates exact-timestamp BTCUSD and ETHUSD completed
+1-minute candles. BTC must produce a five-bar impulse with same-direction last
+bar and elevated volume; ETH must still lag that move, then break its preceding
+one-minute structure with sufficient body and volume. Entry is the next ETH
+one-minute open. The scanner permits one candidate per BTC impulse, one pending
+or open observation, and a four-hour cooldown.
+
+The complete frozen contract is
+[`BTC_ETH_LEAD_LAG_V1_CONTRACT.md`](BTC_ETH_LEAD_LAG_V1_CONTRACT.md). Its
+selection window is the first chronological 80%, with a 30-minute embargo.
+The final 20% remains unscored unless the selection window clears every data,
+sample-size, expectancy, profit-factor, frequency, and temporal-consistency
+gate. L2, funding, meta-labeling, and parameter search are excluded from v1.
+
+After the preregistration commit, run the one-shot causal replay with:
+
+```bash
+.venv/bin/python -m vnedge.research.btc_eth_lead_lag_backtest
 ```
 
 ## Complete-module HLD coverage

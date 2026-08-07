@@ -182,6 +182,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `predictor.py` | Deterministic v1 move/probability/confidence heuristic. | Returns `MoveEstimate`; this is not a trained model. |
 | `fee_model.py` | Maker/taker, GST, DETO, slippage, Scalper Offer and hold-window model. | Returns a complete expected cost breakdown. |
 | `scanners.py` | Hierarchical Pullback plus retired Momentum Burst and candle-based Imbalance Fade. | Closed-candle candidates; one-shot hierarchical setup identity; L2 metadata only. |
+| `lead_lag.py` | Frozen BTCUSD leader to ETHUSD follower contract and paired scanner. | Exact synchronized closed 1m candles, one candidate per impulse, cooldown and structural prior; research-only and no L2. |
 | `signal_generator.py` | Context, scanner isolation, gates, ranking, dedup and journal fail-closed behavior. | Returns `EngineDecision`; includes an unused risk adapter. |
 | `forward_tracker.py` | Measures accepted alerts without positions. | Exactly-once next-open outcome with MFE, MAE, costs, net and barriers. |
 | `backtester.py` | Causal one-position-at-a-time historical replay. | Complete trade rows/report; gaps reset state and fail data quality. |
@@ -198,6 +199,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `src/vnedge/dashboard/app.py` | Authenticated local UI and `/delta-scalper`; trade and promotion remain false. |
 | `configs/delta_scalper.yaml` | Frozen engine, fee, feature, CUSUM, scanner, and promotion parameters. |
 | `configs/research/delta_scalper_htf_pullback_v1.yaml` | Frozen enabled configuration that reproduces the rejected hierarchical hypothesis. |
+| `configs/research/btc_eth_lead_lag_v1.yaml` | Preregistered synchronized-pair hypothesis, cost contract, selection gates, and sealed untouched rule. |
 
 ### Research programs
 
@@ -214,6 +216,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `delta_scalper_lightgbm_meta.py` | LightGBM fit, early stop, selection threshold search, and sealed tail. | 60/10/10/20 chronology; absent L2/CVD/funding not fabricated. |
 | `delta_scalper_categorical_encoding.py` | Selection-only one-hot versus native categorical A/B diagnostic with category-level probability and economics. | Shared chronological windows; final 20% never scored; no winner or artifact promoted from the comparison. |
 | `delta_scalper_lightgbm_shap.py` | Global, grouped, local and interaction SHAP reports and plots. | Selection-only; guarded Booster bundle; no live integration. |
+| `btc_eth_lead_lag_backtest.py` | Exact-timestamp paired replay using the canonical next-open, stop-first path resolver. | First 80% is selection; final 20% is never simulated unless every frozen selection gate passes. |
 
 ## 6. Contracts and state invariants
 
