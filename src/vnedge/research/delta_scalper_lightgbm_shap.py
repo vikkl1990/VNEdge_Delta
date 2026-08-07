@@ -33,9 +33,7 @@ from vnedge.research.delta_scalper_lightgbm_meta import (
 )
 
 DEFAULT_DATA = Path("research/live_research/delta_scalper_with_tb_labels.parquet")
-DEFAULT_INTERACTIONS = Path(
-    "research/live_research/delta_scalper_cusum_interactions_latest.json"
-)
+DEFAULT_INTERACTIONS = Path("research/live_research/delta_scalper_cusum_interactions_latest.json")
 DEFAULT_OUTPUT = Path("research/live_research/delta_scalper_lightgbm_shap_latest.json")
 DEFAULT_ARTIFACT_DIR = Path("research/meta_labeling_shap")
 GROUP_FIELDS = (
@@ -89,21 +87,19 @@ def _required_bundle_member(
             f"configured {key} escapes the artifact directory: {value}"
         )
     if not candidate.is_file():
-        raise ApprovedBoosterArtifactError(
-            f"missing approved {key} artifact: {candidate}"
-        )
+        raise ApprovedBoosterArtifactError(f"missing approved {key} artifact: {candidate}")
     return candidate
 
 
 def _validate_feature_config(config: dict[str, Any]) -> None:
     for key in ("features", "numeric_features", "categorical_features"):
         values = config.get(key)
-        if not isinstance(values, list) or not values or not all(
-            isinstance(value, str) and value for value in values
+        if (
+            not isinstance(values, list)
+            or not values
+            or not all(isinstance(value, str) and value for value in values)
         ):
-            raise ApprovedBoosterArtifactError(
-                f"meta_config.json has an invalid {key} list"
-            )
+            raise ApprovedBoosterArtifactError(f"meta_config.json has an invalid {key} list")
 
 
 def load_approved_booster_artifacts(
@@ -124,8 +120,7 @@ def load_approved_booster_artifacts(
         ) from exc
     except json.JSONDecodeError as exc:
         raise ApprovedBoosterArtifactError(
-            f"invalid JSON in approved LightGBM SHAP config: "
-            f"{config_path.resolve()}: {exc}"
+            f"invalid JSON in approved LightGBM SHAP config: {config_path.resolve()}: {exc}"
         ) from exc
     if not isinstance(config, dict):
         raise ApprovedBoosterArtifactError("meta_config.json must contain an object")
@@ -134,9 +129,7 @@ def load_approved_booster_artifacts(
         and config.get("frozen_after_untouched_success") is True
         and config.get("live_integration_enabled") is False
     ):
-        raise ApprovedBoosterArtifactError(
-            "LightGBM artifacts are not approved for SHAP loading"
-        )
+        raise ApprovedBoosterArtifactError("LightGBM artifacts are not approved for SHAP loading")
     _validate_feature_config(config)
     booster_path = _required_bundle_member(artifact_dir, config, "native_booster")
     preprocessor_path = _required_bundle_member(artifact_dir, config, "preprocessor")
@@ -150,9 +143,7 @@ def load_approved_booster_artifacts(
         expected = checksums.get(key)
         actual = _sha256_file(path)
         if not isinstance(expected, str) or actual != expected:
-            raise ApprovedBoosterArtifactError(
-                f"SHA-256 verification failed for {key}: {path}"
-            )
+            raise ApprovedBoosterArtifactError(f"SHA-256 verification failed for {key}: {path}")
     try:
         booster = Booster(model_file=str(booster_path))
     except Exception as exc:
@@ -198,6 +189,27 @@ def base_feature_name(transformed_name: str) -> str:
         if clean == feature or clean.startswith(f"{feature}_"):
             return feature
     raise ValueError(f"cannot map transformed feature to causal input: {transformed_name}")
+
+
+def normalize_shap_values(
+    raw_values: Any,
+    *,
+    samples: int,
+    features: int,
+) -> np.ndarray:
+    """Normalize version-dependent binary TreeSHAP output to sample by feature."""
+    if isinstance(raw_values, list):
+        raw_values = raw_values[-1]
+    values = np.asarray(raw_values, dtype=float)
+    if values.shape == (samples, features):
+        return values
+    if values.ndim == 3 and values.shape[:2] == (samples, features):
+        return values[..., -1]
+    if values.ndim == 3 and values.shape[1:] == (samples, features):
+        return values[-1]
+    raise ValueError(
+        f"unexpected SHAP value shape: {values.shape}; expected ({samples}, {features})"
+    )
 
 
 def aggregate_base_shap(
@@ -397,12 +409,8 @@ def _grouped_attribution(
                 "key": " | ".join(map(str, values)),
                 **dict(zip(GROUP_FIELDS, values)),
                 **_economic_metrics(members),
-                "average_prediction_probability": float(
-                    members["prediction_probability"].mean()
-                ),
-                "average_total_shap_log_odds": float(
-                    base_shap.iloc[indices].sum(axis=1).mean()
-                ),
+                "average_prediction_probability": float(members["prediction_probability"].mean()),
+                "average_total_shap_log_odds": float(base_shap.iloc[indices].sum(axis=1).mean()),
                 "top_positive_contributions": [
                     {"feature": str(feature), "mean_shap": float(value)}
                     for feature, value in contributions.head(5).items()
@@ -475,16 +483,9 @@ def _flat_grouped_attribution(
             "key": " | ".join(map(str, values)),
             **dict(zip(group_fields, values)),
             **_economic_metrics(members),
-            "average_prediction_probability": float(
-                members["prediction_probability"].mean()
-            ),
+            "average_prediction_probability": float(members["prediction_probability"].mean()),
         }
-        row.update(
-            {
-                f"shap_{feature}": float(value)
-                for feature, value in contributions.items()
-            }
-        )
+        row.update({f"shap_{feature}": float(value) for feature, value in contributions.items()})
         rows.append(row)
     return pd.DataFrame(rows).sort_values(
         ["average_prediction_probability", "trades"],
@@ -538,22 +539,16 @@ def _manual_best_cell_comparison(
     if not interaction_path.exists():
         return None
     payload = json.loads(interaction_path.read_text(encoding="utf-8"))
-    best = ((payload.get("findings") or {}).get("best_eligible_cells") or [])
+    best = (payload.get("findings") or {}).get("best_eligible_cells") or []
     if not best:
         return None
     cell = best[0]
     mask = (
-        selection["change_point_window_at_entry"].astype(str).eq(
-            str(cell["change_point_window"])
-        )
+        selection["change_point_window_at_entry"].astype(str).eq(str(cell["change_point_window"]))
         & selection["scanner_id"].astype(str).eq(str(cell["scanner_id"]))
         & selection["symbol"].astype(str).eq(str(cell["symbol"]))
-        & selection["trend_regime_at_entry"].astype(str).eq(
-            str(cell["trend_regime"])
-        )
-        & selection["volatility_regime_at_entry"].astype(str).eq(
-            str(cell["volatility_regime"])
-        )
+        & selection["trend_regime_at_entry"].astype(str).eq(str(cell["trend_regime"]))
+        & selection["volatility_regime_at_entry"].astype(str).eq(str(cell["volatility_regime"]))
     ).to_numpy()
     positions = np.flatnonzero(mask)
     if not len(positions):
@@ -564,14 +559,10 @@ def _manual_best_cell_comparison(
         "trades": len(positions),
         "manual_average_net_bps": float(cell["average_net_bps"]),
         "manual_profit_factor": cell["profit_factor"],
-        "model_selection_slice_economics": _economic_metrics(
-            selection.iloc[positions]
-        ),
+        "model_selection_slice_economics": _economic_metrics(selection.iloc[positions]),
         "average_model_probability": float(probabilities[positions].mean()),
         "selection_average_model_probability": float(probabilities.mean()),
-        "model_upweights_cell": bool(
-            probabilities[positions].mean() > probabilities.mean()
-        ),
+        "model_upweights_cell": bool(probabilities[positions].mean() > probabilities.mean()),
         "top_positive_contributions": [
             {"feature": str(feature), "mean_shap": float(value)}
             for feature, value in contributions.head(8).items()
@@ -586,9 +577,7 @@ def _manual_best_cell_comparison(
 def _share(global_importance: pd.DataFrame, features: tuple[str, ...]) -> float:
     total = float(global_importance["mean_abs_shap"].sum())
     selected = float(
-        global_importance.loc[
-            global_importance["feature"].isin(features), "mean_abs_shap"
-        ].sum()
+        global_importance.loc[global_importance["feature"].isin(features), "mean_abs_shap"].sum()
     )
     return selected / total if total else 0.0
 
@@ -608,6 +597,7 @@ def _plots(
         feature_names=transformed_names,
         max_display=20,
         show=False,
+        rng=np.random.default_rng(42),
     )
     plt.tight_layout()
     plt.savefig(artifact_dir / "shap_beeswarm.png", dpi=160, bbox_inches="tight")
@@ -619,6 +609,7 @@ def _plots(
         plot_type="bar",
         max_display=20,
         show=False,
+        rng=np.random.default_rng(42),
     )
     plt.tight_layout()
     plt.savefig(artifact_dir / "shap_global_bar.png", dpi=160, bbox_inches="tight")
@@ -632,7 +623,9 @@ def _plots(
     )
     shap.plots.waterfall(explanation, max_display=15, show=False)
     plt.tight_layout()
-    plt.savefig(artifact_dir / "shap_highest_probability_waterfall.png", dpi=160, bbox_inches="tight")
+    plt.savefig(
+        artifact_dir / "shap_highest_probability_waterfall.png", dpi=160, bbox_inches="tight"
+    )
     plt.close()
 
 
@@ -679,9 +672,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     x_selection = preprocessor.transform(selection.loc[:, FEATURES])
     probabilities = model.predict_proba(x_selection)[:, 1]
     explainer = shap.TreeExplainer(model)
-    shap_values = np.asarray(explainer.shap_values(x_selection), dtype=float)
-    if shap_values.ndim == 3:
-        shap_values = shap_values[:, :, -1]
+    shap_values = normalize_shap_values(
+        explainer.shap_values(x_selection),
+        samples=x_selection.shape[0],
+        features=x_selection.shape[1],
+    )
     transformed_names = [str(name) for name in preprocessor.get_feature_names_out()]
     base_value = float(np.asarray(explainer.expected_value).reshape(-1)[-1])
     base_shap = aggregate_base_shap(shap_values, transformed_names)
@@ -755,9 +750,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         num=interaction_count,
         dtype=int,
     )
-    interaction_raw = explainer.shap_interaction_values(
-        transformed_dense[interaction_positions]
-    )
+    interaction_raw = explainer.shap_interaction_values(transformed_dense[interaction_positions])
     encoded_interactions = normalize_interaction_values(
         interaction_raw,
         samples=interaction_count,
@@ -767,18 +760,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         encoded_interactions,
         transformed_names,
     )
-    top_interaction_features = global_importance.head(
-        args.interaction_top_features
-    )["feature"].astype(str).tolist()
+    top_interaction_features = (
+        global_importance.head(args.interaction_top_features)["feature"].astype(str).tolist()
+    )
     interaction_pairs, interaction_features, interaction_matrix, hypotheses = (
         _interaction_summaries(base_interactions, top_interaction_features)
     )
     interaction_additivity_error = float(
         np.max(
-            np.abs(
-                base_interactions.sum(axis=2)
-                - base_shap.iloc[interaction_positions].to_numpy()
-            )
+            np.abs(base_interactions.sum(axis=2) - base_shap.iloc[interaction_positions].to_numpy())
         )
     )
     _interaction_heatmap(
@@ -791,9 +781,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "symbol_feature_share": _share(global_importance, ("symbol",)),
         "scanner_feature_share": _share(global_importance, ("scanner_id",)),
         "time_and_symbol_share": _share(global_importance, ("hour_utc", "symbol")),
-        "primary_signal_feature_share": _share(
-            global_importance, PRIMARY_SIGNAL_FEATURES
-        ),
+        "primary_signal_feature_share": _share(global_importance, PRIMARY_SIGNAL_FEATURES),
         "cusum_feature_share": _share(global_importance, CUSUM_FEATURES),
         "historical_microstructure_available": False,
         "top_feature_is_time_or_symbol": bool(
@@ -805,12 +793,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "model_upweights_manual_least_bad_cell_while_still_negative": bool(
             manual_comparison
             and manual_comparison["model_upweights_cell"]
-            and float(
-                manual_comparison["model_selection_slice_economics"][
-                    "average_net_bps"
-                ]
-            )
-            < 0
+            and float(manual_comparison["model_selection_slice_economics"]["average_net_bps"]) < 0
         ),
     }
     payload: dict[str, Any] = {
@@ -839,9 +822,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "sampling": "deterministic_even_coverage",
             "top_features_from_normal_shap": top_interaction_features,
             "strongest_pairs": interaction_pairs.head(20).to_dict(orient="records"),
-            "feature_interaction_shares": interaction_features.to_dict(
-                orient="records"
-            ),
+            "feature_interaction_shares": interaction_features.to_dict(orient="records"),
             "manual_hypotheses": hypotheses,
             "max_additivity_error": interaction_additivity_error,
             "historical_microstructure_available": False,
@@ -871,29 +852,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
     global_importance.to_csv(args.artifact_dir / "global_base_shap.csv", index=False)
-    global_importance.to_csv(
-        args.artifact_dir / "shap_global_importance.csv", index=False
-    )
+    global_importance.to_csv(args.artifact_dir / "shap_global_importance.csv", index=False)
     encoded_importance.to_csv(args.artifact_dir / "global_encoded_shap.csv", index=False)
     split_importance.to_csv(args.artifact_dir / "lgbm_importance.csv", index=False)
-    scanner_vol.to_csv(
-        args.artifact_dir / "shap_grouped_scanner_vol.csv", index=False
-    )
-    scanner_cusum.to_csv(
-        args.artifact_dir / "shap_grouped_scanner_cusum.csv", index=False
-    )
-    full_interaction.to_csv(
-        args.artifact_dir / "shap_grouped_full_interaction.csv", index=False
-    )
-    interaction_pairs.to_csv(
-        args.artifact_dir / "shap_interaction_pairs.csv", index=False
-    )
+    scanner_vol.to_csv(args.artifact_dir / "shap_grouped_scanner_vol.csv", index=False)
+    scanner_cusum.to_csv(args.artifact_dir / "shap_grouped_scanner_cusum.csv", index=False)
+    full_interaction.to_csv(args.artifact_dir / "shap_grouped_full_interaction.csv", index=False)
+    interaction_pairs.to_csv(args.artifact_dir / "shap_interaction_pairs.csv", index=False)
     interaction_features.to_csv(
         args.artifact_dir / "shap_interaction_feature_shares.csv", index=False
     )
-    interaction_matrix.to_csv(
-        args.artifact_dir / "shap_interaction_matrix.csv", index=True
-    )
+    interaction_matrix.to_csv(args.artifact_dir / "shap_interaction_matrix.csv", index=True)
     pd.DataFrame(grouped).to_json(
         args.artifact_dir / "grouped_shap.json", orient="records", indent=2
     )
@@ -938,9 +907,7 @@ def main() -> None:
             {
                 "observations": payload["observations_explained"],
                 "top_global_features": payload["global_importance"][:10],
-                "manual_interaction_comparison": payload[
-                    "manual_interaction_comparison"
-                ],
+                "manual_interaction_comparison": payload["manual_interaction_comparison"],
                 "red_flags": payload["red_flags"],
                 "frozen": payload["frozen_untouched_window"],
             },

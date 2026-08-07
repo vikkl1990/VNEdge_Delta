@@ -577,7 +577,7 @@
     "shap_computed": false,
     "trades": 2268
   },
-  "generated_at": "2026-08-07T02:07:12.221378+00:00",
+  "generated_at": "2026-08-07T02:47:47.113660+00:00",
   "global_importance": [
     {
       "feature": "scanner_id",

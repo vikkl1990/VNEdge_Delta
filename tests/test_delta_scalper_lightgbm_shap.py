@@ -22,14 +22,13 @@ from vnedge.research.delta_scalper_lightgbm_shap import (
     base_feature_name,
     load_approved_booster_artifacts,
     normalize_interaction_values,
+    normalize_shap_values,
 )
 
 
 def test_shap_transformed_features_map_to_causal_base_features():
     assert base_feature_name("numeric__expected_move_bps") == "expected_move_bps"
-    assert base_feature_name("categorical__scanner_id_delta_imbalance_fade_v1") == (
-        "scanner_id"
-    )
+    assert base_feature_name("categorical__scanner_id_delta_imbalance_fade_v1") == ("scanner_id")
     assert base_feature_name("categorical__hour_utc_14") == "hour_utc"
     with pytest.raises(ValueError, match="cannot map"):
         base_feature_name("categorical__fabricated_feature_value")
@@ -55,6 +54,26 @@ def test_shap_one_hot_contributions_are_additively_grouped():
     assert grouped.sum(axis=1).tolist() == pytest.approx(values.sum(axis=1).tolist())
 
 
+def test_binary_shap_values_are_normalized_across_library_shapes():
+    positive = np.arange(6, dtype=float).reshape(2, 3)
+    assert np.array_equal(
+        normalize_shap_values([np.zeros_like(positive), positive], samples=2, features=3),
+        positive,
+    )
+    sample_feature_class = np.stack((np.zeros_like(positive), positive), axis=-1)
+    assert np.array_equal(
+        normalize_shap_values(sample_feature_class, samples=2, features=3),
+        positive,
+    )
+    class_sample_feature = np.stack((np.zeros_like(positive), positive), axis=0)
+    assert np.array_equal(
+        normalize_shap_values(class_sample_feature, samples=2, features=3),
+        positive,
+    )
+    with pytest.raises(ValueError, match="unexpected SHAP value shape"):
+        normalize_shap_values(np.zeros((4, 4)), samples=2, features=3)
+
+
 def test_shap_interactions_are_normalized_and_additively_grouped():
     names = [
         "numeric__expected_move_bps",
@@ -76,9 +95,7 @@ def test_shap_interactions_are_normalized_and_additively_grouped():
     assert grouped[:, expected_move, scanner].tolist() == pytest.approx(
         raw[:, 0, 1:].sum(axis=1).tolist()
     )
-    assert grouped.sum(axis=(1, 2)).tolist() == pytest.approx(
-        raw.sum(axis=(1, 2)).tolist()
-    )
+    assert grouped.sum(axis=(1, 2)).tolist() == pytest.approx(raw.sum(axis=(1, 2)).tolist())
 
 
 def test_interaction_summaries_rank_pairs_and_preserve_manual_hypotheses():
@@ -95,9 +112,7 @@ def test_interaction_summaries_rank_pairs_and_preserve_manual_hypotheses():
 
     assert pairs.iloc[0]["feature_a"] == "scanner_id"
     assert pairs.iloc[0]["feature_b"] == "change_point_window_at_entry"
-    assert matrix.loc["scanner_id", "change_point_window_at_entry"] == pytest.approx(
-        0.2
-    )
+    assert matrix.loc["scanner_id", "change_point_window_at_entry"] == pytest.approx(0.2)
     assert shares.loc[shares["feature"] == "scanner_id", "interaction_share"].iloc[
         0
     ] == pytest.approx(1.0)

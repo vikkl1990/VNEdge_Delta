@@ -347,6 +347,13 @@ receives neither predictions nor SHAP values. These explanations are diagnostics
 only: they cannot alter scanner thresholds, promote a model, route an order, or
 invent missing historical L2/CVD inputs.
 
+Binary TreeSHAP outputs are normalized across list,
+sample-feature-class, and class-sample-feature library shapes before
+attribution. Plot jitter uses a fixed local random generator, making beeswarm
+and bar artifacts reproducible without mutating global NumPy state. Grouping
+labels stay in the causal selection frame and never overwrite SHAP contribution
+columns.
+
 Flat CSV views are also written for scanner × volatility, scanner × CUSUM, and
 scanner × trend × volatility × CUSUM. Each row carries trade count, realized
 after-cost expectancy, PF, win rate, average model probability, and one column
