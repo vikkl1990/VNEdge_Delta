@@ -345,6 +345,58 @@ windows. Success permits paper review only, never direct live trading.
 
 ## 13. Meta-label and SHAP state
 
+### Implemented LightGBM meta-label pipeline
+
+```mermaid
+flowchart LR
+    Journal["Resolved scanner outcomes"] --> Labels["Triple-barrier export<br/>shared path label is authoritative<br/>strict stop or time-stop equals zero"]
+    Labels --> Matrix["24 causal base features<br/>14 numeric and 10 categorical"]
+    Matrix --> Fit["First 60 percent<br/>fit preprocessor and LightGBM"]
+    Fit --> Early["Next 10 percent<br/>early stopping only"]
+    Early --> Select["Next 10 percent<br/>threshold selection only"]
+    Select --> Gate{"Selection gates pass"}
+    Gate -->|"No"| Sealed["Final 20 percent remains sealed"]
+    Gate -->|"Yes"| Frozen["Evaluate final 20 percent once"]
+    Frozen --> Approval{"Frozen economic gates pass"}
+    Approval -->|"No"| Research["Research report only"]
+    Approval -->|"Yes"| Bundle["Freeze Booster, preprocessor,<br/>threshold, features and checksums"]
+    Bundle --> Disabled["Live integration still disabled"]
+```
+
+The binary target is `tb_label`: target 1 touched before stop/time-stop is one;
+otherwise zero. Explicit labels produced by the shared conservative path
+simulator are authoritative. Exit-reason reconstruction is a legacy fallback.
+MFE recovery for a time stop is disabled by default because it does not prove
+touch order and may not match the original target contract.
+
+The implementation uses these decision-time fields:
+
+- numeric: expected move/net bps, primary probability, confidence, expected fee
+  multiple, ATR percentile/bps, Bollinger-width percentile, planned stop/target,
+  CUSUM bars since shift, return/volatility scores, and recent-alarm flag;
+- categorical: scanner, symbol, side, base regime, trend regime/direction,
+  volatility regime, session, CUSUM window, and UTC hour.
+
+Numeric fields are median-imputed and robust-scaled from the 60% fit window.
+Categoricals are most-frequent-imputed and one-hot encoded from that window.
+LightGBM therefore receives an encoded matrix; it is not using native
+categorical columns in this implementation. Historical L2 imbalance, CVD, and
+funding are excluded because the candle history cannot reconstruct them.
+
+The shallow classifier uses 500 maximum trees, learning rate 0.05, depth 4,
+16 leaves, minimum 40 child samples, 0.8 row/column subsampling, L2 regularizer
+1.0, and early stopping after 40 non-improving rounds. Eighteen preregistered
+thresholds span 0.45 through 0.875 in 0.025 steps.
+
+Selection requires source-data quality, at least 300 trades, a 20-90% frequency
+reduction, PF at least 1.10, average net at least 1 bps, and at least one
+positive market. Only then is the final 20% scored once. The current artifact
+approval code requires frozen PF above 1.30, average net above 3 bps, and one
+positive market. This is weaker than the peer-review target of both BTC and ETH,
+PF 1.30-1.40, average net 3-4 bps, and a defensible frequency/minimum sample;
+those stricter frozen gates should be implemented before any future artifact can
+be called promotion-ready.
+
 LightGBM uses 12,680 fit, 2,344 early-stop, 2,229 selection, and 2,268 protected
 trades. Selection baseline is -6.82 bps/trade with PF 0.363; ROC AUC is 0.572.
 The apparent best threshold, 0.475, retained only nine trades at +2.94 bps and
