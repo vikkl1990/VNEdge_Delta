@@ -577,7 +577,7 @@
     "shap_computed": false,
     "trades": 2268
   },
-  "generated_at": "2026-08-06T17:35:12.556780+00:00",
+  "generated_at": "2026-08-07T02:07:12.221378+00:00",
   "global_importance": [
     {
       "feature": "scanner_id",
@@ -2932,6 +2932,325 @@
       }
     ]
   },
+  "interaction_attribution": {
+    "feature_interaction_shares": [
+      {
+        "feature": "scanner_id",
+        "interaction_share": 0.34356161981519184,
+        "mean_abs_main_effect": 0.10509284477488973,
+        "mean_abs_off_diagonal_interactions": 0.05500267667421074
+      },
+      {
+        "feature": "planned_target_bps",
+        "interaction_share": 0.5487871299947926,
+        "mean_abs_main_effect": 0.020292967553919294,
+        "mean_abs_off_diagonal_interactions": 0.024681298259210324
+      },
+      {
+        "feature": "expected_net_bps",
+        "interaction_share": 0.5235742313504884,
+        "mean_abs_main_effect": 0.022164822568973265,
+        "mean_abs_off_diagonal_interactions": 0.024358317083615695
+      },
+      {
+        "feature": "planned_stop_bps",
+        "interaction_share": 0.5190388700233781,
+        "mean_abs_main_effect": 0.01742271024728041,
+        "mean_abs_off_diagonal_interactions": 0.01880206793412331
+      },
+      {
+        "feature": "atr_bps_at_entry",
+        "interaction_share": 0.7854349681202146,
+        "mean_abs_main_effect": 0.004722980787125111,
+        "mean_abs_off_diagonal_interactions": 0.017288904121368555
+      },
+      {
+        "feature": "scalper_probability",
+        "interaction_share": 0.5777640850115383,
+        "mean_abs_main_effect": 0.011297689609825105,
+        "mean_abs_off_diagonal_interactions": 0.015459128578257814
+      },
+      {
+        "feature": "expected_move_bps",
+        "interaction_share": 0.5035559519760423,
+        "mean_abs_main_effect": 0.014165324482785582,
+        "mean_abs_off_diagonal_interactions": 0.014368252541995231
+      },
+      {
+        "feature": "confidence",
+        "interaction_share": 0.4666175462147759,
+        "mean_abs_main_effect": 0.011768441516328408,
+        "mean_abs_off_diagonal_interactions": 0.010295354232504342
+      },
+      {
+        "feature": "change_point_bars_since_shift",
+        "interaction_share": 0.6147502158738138,
+        "mean_abs_main_effect": 0.00499382222447256,
+        "mean_abs_off_diagonal_interactions": 0.007968734615888616
+      },
+      {
+        "feature": "bb_width_percentile_at_entry",
+        "interaction_share": 0.7017082522058541,
+        "mean_abs_main_effect": 0.003072729505217785,
+        "mean_abs_off_diagonal_interactions": 0.007228358365769198
+      },
+      {
+        "feature": "expected_fee_multiple",
+        "interaction_share": 0.46260212580951415,
+        "mean_abs_main_effect": 0.008033865964677568,
+        "mean_abs_off_diagonal_interactions": 0.006915701851867026
+      },
+      {
+        "feature": "atr_percentile_at_entry",
+        "interaction_share": 0.5522893494120472,
+        "mean_abs_main_effect": 0.005248454567930228,
+        "mean_abs_off_diagonal_interactions": 0.006474417249029525
+      },
+      {
+        "feature": "trend_direction_at_entry",
+        "interaction_share": 0.5316620063287365,
+        "mean_abs_main_effect": 0.005698084869877257,
+        "mean_abs_off_diagonal_interactions": 0.006468523320951834
+      },
+      {
+        "feature": "change_point_return_score",
+        "interaction_share": 0.43912524239133255,
+        "mean_abs_main_effect": 0.008116627705041497,
+        "mean_abs_off_diagonal_interactions": 0.006354745083506452
+      },
+      {
+        "feature": "trend_regime_at_entry",
+        "interaction_share": 0.48845746292848513,
+        "mean_abs_main_effect": 0.005650573558602067,
+        "mean_abs_off_diagonal_interactions": 0.005395572458795707
+      },
+      {
+        "feature": "side",
+        "interaction_share": 0.5508649830096346,
+        "mean_abs_main_effect": 0.004050352459641441,
+        "mean_abs_off_diagonal_interactions": 0.00496776526981702
+      },
+      {
+        "feature": "hour_utc",
+        "interaction_share": 0.5752892881136071,
+        "mean_abs_main_effect": 0.003418095832440663,
+        "mean_abs_off_diagonal_interactions": 0.004629960731187944
+      },
+      {
+        "feature": "regime_at_entry",
+        "interaction_share": 0.4654345382980379,
+        "mean_abs_main_effect": 0.00529487052174538,
+        "mean_abs_off_diagonal_interactions": 0.004610128774107828
+      },
+      {
+        "feature": "symbol",
+        "interaction_share": 0.9015467007421596,
+        "mean_abs_main_effect": 0.0004087488495838372,
+        "mean_abs_off_diagonal_interactions": 0.0037429540660631074
+      },
+      {
+        "feature": "change_point_volatility_score",
+        "interaction_share": 0.621403302226135,
+        "mean_abs_main_effect": 0.0018330053518592897,
+        "mean_abs_off_diagonal_interactions": 0.003008572407897452
+      },
+      {
+        "feature": "session_regime_at_entry",
+        "interaction_share": 0.4024105028377033,
+        "mean_abs_main_effect": 0.0026136008764909373,
+        "mean_abs_off_diagonal_interactions": 0.0017599714317605261
+      },
+      {
+        "feature": "change_point_window_at_entry",
+        "interaction_share": 0.0,
+        "mean_abs_main_effect": 0.0,
+        "mean_abs_off_diagonal_interactions": 0.0
+      },
+      {
+        "feature": "cusum_alarm_recent_at_entry",
+        "interaction_share": 0.0,
+        "mean_abs_main_effect": 0.0,
+        "mean_abs_off_diagonal_interactions": 0.0
+      },
+      {
+        "feature": "volatility_regime_at_entry",
+        "interaction_share": 0.0,
+        "mean_abs_main_effect": 0.0,
+        "mean_abs_off_diagonal_interactions": 0.0
+      }
+    ],
+    "historical_microstructure_available": false,
+    "manual_hypotheses": [
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "change_point_window_at_entry",
+        "mean_abs_interaction": 0.0,
+        "mean_signed_interaction": 0.0
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "change_point_bars_since_shift",
+        "mean_abs_interaction": 0.0022058937914981053,
+        "mean_signed_interaction": 5.241368356720034e-05
+      },
+      {
+        "feature_a": "trend_regime_at_entry",
+        "feature_b": "volatility_regime_at_entry",
+        "mean_abs_interaction": 0.0,
+        "mean_signed_interaction": 0.0
+      },
+      {
+        "feature_a": "expected_fee_multiple",
+        "feature_b": "atr_bps_at_entry",
+        "mean_abs_interaction": 0.0014645279066610637,
+        "mean_signed_interaction": -0.0007111410641136556
+      },
+      {
+        "available": false,
+        "feature_a": "l2_imbalance_abs",
+        "feature_b": "cvd_zscore",
+        "reason": "historical microstructure features were not fabricated"
+      }
+    ],
+    "max_additivity_error": 2.7755575615628914e-16,
+    "observations": 1000,
+    "sampling": "deterministic_even_coverage",
+    "scope": "threshold_selection_window_only",
+    "strongest_pairs": [
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "planned_target_bps",
+        "mean_abs_interaction": 0.0113712761864622,
+        "mean_signed_interaction": -0.0008130517197154495
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "expected_net_bps",
+        "mean_abs_interaction": 0.006187254710758681,
+        "mean_signed_interaction": 6.83607613352616e-05
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "atr_bps_at_entry",
+        "mean_abs_interaction": 0.005368841153492252,
+        "mean_signed_interaction": 4.388368134194879e-05
+      },
+      {
+        "feature_a": "planned_target_bps",
+        "feature_b": "planned_stop_bps",
+        "mean_abs_interaction": 0.004556213814163695,
+        "mean_signed_interaction": -0.0037806198351882695
+      },
+      {
+        "feature_a": "scalper_probability",
+        "feature_b": "planned_stop_bps",
+        "mean_abs_interaction": 0.0036352078124383264,
+        "mean_signed_interaction": -0.0014805656715669642
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "expected_move_bps",
+        "mean_abs_interaction": 0.00344388367632075,
+        "mean_signed_interaction": -0.00012801391951167243
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "confidence",
+        "mean_abs_interaction": 0.003278324758441408,
+        "mean_signed_interaction": -0.001296999594538421
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "planned_stop_bps",
+        "mean_abs_interaction": 0.0030741056887859655,
+        "mean_signed_interaction": 0.001222876945090116
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "change_point_return_score",
+        "mean_abs_interaction": 0.0028228111250089625,
+        "mean_signed_interaction": 0.0007606921118267663
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "scalper_probability",
+        "mean_abs_interaction": 0.0025915298742996322,
+        "mean_signed_interaction": -0.0016138112883136658
+      },
+      {
+        "feature_a": "expected_net_bps",
+        "feature_b": "atr_bps_at_entry",
+        "mean_abs_interaction": 0.0023725614947637244,
+        "mean_signed_interaction": -0.0011703152511571408
+      },
+      {
+        "feature_a": "planned_target_bps",
+        "feature_b": "atr_bps_at_entry",
+        "mean_abs_interaction": 0.0023564871251638498,
+        "mean_signed_interaction": -5.416536797857396e-05
+      },
+      {
+        "feature_a": "expected_net_bps",
+        "feature_b": "expected_move_bps",
+        "mean_abs_interaction": 0.002011178594599619,
+        "mean_signed_interaction": 0.0017028636648971644
+      },
+      {
+        "feature_a": "expected_net_bps",
+        "feature_b": "planned_stop_bps",
+        "mean_abs_interaction": 0.001850779786332399,
+        "mean_signed_interaction": -0.001391958013120821
+      },
+      {
+        "feature_a": "scanner_id",
+        "feature_b": "expected_fee_multiple",
+        "mean_abs_interaction": 0.001810980634502514,
+        "mean_signed_interaction": 7.52406840959371e-05
+      },
+      {
+        "feature_a": "expected_net_bps",
+        "feature_b": "scalper_probability",
+        "mean_abs_interaction": 0.0016676525905209676,
+        "mean_signed_interaction": -0.0004516700274589749
+      },
+      {
+        "feature_a": "expected_move_bps",
+        "feature_b": "planned_stop_bps",
+        "mean_abs_interaction": 0.0014954541287148942,
+        "mean_signed_interaction": -0.0010224908996310596
+      },
+      {
+        "feature_a": "atr_bps_at_entry",
+        "feature_b": "expected_fee_multiple",
+        "mean_abs_interaction": 0.00146452790666106,
+        "mean_signed_interaction": -0.0007111410641136571
+      },
+      {
+        "feature_a": "planned_stop_bps",
+        "feature_b": "atr_bps_at_entry",
+        "mean_abs_interaction": 0.0014060633062463186,
+        "mean_signed_interaction": -0.0009358887529168743
+      },
+      {
+        "feature_a": "expected_move_bps",
+        "feature_b": "atr_bps_at_entry",
+        "mean_abs_interaction": 0.0013999291816486341,
+        "mean_signed_interaction": -0.000115761521962138
+      }
+    ],
+    "top_features_from_normal_shap": [
+      "scanner_id",
+      "expected_net_bps",
+      "planned_target_bps",
+      "confidence",
+      "expected_move_bps",
+      "scalper_probability",
+      "planned_stop_bps",
+      "change_point_return_score",
+      "atr_bps_at_entry",
+      "expected_fee_multiple"
+    ]
+  },
   "local_high_probability_attribution": [
     {
       "base_value_log_odds": -0.5966234559067823,
@@ -3807,6 +4126,7 @@
     "historical_l2_cvd_not_fabricated": true,
     "reason_model_not_saved": "selection profitability gates failed",
     "research_only": true,
+    "shap_interactions_used_for_scanner_gate": false,
     "shap_used_for_execution": false,
     "shap_used_for_live_prediction": false,
     "shap_used_for_scanner_gate": false

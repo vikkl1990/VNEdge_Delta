@@ -344,3 +344,13 @@ invalid configuration, missing bundle members, corrupt JSON, invalid feature
 schema, path traversal, checksum failure, unreadable Booster/preprocessor files,
 and Booster/preprocessor dimensional mismatch. It never fills absent model
 features with zeros and never falls back to an unapproved model.
+
+The same selection-only SHAP command also computes TreeSHAP interaction values
+on 1,000 deterministically spaced selection observations. Encoded interactions
+are added back to the 24 causal base features, checked against normal-SHAP
+additivity, and ranked only across the top ten normal-SHAP features. It writes
+pair rankings, per-feature interaction shares, the full base interaction matrix,
+and a heatmap. Manual scanner/CUSUM, trend/volatility, and fee/ATR hypotheses are
+reported explicitly; unavailable historical L2/CVD interactions remain marked
+unavailable rather than fabricated. Interactions are diagnostic only and cannot
+gate or execute a signal.

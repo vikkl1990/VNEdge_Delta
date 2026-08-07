@@ -210,6 +210,133 @@ def aggregate_base_shap(
     return output
 
 
+def normalize_interaction_values(
+    raw_values: Any,
+    *,
+    samples: int,
+    features: int,
+) -> np.ndarray:
+    """Normalize SHAP's version-dependent binary interaction output."""
+    if isinstance(raw_values, list):
+        raw_values = raw_values[-1]
+    values = np.asarray(raw_values, dtype=float)
+    if values.shape == (samples, features, features):
+        return values
+    if values.ndim == 4 and values.shape[:3] == (samples, features, features):
+        return values[..., -1]
+    if values.ndim == 4 and values.shape[1:] == (samples, features, features):
+        return values[-1]
+    raise ValueError(
+        "unexpected SHAP interaction shape: "
+        f"{values.shape}; expected ({samples}, {features}, {features})"
+    )
+
+
+def aggregate_base_interactions(
+    interaction_values: np.ndarray,
+    transformed_names: list[str] | np.ndarray,
+) -> np.ndarray:
+    """Add encoded pair effects back to the causal base-feature matrix."""
+    base_names = list(FEATURES)
+    base_index = {name: index for index, name in enumerate(base_names)}
+    mapping = [base_index[base_feature_name(str(name))] for name in transformed_names]
+    output = np.zeros(
+        (len(interaction_values), len(base_names), len(base_names)),
+        dtype=float,
+    )
+    for encoded_i, base_i in enumerate(mapping):
+        for encoded_j, base_j in enumerate(mapping):
+            output[:, base_i, base_j] += interaction_values[:, encoded_i, encoded_j]
+    return output
+
+
+def _interaction_pair(
+    mean_abs: np.ndarray,
+    mean_signed: np.ndarray,
+    feature_a: str,
+    feature_b: str,
+) -> dict[str, Any]:
+    positions = {feature: index for index, feature in enumerate(FEATURES)}
+    i, j = positions[feature_a], positions[feature_b]
+    return {
+        "feature_a": feature_a,
+        "feature_b": feature_b,
+        "mean_abs_interaction": float(mean_abs[i, j]),
+        "mean_signed_interaction": float(mean_signed[i, j]),
+    }
+
+
+def _interaction_summaries(
+    base_interactions: np.ndarray,
+    top_features: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, list[dict[str, Any]]]:
+    mean_abs = np.abs(base_interactions).mean(axis=0)
+    mean_signed = base_interactions.mean(axis=0)
+    positions = {feature: index for index, feature in enumerate(FEATURES)}
+    pairs = []
+    for offset, feature_a in enumerate(top_features):
+        for feature_b in top_features[offset + 1 :]:
+            pairs.append(_interaction_pair(mean_abs, mean_signed, feature_a, feature_b))
+    pair_frame = pd.DataFrame(pairs).sort_values(
+        ["mean_abs_interaction", "feature_a", "feature_b"],
+        ascending=[False, True, True],
+        ignore_index=True,
+    )
+    feature_rows = []
+    for feature in FEATURES:
+        index = positions[feature]
+        main = float(mean_abs[index, index])
+        off_diagonal = float(mean_abs[index].sum() - main)
+        denominator = main + off_diagonal
+        feature_rows.append(
+            {
+                "feature": feature,
+                "mean_abs_main_effect": main,
+                "mean_abs_off_diagonal_interactions": off_diagonal,
+                "interaction_share": off_diagonal / denominator if denominator else 0.0,
+            }
+        )
+    feature_frame = pd.DataFrame(feature_rows).sort_values(
+        ["mean_abs_off_diagonal_interactions", "feature"],
+        ascending=[False, True],
+        ignore_index=True,
+    )
+    matrix = pd.DataFrame(mean_abs, index=FEATURES, columns=FEATURES)
+    hypotheses = [
+        _interaction_pair(
+            mean_abs,
+            mean_signed,
+            "scanner_id",
+            "change_point_window_at_entry",
+        ),
+        _interaction_pair(
+            mean_abs,
+            mean_signed,
+            "scanner_id",
+            "change_point_bars_since_shift",
+        ),
+        _interaction_pair(
+            mean_abs,
+            mean_signed,
+            "trend_regime_at_entry",
+            "volatility_regime_at_entry",
+        ),
+        _interaction_pair(
+            mean_abs,
+            mean_signed,
+            "expected_fee_multiple",
+            "atr_bps_at_entry",
+        ),
+        {
+            "feature_a": "l2_imbalance_abs",
+            "feature_b": "cvd_zscore",
+            "available": False,
+            "reason": "historical microstructure features were not fabricated",
+        },
+    ]
+    return pair_frame, feature_frame, matrix, hypotheses
+
+
 def _global_importance(base_shap: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -509,6 +636,30 @@ def _plots(
     plt.close()
 
 
+def _interaction_heatmap(
+    matrix: pd.DataFrame,
+    top_features: list[str],
+    artifact_dir: Path,
+) -> None:
+    selected = matrix.loc[top_features, top_features]
+    interaction_only = selected.to_numpy(copy=True)
+    np.fill_diagonal(interaction_only, 0.0)
+    figure, axis = plt.subplots(figsize=(12, 10))
+    image = axis.imshow(interaction_only, cmap="magma", aspect="auto")
+    labels = [feature.replace("_", " ") for feature in top_features]
+    axis.set_xticks(range(len(labels)), labels=labels, rotation=55, ha="right")
+    axis.set_yticks(range(len(labels)), labels=labels)
+    axis.set_title("Mean absolute SHAP pair effects — diagonal excluded")
+    figure.colorbar(image, ax=axis, label="mean |interaction SHAP|")
+    figure.tight_layout()
+    figure.savefig(
+        artifact_dir / "shap_interaction_heatmap.png",
+        dpi=160,
+        bbox_inches="tight",
+    )
+    plt.close(figure)
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     frame = load_dataset(args.data)
     windows = chronological_windows(frame, args.embargo_minutes)
@@ -597,6 +748,44 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         probabilities,
         args.artifact_dir,
     )
+    interaction_count = min(args.interaction_sample_size, len(selection))
+    interaction_positions = np.linspace(
+        0,
+        len(selection) - 1,
+        num=interaction_count,
+        dtype=int,
+    )
+    interaction_raw = explainer.shap_interaction_values(
+        transformed_dense[interaction_positions]
+    )
+    encoded_interactions = normalize_interaction_values(
+        interaction_raw,
+        samples=interaction_count,
+        features=len(transformed_names),
+    )
+    base_interactions = aggregate_base_interactions(
+        encoded_interactions,
+        transformed_names,
+    )
+    top_interaction_features = global_importance.head(
+        args.interaction_top_features
+    )["feature"].astype(str).tolist()
+    interaction_pairs, interaction_features, interaction_matrix, hypotheses = (
+        _interaction_summaries(base_interactions, top_interaction_features)
+    )
+    interaction_additivity_error = float(
+        np.max(
+            np.abs(
+                base_interactions.sum(axis=2)
+                - base_shap.iloc[interaction_positions].to_numpy()
+            )
+        )
+    )
+    _interaction_heatmap(
+        interaction_matrix,
+        top_interaction_features,
+        args.artifact_dir,
+    )
     red_flags = {
         "time_feature_share": _share(global_importance, ("hour_utc",)),
         "symbol_feature_share": _share(global_importance, ("symbol",)),
@@ -644,6 +833,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         },
         "cusum_attribution_by_window": cusum,
         "local_high_probability_attribution": local,
+        "interaction_attribution": {
+            "scope": "threshold_selection_window_only",
+            "observations": interaction_count,
+            "sampling": "deterministic_even_coverage",
+            "top_features_from_normal_shap": top_interaction_features,
+            "strongest_pairs": interaction_pairs.head(20).to_dict(orient="records"),
+            "feature_interaction_shares": interaction_features.to_dict(
+                orient="records"
+            ),
+            "manual_hypotheses": hypotheses,
+            "max_additivity_error": interaction_additivity_error,
+            "historical_microstructure_available": False,
+        },
         "manual_interaction_comparison": manual_comparison,
         "red_flags": red_flags,
         "frozen_untouched_window": {
@@ -656,6 +858,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "research_only": True,
             "shap_used_for_live_prediction": False,
             "shap_used_for_scanner_gate": False,
+            "shap_interactions_used_for_scanner_gate": False,
             "shap_used_for_execution": False,
             "historical_l2_cvd_not_fabricated": True,
             "deployable_model_saved": False,
@@ -682,6 +885,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     full_interaction.to_csv(
         args.artifact_dir / "shap_grouped_full_interaction.csv", index=False
     )
+    interaction_pairs.to_csv(
+        args.artifact_dir / "shap_interaction_pairs.csv", index=False
+    )
+    interaction_features.to_csv(
+        args.artifact_dir / "shap_interaction_feature_shares.csv", index=False
+    )
+    interaction_matrix.to_csv(
+        args.artifact_dir / "shap_interaction_matrix.csv", index=True
+    )
     pd.DataFrame(grouped).to_json(
         args.artifact_dir / "grouped_shap.json", orient="records", indent=2
     )
@@ -707,6 +919,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--embargo-minutes", type=int, default=30)
     parser.add_argument("--minimum-group-trades", type=int, default=40)
+    parser.add_argument("--interaction-sample-size", type=int, default=1_000)
+    parser.add_argument("--interaction-top-features", type=int, default=10)
     return parser
 
 
@@ -714,6 +928,10 @@ def main() -> None:
     args = _parser().parse_args()
     if args.minimum_group_trades <= 0:
         raise ValueError("minimum group trades must be positive")
+    if args.interaction_sample_size <= 0:
+        raise ValueError("interaction sample size must be positive")
+    if not 2 <= args.interaction_top_features <= len(FEATURES):
+        raise ValueError("interaction top features must be between 2 and base features")
     payload = run(args)
     print(
         json.dumps(

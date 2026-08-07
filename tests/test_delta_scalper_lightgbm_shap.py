@@ -13,11 +13,15 @@ from sklearn.preprocessing import StandardScaler
 pytest.importorskip("shap")
 
 from vnedge.research.delta_scalper_lightgbm_shap import (
+    FEATURES,
     ApprovedBoosterArtifactError,
     _flat_grouped_attribution,
+    _interaction_summaries,
+    aggregate_base_interactions,
     aggregate_base_shap,
     base_feature_name,
     load_approved_booster_artifacts,
+    normalize_interaction_values,
 )
 
 
@@ -49,6 +53,55 @@ def test_shap_one_hot_contributions_are_additively_grouped():
     assert grouped["expected_move_bps"].tolist() == [0.2, -0.2]
     assert grouped["scanner_id"].tolist() == pytest.approx([0.2, 0.5])
     assert grouped.sum(axis=1).tolist() == pytest.approx(values.sum(axis=1).tolist())
+
+
+def test_shap_interactions_are_normalized_and_additively_grouped():
+    names = [
+        "numeric__expected_move_bps",
+        "categorical__scanner_id_delta_imbalance_fade_v1",
+        "categorical__scanner_id_delta_momentum_burst_v1",
+    ]
+    raw = np.arange(18, dtype=float).reshape(2, 3, 3) / 100
+    normalized = normalize_interaction_values(
+        [np.zeros_like(raw), raw],
+        samples=2,
+        features=3,
+    )
+    grouped = aggregate_base_interactions(normalized, names)
+
+    assert normalized.shape == (2, 3, 3)
+    assert grouped.shape[0] == 2
+    expected_move = list(FEATURES).index("expected_move_bps")
+    scanner = list(FEATURES).index("scanner_id")
+    assert grouped[:, expected_move, scanner].tolist() == pytest.approx(
+        raw[:, 0, 1:].sum(axis=1).tolist()
+    )
+    assert grouped.sum(axis=(1, 2)).tolist() == pytest.approx(
+        raw.sum(axis=(1, 2)).tolist()
+    )
+
+
+def test_interaction_summaries_rank_pairs_and_preserve_manual_hypotheses():
+    values = np.zeros((3, len(FEATURES), len(FEATURES)))
+    scanner = list(FEATURES).index("scanner_id")
+    cusum = list(FEATURES).index("change_point_window_at_entry")
+    values[:, scanner, cusum] = [0.3, 0.2, 0.1]
+    values[:, cusum, scanner] = [0.3, 0.2, 0.1]
+
+    pairs, shares, matrix, hypotheses = _interaction_summaries(
+        values,
+        ["scanner_id", "change_point_window_at_entry", "expected_net_bps"],
+    )
+
+    assert pairs.iloc[0]["feature_a"] == "scanner_id"
+    assert pairs.iloc[0]["feature_b"] == "change_point_window_at_entry"
+    assert matrix.loc["scanner_id", "change_point_window_at_entry"] == pytest.approx(
+        0.2
+    )
+    assert shares.loc[shares["feature"] == "scanner_id", "interaction_share"].iloc[
+        0
+    ] == pytest.approx(1.0)
+    assert hypotheses[-1]["available"] is False
 
 
 def test_flat_grouped_shap_includes_realized_economics_and_sample_control():
