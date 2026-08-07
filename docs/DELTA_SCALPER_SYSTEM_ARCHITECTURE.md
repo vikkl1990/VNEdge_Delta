@@ -13,10 +13,10 @@ flowchart TD
     Delta["Delta India public REST + WebSocket"] --> Ingest["Async ingestion, normalization, sequencing, gap recovery"]
     Ingest --> Candles["Closed multi-timeframe candle store"]
     Ingest --> Flow["L2 and trade-flow store"]
-    Candles --> Context["Immutable context, features, regime"]
+    Candles --> Context["Context builder<br/>indicators, regime, trend, volatility,<br/>session, CUSUM alarm, bars-since-shift,<br/>shift-age bucket, return and vol scores"]
     Flow --> Context
     Context --> Scanners["Pluggable momentum and imbalance-fade scanners"]
-    Scanners --> Signal["Move estimate, fee model, ranking, gates, exit plan"]
+    Scanners --> Signal["Causal signal gates and exit plan<br/>Fee model applies Delta India round-trip costs<br/>to every candidate and produces expected net bps"]
     Signal --> Journal["Exactly-once research journal"]
     Signal --> Forward["Next-bar orderless forward outcomes"]
     Signal -. "adapter available, not invoked" .-> Risk["Existing VNEDGE risk gateway"]

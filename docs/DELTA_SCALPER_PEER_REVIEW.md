@@ -60,14 +60,14 @@ flowchart LR
         Runtime --> Candles["Closed multi-timeframe candle store"]
         Runtime --> Flow["Bounded L2 and trade-flow store"]
         Runtime --> Funding["Funding state"]
-        Candles --> Context["Immutable context builder"]
+        Candles --> Context["Context builder<br/>indicators, regime, trend, volatility,<br/>session, CUSUM alarm, bars-since-shift,<br/>shift-age bucket, return and vol scores"]
         Flow -->|"Confirmation metadata only"| Context
         Funding --> Context
         Context --> Regime["Regime profile and causal CUSUM"]
         Regime --> Scanners["Momentum and imbalance-fade scanners"]
         Scanners --> Predictor["Deterministic move estimator"]
-        Predictor --> Fees["Fee and slippage model"]
-        Fees --> Gates["Expectancy, probability and confidence gates"]
+        Predictor --> Fees["Fee model<br/>Delta India round-trip costs applied<br/>to every candidate and expected net bps"]
+        Fees --> Gates["Causal expectancy, probability and confidence gates"]
         Gates --> Rank["Ranking and exactly-once deduplication"]
         Rank --> Journal["Append-only research journal"]
         Rank --> Forward["Orderless next-bar forward tracker"]
@@ -355,6 +355,35 @@ deployable bundle was written.
 SHAP explains the selection diagnostic only. Scanner identity dominates; CUSUM
 is small and several regime categories are zero. The protected 2,268 trades have
 neither predictions nor SHAP. Nothing is loaded by the live scanner.
+
+### Profit-model research progression
+
+The proposed first three phases have already been executed inside the guarded
+causal harness:
+
+| Phase | Implementation state | Evidence |
+|---|---|---|
+| Route-A triple-barrier labels | Complete | `delta_scalper_with_tb_labels.parquet` exports simulator-authoritative target-first labels. |
+| Chronological LightGBM meta-labeling | Complete | Selection ROC AUC 0.572; no threshold passed sample, frequency, data-quality, and economic gates. |
+| Global, grouped, local, and interaction SHAP | Complete | Scanner identity dominates; CUSUM is small; protected final window remains unopened. |
+| Untouched profitability test | Correctly not run | No selection threshold qualified, so evaluating the final 2,268 trades would leak validation evidence. |
+
+Running the identical Route-A, LightGBM, and SHAP commands again against the
+same dataset will not create new information. The next valid experiment is
+Phase 4 feature enrichment, one preregistered family at a time:
+
+1. path-dependent regime origin;
+2. L2-CVD divergence, only after event-level historical tape exists;
+3. causal BTC-to-ETH and ETH-to-BTC short-horizon lead-lag;
+4. volume/dollar bars as a separately versioned sampling experiment.
+
+Each feature family must use a new nested discovery/selection split. The final
+protected tail stays sealed until a configuration independently clears the
+selection requirements: adequate trades and daily frequency, positive results
+in at least two markets, PF above 1.2 at the configured gate and preferably
+1.3-1.4 for promotion review, average net above 3-4 bps per trade, and repaired
+source-data quality. Microstructure features cannot be backfilled from candle
+OHLCV and must not be zero-filled as if observed.
 
 ## 14. Persistence and dashboard artifacts
 
