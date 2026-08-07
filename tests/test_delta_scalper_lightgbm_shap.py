@@ -17,6 +17,7 @@ from vnedge.research.delta_scalper_lightgbm_shap import (
     ApprovedBoosterArtifactError,
     _dependence_plots,
     _flat_grouped_attribution,
+    _interaction_pair_plots,
     _interaction_summaries,
     aggregate_base_interactions,
     aggregate_base_shap,
@@ -158,6 +159,55 @@ def test_dependence_plots_use_base_features_and_interaction_colours(tmp_path):
         "expected_net_bps",
         "scanner_id",
     ]
+    assert all((tmp_path / row["path"]).is_file() for row in manifest)
+
+
+def test_interaction_pair_plots_use_signed_base_pair_effects(tmp_path):
+    rows = 18
+    selection = pd.DataFrame(
+        {
+            "scanner_id": ["fade", "momentum"] * (rows // 2),
+            "expected_net_bps": np.linspace(-5.0, 7.0, rows),
+            "confidence": np.linspace(0.4, 0.9, rows),
+        }
+    )
+    interactions = np.zeros((rows, len(FEATURES), len(FEATURES)))
+    scanner = list(FEATURES).index("scanner_id")
+    expected_net = list(FEATURES).index("expected_net_bps")
+    confidence = list(FEATURES).index("confidence")
+    interactions[:, scanner, expected_net] = np.linspace(-0.2, 0.3, rows)
+    interactions[:, expected_net, scanner] = interactions[:, scanner, expected_net]
+    interactions[:, expected_net, confidence] = np.linspace(-0.1, 0.1, rows)
+    interactions[:, confidence, expected_net] = interactions[:, expected_net, confidence]
+    pairs = pd.DataFrame(
+        [
+            {
+                "feature_a": "scanner_id",
+                "feature_b": "expected_net_bps",
+                "mean_abs_interaction": 0.17,
+                "mean_signed_interaction": 0.05,
+            },
+            {
+                "feature_a": "expected_net_bps",
+                "feature_b": "confidence",
+                "mean_abs_interaction": 0.08,
+                "mean_signed_interaction": 0.0,
+            },
+        ]
+    )
+
+    manifest = _interaction_pair_plots(
+        selection,
+        interactions,
+        pairs,
+        tmp_path,
+        top_count=2,
+    )
+
+    assert [row["rank"] for row in manifest] == [1, 2]
+    assert manifest[0]["x_feature"] == "expected_net_bps"
+    assert manifest[0]["colour_feature"] == "scanner_id"
+    assert manifest[0]["observations"] == rows
     assert all((tmp_path / row["path"]).is_file() for row in manifest)
 
 

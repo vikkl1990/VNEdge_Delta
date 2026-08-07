@@ -656,7 +656,7 @@
     "shap_computed": false,
     "trades": 2268
   },
-  "generated_at": "2026-08-07T02:55:27.547950+00:00",
+  "generated_at": "2026-08-07T03:02:08.959229+00:00",
   "global_importance": [
     {
       "feature": "scanner_id",
@@ -3193,6 +3193,50 @@
     ],
     "max_additivity_error": 2.7755575615628914e-16,
     "observations": 1000,
+    "pair_plots": [
+      {
+        "colour_feature": "scanner_id",
+        "colour_feature_type": "categorical",
+        "feature_a": "scanner_id",
+        "feature_b": "planned_target_bps",
+        "mean_abs_interaction": 0.0113712761864622,
+        "mean_signed_interaction": -0.0008130517197154495,
+        "observations": 1000,
+        "path": "shap_plots/shap_interaction_scanner_id_x_planned_target_bps.png",
+        "rank": 1,
+        "scope": "threshold_selection_window_only",
+        "x_feature": "planned_target_bps",
+        "x_feature_type": "numeric"
+      },
+      {
+        "colour_feature": "scanner_id",
+        "colour_feature_type": "categorical",
+        "feature_a": "scanner_id",
+        "feature_b": "expected_net_bps",
+        "mean_abs_interaction": 0.006187254710758681,
+        "mean_signed_interaction": 6.83607613352616e-05,
+        "observations": 1000,
+        "path": "shap_plots/shap_interaction_scanner_id_x_expected_net_bps.png",
+        "rank": 2,
+        "scope": "threshold_selection_window_only",
+        "x_feature": "expected_net_bps",
+        "x_feature_type": "numeric"
+      },
+      {
+        "colour_feature": "scanner_id",
+        "colour_feature_type": "categorical",
+        "feature_a": "scanner_id",
+        "feature_b": "atr_bps_at_entry",
+        "mean_abs_interaction": 0.005368841153492252,
+        "mean_signed_interaction": 4.388368134194879e-05,
+        "observations": 1000,
+        "path": "shap_plots/shap_interaction_scanner_id_x_atr_bps_at_entry.png",
+        "rank": 3,
+        "scope": "threshold_selection_window_only",
+        "x_feature": "atr_bps_at_entry",
+        "x_feature_type": "numeric"
+      }
+    ],
     "sampling": "deterministic_even_coverage",
     "scope": "threshold_selection_window_only",
     "strongest_pairs": [

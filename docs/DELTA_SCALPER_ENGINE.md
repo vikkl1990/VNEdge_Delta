@@ -380,7 +380,11 @@ on 1,000 deterministically spaced selection observations. Encoded interactions
 are added back to the 24 causal base features, checked against normal-SHAP
 additivity, and ranked only across the top ten normal-SHAP features. It writes
 pair rankings, per-feature interaction shares, the full base interaction matrix,
-and a heatmap. Manual scanner/CUSUM, trend/volatility, and fee/ATR hypotheses are
+and a heatmap. It also plots the signed pair effect for the three strongest
+base-feature interactions against the original causal feature values. The plot
+colour is the paired feature, and `shap_interaction_plot_manifest.csv` records
+rank, feature types, interaction strength, sample count, scope, and image path.
+Manual scanner/CUSUM, trend/volatility, and fee/ATR hypotheses are
 reported explicitly; unavailable historical L2/CVD interactions remain marked
 unavailable rather than fabricated. Interactions are diagnostic only and cannot
 gate or execute a signal.

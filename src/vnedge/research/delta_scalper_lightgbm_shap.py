@@ -767,6 +767,99 @@ def _dependence_plots(
     return manifest
 
 
+def _interaction_pair_plots(
+    selection: pd.DataFrame,
+    base_interactions: np.ndarray,
+    interaction_pairs: pd.DataFrame,
+    artifact_dir: Path,
+    *,
+    top_count: int = 3,
+) -> list[dict[str, Any]]:
+    """Plot signed base-feature pair effects for the strongest interactions."""
+    plot_dir = artifact_dir / "shap_plots"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    working = selection.reset_index(drop=True)
+    if len(working) != len(base_interactions):
+        raise ValueError("interaction plot rows must match interaction tensor rows")
+    positions = {feature: index for index, feature in enumerate(FEATURES)}
+    manifest: list[dict[str, Any]] = []
+    for rank, pair in enumerate(interaction_pairs.head(top_count).itertuples(), start=1):
+        feature_a = str(pair.feature_a)
+        feature_b = str(pair.feature_b)
+        x_feature, colour_feature = feature_a, feature_b
+        if feature_a not in NUMERIC_FEATURES and feature_b in NUMERIC_FEATURES:
+            x_feature, colour_feature = feature_b, feature_a
+        if x_feature in NUMERIC_FEATURES:
+            x_values = pd.to_numeric(working[x_feature], errors="coerce").to_numpy(dtype=float)
+            x_categories: list[str] = []
+            x_type = "numeric"
+        else:
+            x_values, x_categories = _categorical_codes(working[x_feature])
+            x_values = x_values + np.random.default_rng(20_000 + rank).normal(
+                0.0, 0.065, len(x_values)
+            )
+            x_type = "categorical"
+        colour_categories: list[str] = []
+        if colour_feature in NUMERIC_FEATURES:
+            colour_values = pd.to_numeric(working[colour_feature], errors="coerce").to_numpy(
+                dtype=float
+            )
+            colour_type = "numeric"
+        else:
+            colour_values, colour_categories = _categorical_codes(working[colour_feature])
+            colour_type = "categorical"
+        pair_effect = base_interactions[:, positions[feature_a], positions[feature_b]]
+        valid = np.isfinite(x_values) & np.isfinite(colour_values) & np.isfinite(pair_effect)
+        figure, axis = plt.subplots(figsize=(9, 6))
+        scatter = axis.scatter(
+            x_values[valid],
+            pair_effect[valid],
+            c=colour_values[valid],
+            cmap="viridis",
+            alpha=0.62,
+            s=20,
+            linewidths=0,
+        )
+        axis.axhline(0.0, color="0.45", linewidth=0.9)
+        axis.set_xlabel(x_feature.replace("_", " "))
+        axis.set_ylabel("Signed SHAP pair effect on target-first log-odds")
+        axis.set_title(
+            "SHAP interaction: "
+            f"{feature_a.replace('_', ' ')} × {feature_b.replace('_', ' ')}\n"
+            f"mean |pair effect| = {float(pair.mean_abs_interaction):.4f}"
+        )
+        axis.grid(alpha=0.18, linewidth=0.6)
+        if x_categories:
+            axis.set_xticks(range(len(x_categories)), labels=x_categories, rotation=35, ha="right")
+        colorbar = figure.colorbar(scatter, ax=axis)
+        colorbar.set_label(colour_feature.replace("_", " "))
+        if colour_categories and len(colour_categories) <= 10:
+            colorbar.set_ticks(range(len(colour_categories)), labels=colour_categories)
+        figure.tight_layout()
+        relative_path = Path("shap_plots") / (
+            f"shap_interaction_{_safe_plot_name(feature_a)}_x_{_safe_plot_name(feature_b)}.png"
+        )
+        figure.savefig(artifact_dir / relative_path, dpi=150, bbox_inches="tight")
+        plt.close(figure)
+        manifest.append(
+            {
+                "rank": rank,
+                "feature_a": feature_a,
+                "feature_b": feature_b,
+                "x_feature": x_feature,
+                "x_feature_type": x_type,
+                "colour_feature": colour_feature,
+                "colour_feature_type": colour_type,
+                "mean_abs_interaction": float(pair.mean_abs_interaction),
+                "mean_signed_interaction": float(pair.mean_signed_interaction),
+                "observations": int(valid.sum()),
+                "path": str(relative_path),
+                "scope": "threshold_selection_window_only",
+            }
+        )
+    return manifest
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     frame = load_dataset(args.data)
     windows = chronological_windows(frame, args.embargo_minutes)
@@ -890,6 +983,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         top_interaction_features,
         args.artifact_dir,
     )
+    interaction_pair_plots = _interaction_pair_plots(
+        selection.iloc[interaction_positions],
+        base_interactions,
+        interaction_pairs,
+        args.artifact_dir,
+    )
     dependence_plots = _dependence_plots(
         selection,
         base_shap,
@@ -947,6 +1046,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "strongest_pairs": interaction_pairs.head(20).to_dict(orient="records"),
             "feature_interaction_shares": interaction_features.to_dict(orient="records"),
             "manual_hypotheses": hypotheses,
+            "pair_plots": interaction_pair_plots,
             "max_additivity_error": interaction_additivity_error,
             "historical_microstructure_available": False,
         },
@@ -994,6 +1094,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     interaction_matrix.to_csv(args.artifact_dir / "shap_interaction_matrix.csv", index=True)
     pd.DataFrame(dependence_plots).to_csv(
         args.artifact_dir / "shap_dependence_manifest.csv", index=False
+    )
+    pd.DataFrame(interaction_pair_plots).to_csv(
+        args.artifact_dir / "shap_interaction_plot_manifest.csv", index=False
     )
     pd.DataFrame(grouped).to_json(
         args.artifact_dir / "grouped_shap.json", orient="records", indent=2

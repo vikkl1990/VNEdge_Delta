@@ -436,6 +436,14 @@ signs that the model is learning scanner identity and rule geometry more than a
 portable target-first edge. Plot interaction colours come from the aggregated
 base-feature interaction matrix, and all 2,229 observations are selection-only.
 
+The three strongest signed pair plots reinforce the same warning. Every top
+pair contains `scanner_id`: planned target (mean absolute pair effect 0.0114),
+expected net (0.0062), and entry ATR (0.0054). The effects split into separate
+Momentum Burst and Imbalance Fade bands instead of a shared monotonic response.
+This is evidence of scanner-specific rule geometry, not an independently
+validated interaction edge. The plots use 1,000 deterministically spaced
+selection observations; the protected final window remains sealed.
+
 ### Profit-model research progression
 
 The proposed first three phases have already been executed inside the guarded
@@ -483,7 +491,8 @@ OHLCV and must not be zero-filled as if observed.
 | `research/live_research/delta_scalper_categorical_encoding_latest.json` | Selection-only one-hot/native comparison and category diagnostics. |
 | `research/live_research/delta_scalper_lightgbm_shap_latest.json` | SHAP and interaction report. |
 | `research/meta_labeling_shap/shap_dependence_manifest.csv` | Ranked dependence-plot features, interaction partners, scope, and paths. |
-| `research/meta_labeling_shap/shap_plots/*.png` | Selection-only causal base-feature dependence plots. |
+| `research/meta_labeling_shap/shap_interaction_plot_manifest.csv` | Top-pair rank, plotted axes, feature types, strength, selection-only scope, and image paths. |
+| `research/meta_labeling_shap/shap_plots/*.png` | Selection-only causal base-feature dependence and signed interaction-pair plots. |
 
 ## 15. Failure and degradation behavior
 
