@@ -143,7 +143,7 @@ def load_discovery_config(path: Path | str) -> CausalDiscoveryConfig:
 def _atomic_json(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True, default=str)
+        json.dump(payload, handle, indent=2, sort_keys=True, default=str, allow_nan=False)
         handle.write("\n")
         temporary = Path(handle.name)
     temporary.replace(path)
@@ -371,10 +371,9 @@ def _summaries(
         reverse = lookup[(row["timeframe_minutes"], reverse_direction, row["maximum_lag"])]
         own = float(row["median_oos_mse_improvement_pct"])
         reverse_value = float(reverse["median_oos_mse_improvement_pct"])
-        ratio = (
-            float("inf")
-            if reverse_value <= 0 and own > 0
-            else (own / reverse_value if reverse_value > 0 else 0.0)
+        ratio = own / reverse_value if reverse_value > 0 else None
+        directionality_pass = (
+            own > 0 if ratio is None else ratio >= threshold.minimum_directionality_ratio
         )
         row["directionality_ratio"] = ratio
         checks = {
@@ -386,7 +385,7 @@ def _summaries(
             "median_oos_improvement": own >= threshold.minimum_median_oos_mse_improvement_pct,
             "sign_accuracy_uplift": float(row["median_sign_accuracy_uplift_pp"])
             >= threshold.minimum_median_sign_accuracy_uplift_pp,
-            "directionality": ratio >= threshold.minimum_directionality_ratio,
+            "directionality": directionality_pass,
             "required_direction": row["direction"] == "btc_to_eth",
         }
         row["advancement_checks"] = checks
