@@ -402,9 +402,10 @@ async def run(args: argparse.Namespace) -> dict[str, object]:
     end = config.data.end.astimezone(UTC)
     if end >= config.data.sealed_tail_start.astimezone(UTC):
         raise ValueError("discovery window would open the sealed v1 tail")
+    cache_dir = Path(args.cache_dir)
     btc, eth = await asyncio.gather(
-        _load_candles(config.data.leader_symbol, start, end, Path(args.cache_dir)),
-        _load_candles(config.data.follower_symbol, start, end, Path(args.cache_dir)),
+        _load_candles(config.data.leader_symbol, start, end, cache_dir=cache_dir, refresh=False),
+        _load_candles(config.data.follower_symbol, start, end, cache_dir=cache_dir, refresh=False),
     )
     frames = {
         timeframe: synchronized_returns(btc, eth, timeframe)
