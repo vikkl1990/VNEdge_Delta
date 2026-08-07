@@ -426,6 +426,16 @@ SHAP explains the selection diagnostic only. Scanner identity dominates; CUSUM
 is small and several regime categories are zero. The protected 2,268 trades have
 neither predictions nor SHAP. Nothing is loaded by the live scanner.
 
+Eight deterministic base-feature dependence plots confirm that the model is not
+learning a clean economic filter. Scanner identity behaves like a near-binary
+prior: Imbalance Fade receives a large positive contribution while Momentum
+Burst receives a negative contribution. Expected net bps is materially
+non-monotonic and changes shape by scanner. The CUSUM return score forms
+scanner-specific bands rather than a stable direction. These are diagnostic
+signs that the model is learning scanner identity and rule geometry more than a
+portable target-first edge. Plot interaction colours come from the aggregated
+base-feature interaction matrix, and all 2,229 observations are selection-only.
+
 ### Profit-model research progression
 
 The proposed first three phases have already been executed inside the guarded
@@ -472,6 +482,8 @@ OHLCV and must not be zero-filled as if observed.
 | `research/live_research/delta_scalper_lightgbm_meta_latest.json` | Guarded LightGBM report. |
 | `research/live_research/delta_scalper_categorical_encoding_latest.json` | Selection-only one-hot/native comparison and category diagnostics. |
 | `research/live_research/delta_scalper_lightgbm_shap_latest.json` | SHAP and interaction report. |
+| `research/meta_labeling_shap/shap_dependence_manifest.csv` | Ranked dependence-plot features, interaction partners, scope, and paths. |
+| `research/meta_labeling_shap/shap_plots/*.png` | Selection-only causal base-feature dependence plots. |
 
 ## 15. Failure and degradation behavior
 

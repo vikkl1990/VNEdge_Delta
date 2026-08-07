@@ -15,6 +15,7 @@ pytest.importorskip("shap")
 from vnedge.research.delta_scalper_lightgbm_shap import (
     FEATURES,
     ApprovedBoosterArtifactError,
+    _dependence_plots,
     _flat_grouped_attribution,
     _interaction_summaries,
     aggregate_base_interactions,
@@ -23,6 +24,7 @@ from vnedge.research.delta_scalper_lightgbm_shap import (
     load_approved_booster_artifacts,
     normalize_interaction_values,
     normalize_shap_values,
+    strongest_interaction_partner,
 )
 
 
@@ -117,6 +119,46 @@ def test_interaction_summaries_rank_pairs_and_preserve_manual_hypotheses():
         0
     ] == pytest.approx(1.0)
     assert hypotheses[-1]["available"] is False
+
+
+def test_dependence_plots_use_base_features_and_interaction_colours(tmp_path):
+    rows = 20
+    selection = pd.DataFrame(
+        {
+            "scanner_id": ["fade", "momentum"] * (rows // 2),
+            "expected_net_bps": np.linspace(-4.0, 8.0, rows),
+        }
+    )
+    base_shap = pd.DataFrame(0.0, index=range(rows), columns=FEATURES)
+    base_shap["scanner_id"] = np.linspace(-0.2, 0.2, rows)
+    base_shap["expected_net_bps"] = np.linspace(-0.3, 0.4, rows)
+    importance = pd.DataFrame(
+        {
+            "feature": ["scanner_id", "expected_net_bps"],
+            "mean_abs_shap": [0.2, 0.1],
+        }
+    )
+    matrix = pd.DataFrame(0.0, index=FEATURES, columns=FEATURES)
+    matrix.loc["scanner_id", "expected_net_bps"] = 0.2
+    matrix.loc["expected_net_bps", "scanner_id"] = 0.2
+
+    manifest = _dependence_plots(
+        selection,
+        base_shap,
+        importance,
+        matrix,
+        tmp_path,
+        top_count=2,
+        sample_size=rows,
+    )
+
+    assert strongest_interaction_partner(matrix, "scanner_id") == "expected_net_bps"
+    assert [row["feature_type"] for row in manifest] == ["categorical", "numeric"]
+    assert [row["interaction_feature"] for row in manifest] == [
+        "expected_net_bps",
+        "scanner_id",
+    ]
+    assert all((tmp_path / row["path"]).is_file() for row in manifest)
 
 
 def test_flat_grouped_shap_includes_realized_economics_and_sample_control():

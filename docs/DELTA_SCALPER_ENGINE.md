@@ -384,3 +384,13 @@ and a heatmap. Manual scanner/CUSUM, trend/volatility, and fee/ATR hypotheses ar
 reported explicitly; unavailable historical L2/CVD interactions remain marked
 unavailable rather than fabricated. Interactions are diagnostic only and cannot
 gate or execute a signal.
+
+The command also writes deterministic dependence plots for the eight strongest
+causal base features under `research/meta_labeling_shap/shap_plots`. Numeric
+features use their original decision-time values; categorical features use
+labelled, jittered category positions. Colour is chosen from the strongest
+off-diagonal partner in the aggregated base-feature interaction matrix. This
+avoids plotting anonymous one-hot columns or overwriting SHAP contributions
+with grouping labels. `shap_dependence_manifest.csv` records feature rank,
+type, interaction partner, sample count, scope, and image path. These plots use
+the threshold-selection window only; the protected final 20% remains untouched.

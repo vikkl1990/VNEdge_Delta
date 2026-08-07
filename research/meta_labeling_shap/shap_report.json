@@ -114,6 +114,85 @@
       "win_rate": 0.3544973544973545
     }
   ],
+  "dependence_plots": {
+    "base_feature_attribution": true,
+    "interaction_colour_source": "base_shap_interaction_matrix",
+    "plots": [
+      {
+        "feature": "scanner_id",
+        "feature_type": "categorical",
+        "interaction_feature": "planned_target_bps",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_scanner_id.png",
+        "rank": 1,
+        "scope": "threshold_selection_window_only"
+      },
+      {
+        "feature": "expected_net_bps",
+        "feature_type": "numeric",
+        "interaction_feature": "scanner_id",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_expected_net_bps.png",
+        "rank": 2,
+        "scope": "threshold_selection_window_only"
+      },
+      {
+        "feature": "planned_target_bps",
+        "feature_type": "numeric",
+        "interaction_feature": "scanner_id",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_planned_target_bps.png",
+        "rank": 3,
+        "scope": "threshold_selection_window_only"
+      },
+      {
+        "feature": "confidence",
+        "feature_type": "numeric",
+        "interaction_feature": "scanner_id",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_confidence.png",
+        "rank": 4,
+        "scope": "threshold_selection_window_only"
+      },
+      {
+        "feature": "expected_move_bps",
+        "feature_type": "numeric",
+        "interaction_feature": "scanner_id",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_expected_move_bps.png",
+        "rank": 5,
+        "scope": "threshold_selection_window_only"
+      },
+      {
+        "feature": "scalper_probability",
+        "feature_type": "numeric",
+        "interaction_feature": "planned_stop_bps",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_scalper_probability.png",
+        "rank": 6,
+        "scope": "threshold_selection_window_only"
+      },
+      {
+        "feature": "planned_stop_bps",
+        "feature_type": "numeric",
+        "interaction_feature": "planned_target_bps",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_planned_stop_bps.png",
+        "rank": 7,
+        "scope": "threshold_selection_window_only"
+      },
+      {
+        "feature": "change_point_return_score",
+        "feature_type": "numeric",
+        "interaction_feature": "scanner_id",
+        "observations": 2229,
+        "path": "shap_plots/shap_dependence_change_point_return_score.png",
+        "rank": 8,
+        "scope": "threshold_selection_window_only"
+      }
+    ],
+    "scope": "threshold_selection_window_only"
+  },
   "encoded_importance": [
     {
       "base_feature": "scanner_id",
@@ -577,7 +656,7 @@
     "shap_computed": false,
     "trades": 2268
   },
-  "generated_at": "2026-08-07T02:47:47.113660+00:00",
+  "generated_at": "2026-08-07T02:55:27.547950+00:00",
   "global_importance": [
     {
       "feature": "scanner_id",

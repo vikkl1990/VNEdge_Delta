@@ -653,6 +653,120 @@ def _interaction_heatmap(
     plt.close(figure)
 
 
+def strongest_interaction_partner(
+    matrix: pd.DataFrame,
+    feature: str,
+) -> str | None:
+    """Return the strongest off-diagonal base-feature interaction."""
+    if feature not in matrix.index:
+        return None
+    row = matrix.loc[feature].drop(labels=[feature], errors="ignore")
+    if row.empty or float(row.max()) <= 0:
+        return None
+    return str(row.idxmax())
+
+
+def _safe_plot_name(value: str) -> str:
+    safe = "".join(character if character.isalnum() else "_" for character in value)
+    return "_".join(part for part in safe.split("_") if part) or "feature"
+
+
+def _categorical_codes(series: pd.Series) -> tuple[np.ndarray, list[str]]:
+    values = series.astype("string").fillna("unavailable").astype(str)
+    categories = sorted(values.unique().tolist())
+    mapping = {value: index for index, value in enumerate(categories)}
+    return values.map(mapping).to_numpy(dtype=float), categories
+
+
+def _dependence_plots(
+    selection: pd.DataFrame,
+    base_shap: pd.DataFrame,
+    global_importance: pd.DataFrame,
+    interaction_matrix: pd.DataFrame,
+    artifact_dir: Path,
+    *,
+    top_count: int = 8,
+    sample_size: int = 2_500,
+) -> list[dict[str, Any]]:
+    """Plot causal base-feature values against their aggregated SHAP effects."""
+    plot_dir = artifact_dir / "shap_plots"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+    working = selection.reset_index(drop=True)
+    contributions = base_shap.reset_index(drop=True)
+    count = min(sample_size, len(working))
+    if count < len(working):
+        positions = np.sort(np.random.default_rng(42).choice(len(working), count, replace=False))
+        working = working.iloc[positions].reset_index(drop=True)
+        contributions = contributions.iloc[positions].reset_index(drop=True)
+    top_features = global_importance.head(top_count)["feature"].astype(str).tolist()
+    manifest: list[dict[str, Any]] = []
+    for rank, feature in enumerate(top_features, start=1):
+        partner = strongest_interaction_partner(interaction_matrix, feature)
+        figure, axis = plt.subplots(figsize=(9, 6))
+        if feature in NUMERIC_FEATURES:
+            x_values = pd.to_numeric(working[feature], errors="coerce").to_numpy(dtype=float)
+            feature_type = "numeric"
+            x_categories: list[str] = []
+        else:
+            x_values, x_categories = _categorical_codes(working[feature])
+            x_values = x_values + np.random.default_rng(10_000 + rank).normal(
+                0.0, 0.065, len(x_values)
+            )
+            feature_type = "categorical"
+        y_values = contributions[feature].to_numpy(dtype=float)
+        valid = np.isfinite(x_values) & np.isfinite(y_values)
+        color_categories: list[str] = []
+        color_values: np.ndarray | None = None
+        if partner is not None and partner in working:
+            if partner in NUMERIC_FEATURES:
+                color_values = pd.to_numeric(working[partner], errors="coerce").to_numpy(
+                    dtype=float
+                )
+            else:
+                color_values, color_categories = _categorical_codes(working[partner])
+            valid &= np.isfinite(color_values)
+        scatter = axis.scatter(
+            x_values[valid],
+            y_values[valid],
+            c=color_values[valid] if color_values is not None else None,
+            cmap="viridis" if color_values is not None else None,
+            alpha=0.58,
+            s=18,
+            linewidths=0,
+        )
+        axis.axhline(0.0, color="0.45", linewidth=0.9)
+        axis.set_xlabel(feature.replace("_", " "))
+        axis.set_ylabel("SHAP contribution to target-first log-odds")
+        axis.set_title(
+            f"SHAP dependence: {feature.replace('_', ' ')}"
+            + (f"\ncoloured by {partner.replace('_', ' ')}" if partner else "")
+        )
+        axis.grid(alpha=0.18, linewidth=0.6)
+        if x_categories:
+            axis.set_xticks(range(len(x_categories)), labels=x_categories, rotation=35, ha="right")
+        if color_values is not None:
+            colorbar = figure.colorbar(scatter, ax=axis)
+            colorbar.set_label(partner.replace("_", " ") if partner else "interaction")
+            if color_categories and len(color_categories) <= 10:
+                colorbar.set_ticks(range(len(color_categories)), labels=color_categories)
+        figure.tight_layout()
+        relative_path = Path("shap_plots") / f"shap_dependence_{_safe_plot_name(feature)}.png"
+        figure.savefig(artifact_dir / relative_path, dpi=150, bbox_inches="tight")
+        plt.close(figure)
+        manifest.append(
+            {
+                "rank": rank,
+                "feature": feature,
+                "feature_type": feature_type,
+                "interaction_feature": partner,
+                "observations": int(valid.sum()),
+                "path": str(relative_path),
+                "scope": "threshold_selection_window_only",
+            }
+        )
+    return manifest
+
+
 def run(args: argparse.Namespace) -> dict[str, Any]:
     frame = load_dataset(args.data)
     windows = chronological_windows(frame, args.embargo_minutes)
@@ -776,6 +890,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         top_interaction_features,
         args.artifact_dir,
     )
+    dependence_plots = _dependence_plots(
+        selection,
+        base_shap,
+        global_importance,
+        interaction_matrix,
+        args.artifact_dir,
+        top_count=args.dependence_top_features,
+        sample_size=args.dependence_sample_size,
+    )
     red_flags = {
         "time_feature_share": _share(global_importance, ("hour_utc",)),
         "symbol_feature_share": _share(global_importance, ("symbol",)),
@@ -827,6 +950,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "max_additivity_error": interaction_additivity_error,
             "historical_microstructure_available": False,
         },
+        "dependence_plots": {
+            "scope": "threshold_selection_window_only",
+            "base_feature_attribution": True,
+            "interaction_colour_source": "base_shap_interaction_matrix",
+            "plots": dependence_plots,
+        },
         "manual_interaction_comparison": manual_comparison,
         "red_flags": red_flags,
         "frozen_untouched_window": {
@@ -863,6 +992,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         args.artifact_dir / "shap_interaction_feature_shares.csv", index=False
     )
     interaction_matrix.to_csv(args.artifact_dir / "shap_interaction_matrix.csv", index=True)
+    pd.DataFrame(dependence_plots).to_csv(
+        args.artifact_dir / "shap_dependence_manifest.csv", index=False
+    )
     pd.DataFrame(grouped).to_json(
         args.artifact_dir / "grouped_shap.json", orient="records", indent=2
     )
@@ -890,6 +1022,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--minimum-group-trades", type=int, default=40)
     parser.add_argument("--interaction-sample-size", type=int, default=1_000)
     parser.add_argument("--interaction-top-features", type=int, default=10)
+    parser.add_argument("--dependence-top-features", type=int, default=8)
+    parser.add_argument("--dependence-sample-size", type=int, default=2_500)
     return parser
 
 
@@ -901,6 +1035,10 @@ def main() -> None:
         raise ValueError("interaction sample size must be positive")
     if not 2 <= args.interaction_top_features <= len(FEATURES):
         raise ValueError("interaction top features must be between 2 and base features")
+    if not 1 <= args.dependence_top_features <= len(FEATURES):
+        raise ValueError("dependence top features must be between 1 and base features")
+    if args.dependence_sample_size <= 0:
+        raise ValueError("dependence sample size must be positive")
     payload = run(args)
     print(
         json.dumps(
