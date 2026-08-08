@@ -33,6 +33,11 @@ DEFAULT_SYMBOLS = ("BTCUSD", "ETHUSD")
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
 
 
+def _proven_decision_time(local_now: datetime, close_ts: datetime) -> datetime:
+    """Use exchange rollover proof when the local clock trails the boundary."""
+    return max(local_now, close_ts)
+
+
 def _publish(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as handle:
@@ -216,7 +221,16 @@ class DeltaScalperShadowService:
                     self.journal.append("delta_scalper_shadow_outcome", payload)
         if timeframe not in self.generator.gates.primary_timeframes:
             return
-        decision = self.generator.on_candle_closed(symbol, timeframe, now=now)
+        # The websocket adapter emits the prior candle only after observing a
+        # rollover.  That rollover is authoritative close proof even when the
+        # local wall clock is a few milliseconds behind the exchange boundary.
+        # Passing the raw local clock here used to make MarketContextBuilder
+        # reject a legitimately closed candle as "in the future".
+        decision = self.generator.on_candle_closed(
+            symbol,
+            timeframe,
+            now=_proven_decision_time(now, close_ts),
+        )
         self.evaluations[symbol] += 1
         if decision.selected is not None:
             self.alerts[symbol] += 1

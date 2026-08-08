@@ -11,6 +11,7 @@ import pytest
 from vnedge.config.risk_config import RiskConfig
 from vnedge.risk.kill_switch import KillSwitch
 from vnedge.risk.risk_manager import AccountState, PreTradeRiskGateway
+from vnedge.runtime.delta_scalper_shadow import _proven_decision_time
 from vnedge.scalping.delta_engine.architecture import architecture_manifest
 from vnedge.scalping.delta_engine.backtester import CausalScalperBacktester
 from vnedge.scalping.delta_engine.candle_store import (
@@ -765,6 +766,14 @@ def test_generator_turns_context_failure_into_a_journalable_rejection():
     assert decision.selected is None
     assert decision.rejection_reasons == ("context_error:RuntimeError",)
     assert decision.pipeline_trace[0].status == "error"
+    assert decision.pipeline_trace[0].detail == "RuntimeError: context defect"
+
+
+def test_shadow_uses_exchange_proven_close_when_local_clock_trails_rollover():
+    local_now = datetime(2026, 8, 6, 15, 48, 59, 950_000, tzinfo=UTC)
+    close_ts = datetime(2026, 8, 6, 15, 49, tzinfo=UTC)
+
+    assert _proven_decision_time(local_now, close_ts) == close_ts
 
 
 def test_generator_fails_closed_when_research_journal_is_unavailable():

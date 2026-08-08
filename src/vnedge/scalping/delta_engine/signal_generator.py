@@ -118,12 +118,13 @@ class DeltaScalperSignalGenerator:
             ctx = self.context_builder.build(symbol, now=now)
         # Deliberate outer boundary: malformed context must become a rejection.
         except Exception as exc:  # noqa: BLE001
+            error_detail = self._exception_detail(exc)
             trace.append(
                 PipelineStage(
                     "context_builder",
                     "error",
                     self._elapsed_us(context_started),
-                    type(exc).__name__,
+                    error_detail,
                 )
             )
             decision = EngineDecision(
@@ -165,13 +166,14 @@ class DeltaScalperSignalGenerator:
                 candidate = scanner.evaluate(ctx)
             # Deliberate plugin boundary: one scanner cannot stop its peers.
             except Exception as exc:  # noqa: BLE001
+                error_detail = self._exception_detail(exc)
                 reasons.append(f"{scanner.scanner_id}:scanner_error:{type(exc).__name__}")
                 trace.append(
                     PipelineStage(
                         f"scanner:{scanner.scanner_id}",
                         "error",
                         self._elapsed_us(scanner_started),
-                        type(exc).__name__,
+                        error_detail,
                     )
                 )
                 continue
@@ -241,6 +243,15 @@ class DeltaScalperSignalGenerator:
             regime_profile=ctx.regime_profile.to_dict(),
         )
         return self._journal(decision)
+
+    @staticmethod
+    def _exception_detail(exc: Exception, *, limit: int = 240) -> str:
+        """Preserve a bounded, single-line diagnostic without a traceback."""
+        message = " ".join(str(exc).split())
+        detail = type(exc).__name__
+        if message:
+            detail = f"{detail}: {message}"
+        return detail[:limit]
 
     @staticmethod
     def _elapsed_us(started_ns: int) -> int:
