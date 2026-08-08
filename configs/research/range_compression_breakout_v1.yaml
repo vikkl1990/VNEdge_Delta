@@ -1,0 +1,94 @@
+contract_id: range_compression_breakout_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  symbols: [BTCUSD, ETHUSD]
+  source_timeframe: 1m
+  decision_timeframe: 5m
+  start: "2025-01-01T00:00:00+00:00"
+  end: "2026-07-25T00:00:00+00:00"
+  require_closed_candles: true
+  require_zero_missing_minutes: true
+
+compression:
+  bollinger_window_bars: 20
+  percentile_history_bars: 200
+  maximum_width_percentile: 0.20
+  compression_observation_bars: 12
+  minimum_compressed_bars: 6
+  require_immediately_prior_compression: true
+  range_lookback_bars: 12
+
+breakout:
+  minimum_close_beyond_range_bps: 2.0
+  minimum_body_ratio: 0.60
+  volume_history_bars: 20
+  minimum_relative_volume: 1.50
+  atr_window_bars: 14
+  minimum_true_range_atr_multiple: 1.20
+  require_recent_cusum_shift: true
+  maximum_bars_since_cusum_shift: 3
+  cooldown_minutes: 360
+
+cusum:
+  source_timeframe: 5m
+  minimum_history_bars: 50
+  baseline_window_bars: 200
+  drift_z: 0.50
+  threshold_z: 8.0
+  cooldown_bars: 6
+
+exit:
+  structural_buffer_bps: 2.0
+  min_stop_bps: 15.0
+  max_stop_bps: 60.0
+  reject_stop_above_maximum: true
+  reward_risk: 2.50
+  minimum_target_cost_multiple: 3.50
+  expected_hold_seconds: 900
+  time_stop_seconds: 1800
+
+structural_prior:
+  probability: 0.75
+  confidence: 0.65
+  calibrated: false
+  promotion_eligible: false
+
+costs:
+  prefer_maker: false
+  scalper_opted_in: false
+  deto_enabled: false
+  maker_fee_bps_pre_tax: 2.0
+  taker_fee_bps_pre_tax: 5.0
+  gst_rate: 0.18
+  slippage_bps_per_leg: 1.5
+
+validation:
+  selection_fraction: 0.80
+  untouched_fraction: 0.20
+  split_embargo_minutes: 30
+  minimum_selection_trades: 100
+  minimum_selection_trades_per_half: 35
+  minimum_selection_trades_per_market: 30
+  minimum_selection_average_net_bps: 3.0
+  minimum_selection_profit_factor: 1.20
+  minimum_trades_per_day: 0.10
+  maximum_trades_per_day: 4.0
+  require_positive_selection_halves: true
+  require_positive_selection_markets: true
+  open_untouched_only_after_selection_pass: true
+
+policy:
+  decision: completed causal 5m candle after compression
+  entry: next 1m open
+  same_bar_stop_and_target: stop_first
+  duplicate_policy: one candidate per compression range close and direction
+  active_observation_policy: one pending or open observation per market
+  missing_data_policy: reset all rolling state and fail data-quality gate
+  l2_role: unavailable_and_not_used
+  funding_role: unavailable_and_not_used
+  meta_model_role: unavailable_and_not_used
+  parameter_search: forbidden_on_this_window
