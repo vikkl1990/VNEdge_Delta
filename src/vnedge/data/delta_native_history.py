@@ -45,9 +45,10 @@ DELTA_INDIA_API_URL = "https://api.india.delta.exchange"
 # (mirrors the feed factory's routing set).
 DELTA_NATIVE_EXCHANGE_IDS = frozenset({"delta_india", "delta", "deltaindia"})
 
-# Delta caps candle responses around 2000 rows. Page requests in windows
-# safely below the cap so a single window can never silently truncate.
-_CANDLES_PER_PAGE = 1500
+# Delta's history endpoint has been observed silently returning 1497 rows for
+# some 1500-hour FUNDING requests. A 1000-hour page avoids that truncation;
+# page-boundary duplicates are removed after collection.
+_CANDLES_PER_PAGE = 1000
 _REQUEST_TIMEOUT_SECONDS = 15.0
 
 _RESOLUTION_SECONDS: dict[str, int] = {

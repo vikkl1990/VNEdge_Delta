@@ -11,7 +11,7 @@ from vnedge.data.delta_native_history import (
 )
 
 _HOUR_S = 3_600
-_WINDOW_S = 1500 * _HOUR_S  # one 1h page as requested by the fetcher
+_WINDOW_S = 1000 * _HOUR_S  # one 1h page as requested by the fetcher
 
 
 def _params(url: str) -> dict[str, str]:
@@ -41,16 +41,18 @@ class _FakeApi:
 async def test_percent_to_fraction_epoch_seconds_and_sort():
     # real API shape: newest-first candles, close = funding in PERCENT,
     # time in epoch SECONDS. Output: ascending UTC timestamps, FRACTIONS.
-    api = _FakeApi(pages=[{
-        "success": True,
-        "result": [
-            {"time": 7_200, "close": -0.028, "open": -0.03, "volume": None},
-            {"time": 3_600, "close": 0.01, "open": 0.01, "volume": None},
-        ],
-    }])
-    df = await fetch_delta_funding_history(
-        "BTC/USD:USD", days=1, now_s=86_400, http_get_json=api
+    api = _FakeApi(
+        pages=[
+            {
+                "success": True,
+                "result": [
+                    {"time": 7_200, "close": -0.028, "open": -0.03, "volume": None},
+                    {"time": 3_600, "close": 0.01, "open": 0.01, "volume": None},
+                ],
+            }
+        ]
     )
+    df = await fetch_delta_funding_history("BTC/USD:USD", days=1, now_s=86_400, http_get_json=api)
     assert list(df.columns) == ["timestamp", "funding_rate"]
     assert list(df["timestamp"]) == [
         pd.Timestamp(7_200, unit="s", tz="UTC"),
@@ -68,45 +70,47 @@ async def test_percent_to_fraction_epoch_seconds_and_sort():
 async def test_paginates_in_windows_below_the_response_cap():
     api = _FakeApi(echo_window=True)
     now = 1_700_000_000
-    span = 90 * 86_400  # 2160 hourly candles > one 1500-candle page
-    df = await fetch_delta_funding_history(
-        "BTC/USD:USD", days=90, now_s=now, http_get_json=api
-    )
-    assert len(api.calls) == 2
-    first, second = api.calls
+    span = 90 * 86_400  # 2160 hourly candles > one 1000-candle page
+    df = await fetch_delta_funding_history("BTC/USD:USD", days=90, now_s=now, http_get_json=api)
+    assert len(api.calls) == 3
+    first, second, third = api.calls
     assert int(first["start"]) == now - span
     assert int(first["end"]) == now - span + _WINDOW_S
     assert int(second["start"]) == int(first["end"])  # contiguous windows
-    assert int(second["end"]) == now
-    assert len(df) == 2
+    assert int(second["end"]) == int(second["start"]) + _WINDOW_S
+    assert int(third["start"]) == int(second["end"])
+    assert int(third["end"]) == now
+    assert len(df) == 3
     assert df["timestamp"].is_monotonic_increasing
 
 
 async def test_page_boundary_duplicates_are_deduped():
-    dup = {"time": 5_400_000, "close": 0.02}
-    api = _FakeApi(pages=[
-        {"success": True, "result": [{"time": 3_600, "close": 0.01}, dup]},
-        {"success": True, "result": [dup, {"time": 5_403_600, "close": 0.03}]},
-    ])
-    df = await fetch_delta_funding_history(
-        "BTCUSD", days=90, now_s=90 * 86_400, http_get_json=api
+    dup = {"time": 3_600_000, "close": 0.02}
+    api = _FakeApi(
+        pages=[
+            {"success": True, "result": [{"time": 3_600, "close": 0.01}, dup]},
+                {"success": True, "result": [dup, {"time": 3_603_600, "close": 0.03}]},
+        ]
     )
+    df = await fetch_delta_funding_history("BTCUSD", days=60, now_s=60 * 86_400, http_get_json=api)
     assert len(df) == 3
     assert df["timestamp"].is_unique
 
 
 async def test_forming_funding_candle_is_excluded_and_close_is_available_at_end():
-    api = _FakeApi(pages=[{
-        "success": True,
-        "result": [
-            {"time": 3_600, "close": 0.01},
-            {"time": 7_200, "close": 0.02},
-        ],
-    }])
-
-    df = await fetch_delta_funding_history(
-        "BTCUSD", days=1, now_s=9_000, http_get_json=api
+    api = _FakeApi(
+        pages=[
+            {
+                "success": True,
+                "result": [
+                    {"time": 3_600, "close": 0.01},
+                    {"time": 7_200, "close": 0.02},
+                ],
+            }
+        ]
     )
+
+    df = await fetch_delta_funding_history("BTCUSD", days=1, now_s=9_000, http_get_json=api)
 
     assert len(df) == 1
     assert df.loc[0, "timestamp"] == pd.Timestamp(7_200, unit="s", tz="UTC")
@@ -116,9 +120,7 @@ async def test_forming_funding_candle_is_excluded_and_close_is_available_at_end(
 async def test_empty_result_returns_typed_empty_frame():
     # unknown FUNDING: symbols return success=true with an empty result
     api = _FakeApi(pages=[{"success": True, "result": []}])
-    df = await fetch_delta_funding_history(
-        "NOPE/USD:USD", days=1, now_s=86_400, http_get_json=api
-    )
+    df = await fetch_delta_funding_history("NOPE/USD:USD", days=1, now_s=86_400, http_get_json=api)
     assert df.empty
     assert list(df.columns) == ["timestamp", "funding_rate"]
     assert str(df["timestamp"].dtype) == "datetime64[ns, UTC]"
@@ -127,24 +129,24 @@ async def test_empty_result_returns_typed_empty_frame():
 async def test_api_error_payload_raises():
     api = _FakeApi(pages=[{"success": False, "error": {"code": "bad_schema"}}])
     with pytest.raises(ValueError, match="delta candle API error"):
-        await fetch_delta_funding_history(
-            "BTC/USD:USD", days=1, now_s=86_400, http_get_json=api
-        )
+        await fetch_delta_funding_history("BTC/USD:USD", days=1, now_s=86_400, http_get_json=api)
 
 
 async def test_malformed_rows_are_skipped():
-    api = _FakeApi(pages=[{
-        "success": True,
-        "result": [
-            {"time": 3_600, "close": "0.01"},   # numeric string is fine
-            {"time": None, "close": 0.02},      # no timestamp
-            {"close": 0.5},                     # missing time key
-            {"time": 7_200, "close": "junk"},   # unparseable close
-        ],
-    }])
-    df = await fetch_delta_funding_history(
-        "BTC/USD:USD", days=1, now_s=86_400, http_get_json=api
+    api = _FakeApi(
+        pages=[
+            {
+                "success": True,
+                "result": [
+                    {"time": 3_600, "close": "0.01"},  # numeric string is fine
+                    {"time": None, "close": 0.02},  # no timestamp
+                    {"close": 0.5},  # missing time key
+                    {"time": 7_200, "close": "junk"},  # unparseable close
+                ],
+            }
+        ]
     )
+    df = await fetch_delta_funding_history("BTC/USD:USD", days=1, now_s=86_400, http_get_json=api)
     assert len(df) == 1
     assert df.loc[0, "funding_rate"] == 0.01 / 100
 
