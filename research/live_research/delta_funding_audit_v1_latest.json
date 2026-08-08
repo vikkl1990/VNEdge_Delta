@@ -1,0 +1,524 @@
+{
+  "contract": "configs/research/delta_funding_audit_v1.yaml",
+  "contract_sha256": "e9916611eda69ef6c39dd0a09cbb55519b22ea8de814c9a97c003a937265b553",
+  "diagnostic": {
+    "events_computed": true,
+    "gate": {
+      "decision": "NO_GO",
+      "orientations": {
+        "continuation": {
+          "average_net_bps": -8.788421419647216,
+          "checks": {
+            "both_chronological_halves_positive": false,
+            "both_markets_positive": false,
+            "false_signal_rate": true,
+            "market_concentration": true,
+            "median_mfe_cost_multiple": true,
+            "minimum_events_per_market": true,
+            "minimum_total_events": true,
+            "positive_average_net": false,
+            "profit_factor": false
+          },
+          "events": 174,
+          "first_half_average_net_bps": 4.116286446372237,
+          "market_events": {
+            "BTCUSD": 103,
+            "ETHUSD": 71
+          },
+          "passed": false,
+          "profit_factor": 0.8760923995155,
+          "second_half_average_net_bps": -21.69312928566667
+        },
+        "reversal": {
+          "average_net_bps": -20.811578580352784,
+          "checks": {
+            "both_chronological_halves_positive": false,
+            "both_markets_positive": false,
+            "false_signal_rate": true,
+            "market_concentration": true,
+            "median_mfe_cost_multiple": true,
+            "minimum_events_per_market": true,
+            "minimum_total_events": true,
+            "positive_average_net": false,
+            "profit_factor": false
+          },
+          "events": 174,
+          "first_half_average_net_bps": -33.71628644637223,
+          "market_events": {
+            "BTCUSD": 103,
+            "ETHUSD": 71
+          },
+          "passed": false,
+          "profit_factor": 0.733794917448271,
+          "second_half_average_net_bps": -7.906870714333334
+        }
+      },
+      "passing_orientations": [],
+      "primary_horizon_hours": 8,
+      "tail_opened": false
+    },
+    "status": "completed_selection_only",
+    "summary": {
+      "groups": [
+        {
+          "average_mae_bps": 47.70111116751049,
+          "average_mfe_bps": 36.669027800287324,
+          "average_net_bps": -23.83426269419761,
+          "average_terminal_gross_bps": -9.034262694197611,
+          "events": 103,
+          "false_signal_rate": 0.6796116504854369,
+          "horizon_hours": 1,
+          "median_mae_bps": 28.742527198191148,
+          "median_mfe_bps": 26.13284194656118,
+          "orientation": "continuation",
+          "profit_factor": 0.26338736678174396,
+          "symbol": "BTCUSD",
+          "win_rate": 0.32038834951456313
+        },
+        {
+          "average_mae_bps": 66.1504322845037,
+          "average_mfe_bps": 64.85856291169888,
+          "average_net_bps": -13.584889529031825,
+          "average_terminal_gross_bps": 1.2151104709681755,
+          "events": 71,
+          "false_signal_rate": 0.647887323943662,
+          "horizon_hours": 1,
+          "median_mae_bps": 47.043974642151376,
+          "median_mfe_bps": 36.42080440193873,
+          "orientation": "continuation",
+          "profit_factor": 0.5969902057001393,
+          "symbol": "ETHUSD",
+          "win_rate": 0.352112676056338
+        },
+        {
+          "average_mae_bps": 79.70139413198177,
+          "average_mfe_bps": 76.49857567338626,
+          "average_net_bps": -20.38095705224848,
+          "average_terminal_gross_bps": -5.580957052248478,
+          "events": 103,
+          "false_signal_rate": 0.5922330097087378,
+          "horizon_hours": 4,
+          "median_mae_bps": 50.996786317336614,
+          "median_mfe_bps": 50.2839597505822,
+          "orientation": "continuation",
+          "profit_factor": 0.587989021411716,
+          "symbol": "BTCUSD",
+          "win_rate": 0.4077669902912621
+        },
+        {
+          "average_mae_bps": 129.8881050874527,
+          "average_mfe_bps": 120.49307413642705,
+          "average_net_bps": -16.398668474330986,
+          "average_terminal_gross_bps": -1.5986684743309814,
+          "events": 71,
+          "false_signal_rate": 0.6338028169014085,
+          "horizon_hours": 4,
+          "median_mae_bps": 91.90802944808229,
+          "median_mfe_bps": 76.81710640591754,
+          "orientation": "continuation",
+          "profit_factor": 0.7551840819388203,
+          "symbol": "ETHUSD",
+          "win_rate": 0.36619718309859156
+        },
+        {
+          "average_mae_bps": 116.36806459110107,
+          "average_mfe_bps": 108.37066430372094,
+          "average_net_bps": -19.962434035552484,
+          "average_terminal_gross_bps": -5.162434035552481,
+          "events": 103,
+          "false_signal_rate": 0.5145631067961165,
+          "horizon_hours": 8,
+          "median_mae_bps": 80.65694192282757,
+          "median_mfe_bps": 80.97917132769861,
+          "orientation": "continuation",
+          "profit_factor": 0.6747900643870286,
+          "symbol": "BTCUSD",
+          "win_rate": 0.4854368932038835
+        },
+        {
+          "average_mae_bps": 181.75647754273663,
+          "average_mfe_bps": 190.41458735498557,
+          "average_net_bps": 7.421765896384372,
+          "average_terminal_gross_bps": 22.22176589638437,
+          "events": 71,
+          "false_signal_rate": 0.4788732394366197,
+          "horizon_hours": 8,
+          "median_mae_bps": 142.60020554984544,
+          "median_mfe_bps": 99.36149144671668,
+          "orientation": "continuation",
+          "profit_factor": 1.0875489759215007,
+          "symbol": "ETHUSD",
+          "win_rate": 0.5211267605633803
+        },
+        {
+          "average_mae_bps": 136.05184165730222,
+          "average_mfe_bps": 132.50218861266563,
+          "average_net_bps": -20.762007991960928,
+          "average_terminal_gross_bps": -5.9620079919609275,
+          "events": 103,
+          "false_signal_rate": 0.4854368932038835,
+          "horizon_hours": 12,
+          "median_mae_bps": 87.21251149953923,
+          "median_mfe_bps": 98.29571333241583,
+          "orientation": "continuation",
+          "profit_factor": 0.7176693674094676,
+          "symbol": "BTCUSD",
+          "win_rate": 0.5145631067961165
+        },
+        {
+          "average_mae_bps": 209.41493908260267,
+          "average_mfe_bps": 255.36510162976668,
+          "average_net_bps": 18.81447037156074,
+          "average_terminal_gross_bps": 33.61447037156074,
+          "events": 71,
+          "false_signal_rate": 0.5211267605633803,
+          "horizon_hours": 12,
+          "median_mae_bps": 151.53408735862018,
+          "median_mfe_bps": 171.90260848731765,
+          "orientation": "continuation",
+          "profit_factor": 1.1792226243930404,
+          "symbol": "ETHUSD",
+          "win_rate": 0.4788732394366197
+        },
+        {
+          "average_mae_bps": 168.54859858264393,
+          "average_mfe_bps": 219.01034659851794,
+          "average_net_bps": 36.52738019822879,
+          "average_terminal_gross_bps": 51.3273801982288,
+          "events": 102,
+          "false_signal_rate": 0.4411764705882353,
+          "horizon_hours": 24,
+          "median_mae_bps": 111.15005142324551,
+          "median_mfe_bps": 161.4604543470316,
+          "orientation": "continuation",
+          "profit_factor": 1.5428518720076942,
+          "symbol": "BTCUSD",
+          "win_rate": 0.5588235294117647
+        },
+        {
+          "average_mae_bps": 300.76614083312404,
+          "average_mfe_bps": 338.3484555189545,
+          "average_net_bps": -13.960040315141248,
+          "average_terminal_gross_bps": 0.8399596848587472,
+          "events": 71,
+          "false_signal_rate": 0.5070422535211268,
+          "horizon_hours": 24,
+          "median_mae_bps": 234.69371170380614,
+          "median_mfe_bps": 285.428559523313,
+          "orientation": "continuation",
+          "profit_factor": 0.9094404748892058,
+          "symbol": "ETHUSD",
+          "win_rate": 0.49295774647887325
+        },
+        {
+          "average_mae_bps": 36.669027800287324,
+          "average_mfe_bps": 47.70111116751049,
+          "average_net_bps": -5.765737305802389,
+          "average_terminal_gross_bps": 9.034262694197611,
+          "events": 103,
+          "false_signal_rate": 0.6407766990291263,
+          "horizon_hours": 1,
+          "median_mae_bps": 26.13284194656118,
+          "median_mfe_bps": 28.742527198191148,
+          "orientation": "reversal",
+          "profit_factor": 0.750331195845476,
+          "symbol": "BTCUSD",
+          "win_rate": 0.3592233009708738
+        },
+        {
+          "average_mae_bps": 64.85856291169888,
+          "average_mfe_bps": 66.1504322845037,
+          "average_net_bps": -16.015110470968178,
+          "average_terminal_gross_bps": -1.2151104709681755,
+          "events": 71,
+          "false_signal_rate": 0.6338028169014085,
+          "horizon_hours": 1,
+          "median_mae_bps": 36.42080440193873,
+          "median_mfe_bps": 47.043974642151376,
+          "orientation": "reversal",
+          "profit_factor": 0.5460846942041097,
+          "symbol": "ETHUSD",
+          "win_rate": 0.36619718309859156
+        },
+        {
+          "average_mae_bps": 76.49857567338626,
+          "average_mfe_bps": 79.70139413198177,
+          "average_net_bps": -9.219042947751522,
+          "average_terminal_gross_bps": 5.580957052248478,
+          "events": 103,
+          "false_signal_rate": 0.5145631067961165,
+          "horizon_hours": 4,
+          "median_mae_bps": 50.2839597505822,
+          "median_mfe_bps": 50.996786317336614,
+          "orientation": "reversal",
+          "profit_factor": 0.7860311151879331,
+          "symbol": "BTCUSD",
+          "win_rate": 0.4854368932038835
+        },
+        {
+          "average_mae_bps": 120.49307413642705,
+          "average_mfe_bps": 129.8881050874527,
+          "average_net_bps": -13.201331525669017,
+          "average_terminal_gross_bps": 1.5986684743309814,
+          "events": 71,
+          "false_signal_rate": 0.5211267605633803,
+          "horizon_hours": 4,
+          "median_mae_bps": 76.81710640591754,
+          "median_mfe_bps": 91.90802944808229,
+          "orientation": "reversal",
+          "profit_factor": 0.7942023755580586,
+          "symbol": "ETHUSD",
+          "win_rate": 0.4788732394366197
+        },
+        {
+          "average_mae_bps": 108.37066430372094,
+          "average_mfe_bps": 116.36806459110107,
+          "average_net_bps": -9.637565964447516,
+          "average_terminal_gross_bps": 5.162434035552481,
+          "events": 103,
+          "false_signal_rate": 0.6116504854368932,
+          "horizon_hours": 8,
+          "median_mae_bps": 80.97917132769861,
+          "median_mfe_bps": 80.65694192282757,
+          "orientation": "reversal",
+          "profit_factor": 0.832630570549665,
+          "symbol": "BTCUSD",
+          "win_rate": 0.3883495145631068
+        },
+        {
+          "average_mae_bps": 190.41458735498557,
+          "average_mfe_bps": 181.75647754273663,
+          "average_net_bps": -37.02176589638437,
+          "average_terminal_gross_bps": -22.22176589638437,
+          "events": 71,
+          "false_signal_rate": 0.5633802816901409,
+          "horizon_hours": 8,
+          "median_mae_bps": 99.36149144671668,
+          "median_mfe_bps": 142.60020554984544,
+          "orientation": "reversal",
+          "profit_factor": 0.657388792219153,
+          "symbol": "ETHUSD",
+          "win_rate": 0.43661971830985913
+        },
+        {
+          "average_mae_bps": 132.50218861266563,
+          "average_mfe_bps": 136.05184165730222,
+          "average_net_bps": -8.837992008039079,
+          "average_terminal_gross_bps": 5.9620079919609275,
+          "events": 103,
+          "false_signal_rate": 0.5825242718446602,
+          "horizon_hours": 12,
+          "median_mae_bps": 98.29571333241583,
+          "median_mfe_bps": 87.21251149953923,
+          "orientation": "reversal",
+          "profit_factor": 0.871645027633497,
+          "symbol": "BTCUSD",
+          "win_rate": 0.4174757281553398
+        },
+        {
+          "average_mae_bps": 255.36510162976668,
+          "average_mfe_bps": 209.41493908260267,
+          "average_net_bps": -48.414470371560746,
+          "average_terminal_gross_bps": -33.61447037156074,
+          "events": 71,
+          "false_signal_rate": 0.5352112676056338,
+          "horizon_hours": 12,
+          "median_mae_bps": 171.90260848731765,
+          "median_mfe_bps": 151.53408735862018,
+          "orientation": "reversal",
+          "profit_factor": 0.6511249498716452,
+          "symbol": "ETHUSD",
+          "win_rate": 0.4647887323943662
+        },
+        {
+          "average_mae_bps": 219.01034659851794,
+          "average_mfe_bps": 168.54859858264393,
+          "average_net_bps": -66.12738019822879,
+          "average_terminal_gross_bps": -51.3273801982288,
+          "events": 102,
+          "false_signal_rate": 0.6764705882352942,
+          "horizon_hours": 24,
+          "median_mae_bps": 161.4604543470316,
+          "median_mfe_bps": 111.15005142324551,
+          "orientation": "reversal",
+          "profit_factor": 0.46035736485949763,
+          "symbol": "BTCUSD",
+          "win_rate": 0.3235294117647059
+        },
+        {
+          "average_mae_bps": 338.3484555189545,
+          "average_mfe_bps": 300.76614083312404,
+          "average_net_bps": -15.63995968485875,
+          "average_terminal_gross_bps": -0.8399596848587472,
+          "events": 71,
+          "false_signal_rate": 0.5352112676056338,
+          "horizon_hours": 24,
+          "median_mae_bps": 285.428559523313,
+          "median_mfe_bps": 234.69371170380614,
+          "orientation": "reversal",
+          "profit_factor": 0.899064811343351,
+          "symbol": "ETHUSD",
+          "win_rate": 0.4647887323943662
+        }
+      ],
+      "rows": 1738
+    },
+    "unique_events": 174
+  },
+  "generated_at": "2026-08-08T07:15:44.704191+00:00",
+  "integrity": {
+    "loader_defect_found_and_fixed": {
+      "defect": "forming hourly close was timestamped at raw candle start",
+      "fix": "exclude forming row and expose close at raw start plus one hour"
+    },
+    "passed": true,
+    "symbols": {
+      "BTCUSD": {
+        "availability": {
+          "forward_fill_from_raw_start": false,
+          "join_key": "available_at",
+          "offset_seconds": 3600,
+          "raw_timestamp_semantics": "hourly_candle_start"
+        },
+        "cadence_seconds": {
+          "3600": 10943
+        },
+        "canonical_fraction": {
+          "maximum": 0.0015989128,
+          "mean": -6.408491408077485e-05,
+          "median": 5.89299e-05,
+          "minimum": -0.0040917586,
+          "p01": -0.000545157388,
+          "p99": 0.0001,
+          "zero_fraction": 0.0
+        },
+        "checks": {
+          "canonical_fraction_units_plausible": true,
+          "coverage_within_gap_budget": true,
+          "has_rows": true,
+          "no_conflicting_duplicates": true,
+          "no_ohlc_inversions": true,
+          "no_unexpected_timestamps": true,
+          "raw_percent_units_plausible": true,
+          "settled_only": true,
+          "timestamps_hour_aligned": true
+        },
+        "conflicting_duplicate_timestamps": 0,
+        "coverage": {
+          "first_available_at": "2025-01-01T01:00:00+00:00",
+          "first_raw_start": "2025-01-01T00:00:00+00:00",
+          "last_available_at": "2026-04-02T00:00:00+00:00",
+          "last_raw_start": "2026-04-01T23:00:00+00:00"
+        },
+        "duplicate_rows": 20,
+        "duplicate_timestamps": 10,
+        "expected_rows": 10944,
+        "first_missing": [],
+        "forming_rows_excluded": 1,
+        "malformed_rows": 0,
+        "missing_fraction": 0.0,
+        "missing_rows": 0,
+        "ohlc_invalid_rows": 0,
+        "passed": true,
+        "raw_percent": {
+          "maximum": 0.15989128,
+          "mean": -0.006408491408077487,
+          "median": 0.00589299,
+          "minimum": -0.40917586,
+          "p01": -0.0545157388,
+          "p99": 0.01,
+          "zero_fraction": 0.0
+        },
+        "raw_rows": 10955,
+        "request_count": 11,
+        "settled_unique_rows": 10944,
+        "symbol": "BTCUSD",
+        "unexpected_rows": 0,
+        "valid_rows_before_dedup": 10955
+      },
+      "ETHUSD": {
+        "availability": {
+          "forward_fill_from_raw_start": false,
+          "join_key": "available_at",
+          "offset_seconds": 3600,
+          "raw_timestamp_semantics": "hourly_candle_start"
+        },
+        "cadence_seconds": {
+          "3600": 10943
+        },
+        "canonical_fraction": {
+          "maximum": 0.0024239017,
+          "mean": -3.2365629660087714e-05,
+          "median": 0.0001,
+          "minimum": -0.0049212904,
+          "p01": -0.000504921649,
+          "p99": 0.0001,
+          "zero_fraction": 0.0
+        },
+        "checks": {
+          "canonical_fraction_units_plausible": true,
+          "coverage_within_gap_budget": true,
+          "has_rows": true,
+          "no_conflicting_duplicates": true,
+          "no_ohlc_inversions": true,
+          "no_unexpected_timestamps": true,
+          "raw_percent_units_plausible": true,
+          "settled_only": true,
+          "timestamps_hour_aligned": true
+        },
+        "conflicting_duplicate_timestamps": 0,
+        "coverage": {
+          "first_available_at": "2025-01-01T01:00:00+00:00",
+          "first_raw_start": "2025-01-01T00:00:00+00:00",
+          "last_available_at": "2026-04-02T00:00:00+00:00",
+          "last_raw_start": "2026-04-01T23:00:00+00:00"
+        },
+        "duplicate_rows": 20,
+        "duplicate_timestamps": 10,
+        "expected_rows": 10944,
+        "first_missing": [],
+        "forming_rows_excluded": 1,
+        "malformed_rows": 0,
+        "missing_fraction": 0.0,
+        "missing_rows": 0,
+        "ohlc_invalid_rows": 0,
+        "passed": true,
+        "raw_percent": {
+          "maximum": 0.24239017,
+          "mean": -0.003236562966008773,
+          "median": 0.01,
+          "minimum": -0.49212904,
+          "p01": -0.0504921649,
+          "p99": 0.01,
+          "zero_fraction": 0.0
+        },
+        "raw_rows": 10955,
+        "request_count": 11,
+        "settled_unique_rows": 10944,
+        "symbol": "ETHUSD",
+        "unexpected_rows": 0,
+        "valid_rows_before_dedup": 10955
+      }
+    }
+  },
+  "report_id": "delta_funding_audit_v1_first_run",
+  "safety": {
+    "can_promote": false,
+    "can_trade": false,
+    "order_route_present": false,
+    "research_only": true
+  },
+  "selection_window": {
+    "end": "2026-04-02T00:01:00+00:00",
+    "start": "2025-01-01T00:00:00+00:00"
+  },
+  "untouched": {
+    "end": "2026-07-25T00:00:00+00:00",
+    "funding_values_read": false,
+    "opened_once": false,
+    "predictions_computed": false,
+    "price_values_read": false,
+    "start": "2026-04-02T00:01:00+00:00",
+    "status": "sealed"
+  }
+}
