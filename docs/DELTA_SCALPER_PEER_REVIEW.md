@@ -5,8 +5,9 @@ The future-state professional design is documented separately in
 so unimplemented liquidation, OI, queue/fill, paper, and live components are not
 confused with this implemented inventory.
 
-Peer-review baseline: 7 August 2026  
-Repository state reviewed: `feat/scanner-forward-evidence` through `ebe8614`
+Peer-review baseline: 8 August 2026
+Repository state reviewed: `feat/scanner-forward-evidence` through the
+range-compression v1 result
 Runtime role: local, research-only shadow service  
 Execution authority: none
 
@@ -24,15 +25,15 @@ aspirational HFT diagrams that preceded it. The authoritative safety facts are:
 
 ## 1. Current operational status
 
-Observed from the local `/delta-scalper` endpoint at `2026-08-07T02:20:00Z`:
+Observed from the local `/delta-scalper` endpoint after the 8 August restart:
 
 | Item | Observed state |
 |---|---:|
 | Connected markets | BTCUSD, ETHUSD |
-| Shadow uptime | 34,322 seconds |
-| Closed-candle evaluations | 177 |
+| Runtime YAML | All rejected scanners disabled |
+| Closed-candle evaluations | Fresh evaluations continuing after restart |
 | Accepted alerts / completed outcomes | 0 / 0 |
-| Current regime | Expanding on both markets |
+| Current context status | Complete on both markets; no rollover errors |
 | L2 | Fresh, context-only |
 | Order route | Absent |
 | Can trade / promote | No / No |
@@ -188,6 +189,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `fee_model.py` | Maker/taker, GST, DETO, slippage, Scalper Offer and hold-window model. | Returns a complete expected cost breakdown. |
 | `scanners.py` | Hierarchical Pullback plus retired Momentum Burst and candle-based Imbalance Fade. | Closed-candle candidates; one-shot hierarchical setup identity; L2 metadata only. |
 | `lead_lag.py` | Frozen BTCUSD leader to ETHUSD follower contract and paired scanner. | Exact synchronized closed 1m candles, one candidate per impulse, cooldown and structural prior; research-only and no L2. |
+| `range_compression.py` | Frozen 5m compression-breakout contract and scanner. | Causal width percentiles, volume/range expansion, recent CUSUM, structural stop rejection, cooldown, and no L2/funding/meta-model. |
 | `signal_generator.py` | Context, scanner isolation, gates, ranking, dedup and journal fail-closed behavior. | Returns `EngineDecision`; includes an unused risk adapter. |
 | `forward_tracker.py` | Measures accepted alerts without positions. | Exactly-once next-open outcome with MFE, MAE, costs, net and barriers. |
 | `backtester.py` | Causal one-position-at-a-time historical replay. | Complete trade rows/report; gaps reset state and fail data quality. |
@@ -207,6 +209,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `configs/research/btc_eth_lead_lag_v1.yaml` | Preregistered synchronized-pair hypothesis, cost contract, selection gates, and sealed untouched rule. |
 | `configs/research/btc_eth_lead_lag_causal_discovery_v1.yaml` | Frozen bidirectional 1m/5m rolling Granger study over the already-open selection window only. |
 | `configs/research/btc_eth_transfer_entropy_v1.yaml` | Frozen non-linear directed-information study with tertile encoding and segment-preserving surrogates. |
+| `configs/research/range_compression_breakout_v1.yaml` | Preregistered standalone OHLCV/CUSUM hypothesis, cost contract, selection gates, and sealed untouched rule. |
 
 ### Research programs
 
@@ -226,6 +229,9 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `btc_eth_lead_lag_backtest.py` | Exact-timestamp paired replay using the canonical next-open, stop-first path resolver. | First 80% is selection; final 20% is never simulated unless every frozen selection gate passes. |
 | `btc_eth_lead_lag_causal_discovery.py` | Gap-safe synchronized returns, nested OLS F-tests, rolling chronological prediction, BH correction, and directionality summaries. | Cannot load the old v1 tail; a pass authorizes only a distinct v2 preregistration, never a scanner or trade. |
 | `btc_eth_transfer_entropy.py` | Discrete TE in bits, surrogate bias correction, empirical significance, rolling stability, and reverse-direction comparison. | Selection-only; no regime slicing, scanner threshold, cost claim, tail access, or execution authority. |
+| `delta_scalper_cache_repair.py` | Audits named 1m shards, fetches only contiguous missing ranges, preserves existing rows, rechecks every minute, and atomically replaces repaired parquet. | Refuses incomplete repairs; emits a local repair manifest. |
+| `range_compression_backtest.py` | Rebuilds causal 5m bars and CUSUM from 1m, applies next-open/stop-first resolution, and enforces selection-before-tail. | Final 20% is never simulated after a selection failure. |
+| `range_compression_report.py` | Calendar-complete daily, weekly, monthly, and quarterly CSVs from immutable selection trades. | Requires the untouched status to remain sealed. |
 
 ## 6. Contracts and state invariants
 
@@ -542,7 +548,7 @@ OHLCV and must not be zero-filled as if observed.
 
 ## 16. Verification coverage
 
-The repository suite reports 1,953 passing tests and one warning. Delta tests
+The repository suite reports 1,962 passing tests and one warning. Delta tests
 cover candle closure/aggregation/gaps, context parity, fees, scanners, gates,
 dedup, journaling failure, forward paths, safety manifest, public WS behavior,
 dashboard merging, replay summaries, attribution, sweeps, PELT/CUSUM,
@@ -552,7 +558,9 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 ## 17. Known gaps for peer review
 
 1. **No positive edge.** More frequency currently amplifies loss.
-2. **Backtest data quality failed.** Repair and rerun the unchanged baseline.
+2. **Historical cache gaps are repaired.** BTCUSD and ETHUSD now each contain
+   all 820,800 expected minutes from 2025-01-01 through 2026-07-25, with zero
+   duplicates. The repair is reproducible and atomic.
 3. **OHLC path ambiguity is 5.42%.** Tick/event replay is required for truth.
 4. **No historical L2 replay.** Candle history cannot validate live L2 value.
 5. **Predictor scores are heuristic and overconfident, not calibrated.**
@@ -576,6 +584,14 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 15. **Non-linear dependence was stable but below the frozen effect gate.** TE
     favored BTC→ETH, especially at 5m, yet all normalized rolling medians were
     below 0.005. The near-miss threshold was not relaxed; no v2 is authorized.
+16. **Range-compression breakout v1 also failed before the untouched split.**
+    It produced 197 selection trades, +0.965 bps average gross versus 14.8 bps
+    cost, -13.835 bps average net, and PF 0.312. Both markets and chronological
+    halves were negative; the final 20% remains sealed and v1 is retired.
+17. **The historical context errors were a clock-boundary handoff defect.** The
+    exchange rollover proved close while the local clock could trail by tens of
+    milliseconds. The service now uses the proven close time, and bounded
+    exception messages preserve future diagnostic evidence.
 
 ## 18. Reproduction commands
 
@@ -594,6 +610,8 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 .venv/bin/python -m vnedge.research.delta_scalper_meta_label --scalper-opted-in
 .venv/bin/python -m vnedge.research.delta_scalper_lightgbm_meta
 .venv/bin/python -m vnedge.research.delta_scalper_lightgbm_shap
+.venv/bin/python -m vnedge.research.range_compression_backtest
+.venv/bin/python -m vnedge.research.range_compression_report
 .venv/bin/python -m pytest -q
 ```
 
@@ -602,7 +620,9 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 The causal and safety architecture is strong: closed-candle decisions, shared
 live/replay code, explicit costs, next-bar outcomes, conservative path
 resolution, fail-closed journaling, frozen validation, and no order route. The
-weakness is economic: the scanners and heuristic probability model have no
-after-cost edge. The correct next step is to repair source data, rerun the
-unchanged baseline, then perform sparse preregistered research without opening
-the protected tail. Paper execution is not yet justified.
+weakness is economic: every tested scanner, now including range-compression v1,
+has no after-cost edge. Source candles and the live clock handoff are repaired;
+the next hypothesis must add genuinely different information or sampling, not
+relax a failed threshold or reopen a protected tail. Event-driven absorption
+and trapped-flow research still requires genuine historical event tape. Paper
+execution is not justified.
