@@ -1,4 +1,4 @@
-"""First selection-only replay of continuous_mtf_alignment_v1."""
+"""Selection-only replay for preregistered continuous MTF contracts."""
 
 from __future__ import annotations
 
@@ -27,7 +27,13 @@ from vnedge.scalping.delta_engine.continuous_mtf import (
     finalize_continuous_entry,
     load_continuous_mtf_config,
 )
+from vnedge.scalping.delta_engine.continuous_mtf_v2 import (
+    MechanicalStructureMultiTFStateMachine,
+)
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
+from vnedge.scalping.delta_engine.mechanical_structure import (
+    load_mechanical_structure_config,
+)
 from vnedge.scalping.delta_engine.types import Candle
 
 DEFAULT_CONFIG = Path("configs/research/continuous_mtf_alignment_v1.yaml")
@@ -99,7 +105,17 @@ def simulate_symbol_selection(
     config, raw = load_continuous_mtf_config(config_path)
     fee_model = _fee_model(raw)
     store = MultiTimeframeCandleStore(max_bars_per_timeframe=700)
-    machine = ContinuousMultiTFStateMachine(store, config)
+    contract_id = str(raw["contract_id"])
+    if contract_id == "continuous_mtf_alignment_v2":
+        machine = MechanicalStructureMultiTFStateMachine(
+            store,
+            config,
+            load_mechanical_structure_config(config_path),
+        )
+    elif contract_id == "continuous_mtf_alignment_v1":
+        machine = ContinuousMultiTFStateMachine(store, config)
+    else:
+        raise ValueError(f"unsupported continuous MTF contract: {contract_id}")
     aggregator = ClosedCandleAggregator()
     resolver = CausalScalperBacktester(None, fee_model, store)  # type: ignore[arg-type]
     pending: ContinuousSetupIntent | None = None
@@ -312,8 +328,9 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         (row for result in results for row in result.trade_records),
         key=lambda row: row["exit_ts"],
     )
+    contract_id = str(raw["contract_id"])
     payload = {
-        "report_id": "continuous_mtf_alignment_v1_first_selection_replay",
+        "report_id": f"{contract_id}_first_selection_replay",
         "generated_at": datetime.now(UTC).isoformat(),
         "contract": str(config_path),
         "contract_sha256": hashlib.sha256(config_path.read_bytes()).hexdigest(),
@@ -353,6 +370,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "can_trade": False,
             "can_promote": False,
             "order_route_present": False,
+            "mechanical_bos_choch": contract_id == "continuous_mtf_alignment_v2",
         },
         "can_trade": False,
         "can_promote": False,
