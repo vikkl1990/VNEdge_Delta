@@ -190,6 +190,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `scanners.py` | Hierarchical Pullback plus retired Momentum Burst and candle-based Imbalance Fade. | Closed-candle candidates; one-shot hierarchical setup identity; L2 metadata only. |
 | `lead_lag.py` | Frozen BTCUSD leader to ETHUSD follower contract and paired scanner. | Exact synchronized closed 1m candles, one candidate per impulse, cooldown and structural prior; research-only and no L2. |
 | `range_compression.py` | Frozen 5m compression-breakout contract and scanner. | Causal width percentiles, volume/range expansion, recent CUSUM, structural stop rejection, cooldown, and no L2/funding/meta-model. |
+| `session_sweep.py` | Frozen candle-only Asian-range sweep scanner and next-open geometry. | Causal session windows, full setup attribution, session dedup, and hard 3.5× cost rejection without L2/regime/meta-model. |
 | `signal_generator.py` | Context, scanner isolation, gates, ranking, dedup and journal fail-closed behavior. | Returns `EngineDecision`; includes an unused risk adapter. |
 | `forward_tracker.py` | Measures accepted alerts without positions. | Exactly-once next-open outcome with MFE, MAE, costs, net and barriers. |
 | `backtester.py` | Causal one-position-at-a-time historical replay. | Complete trade rows/report; gaps reset state and fail data quality. |
@@ -210,6 +211,7 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `configs/research/btc_eth_lead_lag_causal_discovery_v1.yaml` | Frozen bidirectional 1m/5m rolling Granger study over the already-open selection window only. |
 | `configs/research/btc_eth_transfer_entropy_v1.yaml` | Frozen non-linear directed-information study with tertile encoding and segment-preserving surrogates. |
 | `configs/research/range_compression_breakout_v1.yaml` | Preregistered standalone OHLCV/CUSUM hypothesis, cost contract, selection gates, and sealed untouched rule. |
+| `configs/research/session_liquidity_sweep_v1.yaml` | Preregistered candle-only session hypothesis with causal range/window resolution and sealed untouched rule. |
 
 ### Research programs
 
@@ -232,6 +234,8 @@ actually exists. Missing microstructure fields are unavailable, never invented.
 | `delta_scalper_cache_repair.py` | Audits named 1m shards, fetches only contiguous missing ranges, preserves existing rows, rechecks every minute, and atomically replaces repaired parquet. | Refuses incomplete repairs; emits a local repair manifest. |
 | `range_compression_backtest.py` | Rebuilds causal 5m bars and CUSUM from 1m, applies next-open/stop-first resolution, and enforces selection-before-tail. | Final 20% is never simulated after a selection failure. |
 | `range_compression_report.py` | Calendar-complete daily, weekly, monthly, and quarterly CSVs from immutable selection trades. | Requires the untouched status to remain sealed. |
+| `session_liquidity_sweep_backtest.py` | Rebuilds the UTC Asian range, evaluates London/NY sweeps, then applies actual next-open structural geometry. | Records rejected setups separately; final 20% opens only after all selection gates pass. |
+| `session_liquidity_sweep_report.py` | Calendar-complete official-trade and qualified-setup tables. | Requires the untouched status to remain sealed. |
 
 ## 6. Contracts and state invariants
 
@@ -548,7 +552,7 @@ OHLCV and must not be zero-filled as if observed.
 
 ## 16. Verification coverage
 
-The repository suite reports 1,962 passing tests and one warning. Delta tests
+The repository suite reports 1,968 passing tests and one warning. Delta tests
 cover candle closure/aggregation/gaps, context parity, fees, scanners, gates,
 dedup, journaling failure, forward paths, safety manifest, public WS behavior,
 dashboard merging, replay summaries, attribution, sweeps, PELT/CUSUM,
@@ -592,6 +596,11 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
     exchange rollover proved close while the local clock could trail by tens of
     milliseconds. The service now uses the proven close time, and bounded
     exception messages preserve future diagnostic evidence.
+18. **Session liquidity sweep v1 was structurally incompatible with its cost
+    gate.** It found 48 qualified selection setups, but every next-open 1R
+    target was below 3.50× cost; the best reached 2.585×. Selection-only
+    stop-first counterfactuals were also negative (PF 0.154 at own 1R and PF
+    0.300 with a 51.8 bps target). No official trade or tail evaluation exists.
 
 ## 18. Reproduction commands
 
@@ -612,6 +621,8 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 .venv/bin/python -m vnedge.research.delta_scalper_lightgbm_shap
 .venv/bin/python -m vnedge.research.range_compression_backtest
 .venv/bin/python -m vnedge.research.range_compression_report
+.venv/bin/python -m vnedge.research.session_liquidity_sweep_backtest
+.venv/bin/python -m vnedge.research.session_liquidity_sweep_report
 .venv/bin/python -m pytest -q
 ```
 
@@ -620,8 +631,8 @@ SHAP attribution/interactions/additivity, artifacts, and frozen-window safety.
 The causal and safety architecture is strong: closed-candle decisions, shared
 live/replay code, explicit costs, next-bar outcomes, conservative path
 resolution, fail-closed journaling, frozen validation, and no order route. The
-weakness is economic: every tested scanner, now including range-compression v1,
-has no after-cost edge. Source candles and the live clock handoff are repaired;
+weakness is economic: every tested scanner, now including range-compression and
+session-sweep v1, has no after-cost edge. Source candles and the live clock handoff are repaired;
 the next hypothesis must add genuinely different information or sampling, not
 relax a failed threshold or reopen a protected tail. Event-driven absorption
 and trapped-flow research still requires genuine historical event tape. Paper
