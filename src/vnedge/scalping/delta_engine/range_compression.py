@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -193,6 +194,16 @@ class RangeCompressionBreakoutScanner:
         self.fee_model = fee_model
         self._last_setup_id: str | None = None
         self._last_fire_ts: datetime | None = None
+        self._processed_compression_ts: datetime | None = None
+        self._compression_closes: deque[float] = deque(
+            maxlen=self.config.compression.bollinger_window_bars
+        )
+        self._width_history: deque[float] = deque(
+            maxlen=self.config.compression.percentile_history_bars
+        )
+        self._compression_history: deque[bool] = deque(
+            maxlen=self.config.compression.compression_observation_bars + 1
+        )
 
     @property
     def minimum_history(self) -> int:
@@ -209,34 +220,43 @@ class RangeCompressionBreakoutScanner:
     def reset(self) -> None:
         self._last_setup_id = None
         self._last_fire_ts = None
+        self._reset_compression_state()
+
+    def _reset_compression_state(self) -> None:
+        self._processed_compression_ts = None
+        self._compression_closes.clear()
+        self._width_history.clear()
+        self._compression_history.clear()
 
     def _compression_flags(self, rows: tuple[Candle, ...]) -> list[bool]:
+        """Incrementally reproduce each bar's past-only width percentile."""
         settings = self.config.compression
-        closes = [row.close for row in rows]
-        widths: list[float | None] = [None] * len(rows)
-        for index in range(settings.bollinger_window_bars - 1, len(rows)):
-            start = index - settings.bollinger_window_bars + 1
-            widths[index] = _width(closes[start : index + 1])
-        flags: list[bool] = []
-        first = len(rows) - 1 - settings.compression_observation_bars
-        for index in range(first, len(rows) - 1):
-            current = widths[index]
-            if current is None:
-                flags.append(False)
-                continue
-            history = [
-                value
-                for value in widths[
-                    max(0, index - settings.percentile_history_bars + 1) : index + 1
-                ]
-                if value is not None
+        start = 0
+        if self._processed_compression_ts is not None:
+            matches = [
+                index
+                for index, row in enumerate(rows)
+                if row.ts == self._processed_compression_ts
             ]
-            flags.append(
-                len(history) == settings.percentile_history_bars
-                and _percentile(history, current)
-                <= settings.maximum_width_percentile
-            )
-        return flags
+            if matches:
+                start = matches[-1] + 1
+            else:
+                self._reset_compression_state()
+        for row in rows[start:]:
+            self._compression_closes.append(row.close)
+            compressed = False
+            if len(self._compression_closes) == settings.bollinger_window_bars:
+                current = _width(list(self._compression_closes))
+                self._width_history.append(current)
+                compressed = (
+                    len(self._width_history) == settings.percentile_history_bars
+                    and _percentile(list(self._width_history), current)
+                    <= settings.maximum_width_percentile
+                )
+            self._compression_history.append(compressed)
+            self._processed_compression_ts = row.ts
+        flags = list(self._compression_history)
+        return flags[-(settings.compression_observation_bars + 1) : -1]
 
     def evaluate(self, ctx: RangeCompressionContext) -> SignalCandidate | None:
         if len(ctx.five_minute) < self.minimum_history:
