@@ -1,0 +1,40 @@
+{
+  "data_quality": {
+    "gap_rows": 0,
+    "missing_bars": 0
+  },
+  "generated_at": "2026-08-08T11:13:54.918331+00:00",
+  "inputs": {
+    "atr_window": 14,
+    "repeats": 3,
+    "shards": 30,
+    "symbol": "BTCUSD",
+    "timeframe": "1m"
+  },
+  "parity": {
+    "close_sum_equal": true,
+    "pandas_rows": 838159,
+    "polars_rows": 838159,
+    "rows_equal": true
+  },
+  "performance": {
+    "pandas_deep_bytes": 152801780,
+    "pandas_runs_seconds": [
+      0.6607884578406811,
+      0.4781860411167145,
+      0.4678579580504447
+    ],
+    "pandas_seconds_best": 0.4678579580504447,
+    "polars_estimated_bytes": 132790602,
+    "polars_runs_seconds": [
+      0.1480547501705587,
+      0.13516308297403157,
+      0.1355892918072641
+    ],
+    "polars_seconds_best": 0.13516308297403157,
+    "speedup_x": 3.4614330167382517
+  },
+  "report_id": "polars_candle_benchmark_v1",
+  "research_only": true,
+  "trading_path_changed": false
+}
