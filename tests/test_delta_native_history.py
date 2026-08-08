@@ -53,8 +53,8 @@ async def test_percent_to_fraction_epoch_seconds_and_sort():
     )
     assert list(df.columns) == ["timestamp", "funding_rate"]
     assert list(df["timestamp"]) == [
-        pd.Timestamp(3_600, unit="s", tz="UTC"),
         pd.Timestamp(7_200, unit="s", tz="UTC"),
+        pd.Timestamp(10_800, unit="s", tz="UTC"),
     ]
     assert df["funding_rate"].tolist() == [0.01 / 100, -0.028 / 100]
     # dtype matches normalize_funding output (canonical funding frame)
@@ -93,6 +93,24 @@ async def test_page_boundary_duplicates_are_deduped():
     )
     assert len(df) == 3
     assert df["timestamp"].is_unique
+
+
+async def test_forming_funding_candle_is_excluded_and_close_is_available_at_end():
+    api = _FakeApi(pages=[{
+        "success": True,
+        "result": [
+            {"time": 3_600, "close": 0.01},
+            {"time": 7_200, "close": 0.02},
+        ],
+    }])
+
+    df = await fetch_delta_funding_history(
+        "BTCUSD", days=1, now_s=9_000, http_get_json=api
+    )
+
+    assert len(df) == 1
+    assert df.loc[0, "timestamp"] == pd.Timestamp(7_200, unit="s", tz="UTC")
+    assert df.loc[0, "funding_rate"] == 0.01 / 100
 
 
 async def test_empty_result_returns_typed_empty_frame():

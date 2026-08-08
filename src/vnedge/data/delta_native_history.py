@@ -10,6 +10,9 @@ symbol prefix (verified live 2026-07-07):
 
 returns hourly candles whose ``close`` is the funding rate in PERCENT
 (e.g. ``-0.028`` == -0.028%), newest-first, with ``time`` in epoch SECONDS.
+``time`` is the start of the hourly candle.  The endpoint also returns the
+currently forming hour, so its ``close`` is not settled or causally available
+until ``time + 1h``.
 An unknown symbol yields ``{"success": true, "result": []}``; a malformed
 request yields ``{"success": false, "error": {...}}``.
 
@@ -151,8 +154,11 @@ async def fetch_delta_funding_history(
     Returns the canonical funding frame ([timestamp tz-aware UTC,
     funding_rate as a FRACTION]; percent is divided by 100 here), sorted
     ascending and deduped — an empty (properly typed) frame when the venue
-    has no data for the range. Raises on HTTP errors or a ``success: false``
-    payload so callers choose their own fallback posture.
+    has no data for the range. ``timestamp`` is the first time the hourly
+    close may be used: raw candle start plus one resolution interval. Forming
+    rows whose availability time is after ``now_s`` are excluded. Raises on
+    HTTP errors or a ``success: false`` payload so callers choose their own
+    fallback posture.
 
     ``http_get_json`` is injectable for tests; the default uses urllib in a
     worker thread (no extra HTTP dependency).
@@ -194,10 +200,16 @@ async def fetch_delta_funding_history(
         )
         return normalize_funding([])
 
-    df = pd.DataFrame(rows, columns=["ts_s", "close_pct"])
+    df = pd.DataFrame(rows, columns=["raw_start_s", "close_pct"])
+    df["available_s"] = df["raw_start_s"] + step_s
+    # Delta exposes the currently forming funding candle. Its changing close
+    # must never enter historical state until the full interval has elapsed.
+    df = df.loc[df["available_s"] <= end_s].copy()
+    if df.empty:
+        return normalize_funding([])
     # epoch seconds -> ms before to_datetime so the dtype matches
     # normalize_funding output exactly (datetime64[ms, UTC])
-    df["timestamp"] = pd.to_datetime(df["ts_s"] * 1_000, unit="ms", utc=True)
+    df["timestamp"] = pd.to_datetime(df["available_s"] * 1_000, unit="ms", utc=True)
     # Delta reports funding as a PERCENT; normalise to the fraction convention
     # used everywhere else (same /100 as the native websocket client).
     df["funding_rate"] = df["close_pct"].astype("float64") / 100.0
