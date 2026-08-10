@@ -24,6 +24,31 @@ class SignalGateConfig:
     primary_timeframes: tuple[str, ...] = ("1m", "5m")
 
 
+def candidate_gate_failures(
+    candidate: SignalCandidate,
+    gates: SignalGateConfig,
+) -> tuple[str, ...]:
+    """Return every failed economic/quality gate for one candidate.
+
+    This is deliberately a pure function.  Closed-candle and event-driven
+    research paths call the same policy so one path cannot silently relax a
+    threshold or omit a check.
+    """
+
+    failed: list[str] = []
+    if candidate.symbol not in gates.allowed_symbols:
+        failed.append("symbol_not_enabled")
+    if candidate.fee_adjusted_expectancy_bps < gates.min_expectancy_bps:
+        failed.append("fee_adjusted_expectancy_below_gate")
+    if candidate.scalper_probability < gates.min_probability:
+        failed.append("probability_below_gate")
+    if candidate.confidence < gates.min_confidence:
+        failed.append("confidence_below_gate")
+    if candidate.expected_hold_seconds > candidate.time_stop_seconds:
+        failed.append("scalper_window_noncompliant")
+    return tuple(failed)
+
+
 @dataclass(frozen=True)
 class PipelineStage:
     name: str
@@ -190,17 +215,7 @@ class DeltaScalperSignalGenerator:
         accepted: list[SignalCandidate] = []
         gates_started = perf_counter_ns()
         for candidate in candidates:
-            failed: list[str] = []
-            if candidate.symbol not in self.gates.allowed_symbols:
-                failed.append("symbol_not_enabled")
-            if candidate.fee_adjusted_expectancy_bps < self.gates.min_expectancy_bps:
-                failed.append("fee_adjusted_expectancy_below_gate")
-            if candidate.scalper_probability < self.gates.min_probability:
-                failed.append("probability_below_gate")
-            if candidate.confidence < self.gates.min_confidence:
-                failed.append("confidence_below_gate")
-            if candidate.expected_hold_seconds > candidate.time_stop_seconds:
-                failed.append("scalper_window_noncompliant")
+            failed = candidate_gate_failures(candidate, self.gates)
             if failed:
                 reasons.extend(f"{candidate.scanner_id}:{reason}" for reason in failed)
             else:

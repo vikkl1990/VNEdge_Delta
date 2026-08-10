@@ -5,9 +5,33 @@ plans, journals every decision, and can adapt a selected plan into the
 existing risk gateway.  It never submits an order itself.
 """
 
+from vnedge.scalping.delta_engine.absorption import (
+    AbsorptionDetector,
+    AbsorptionDetectorConfig,
+    AbsorptionInstrumentConfig,
+    AbsorptionObservation,
+    FootprintLevel,
+    LiquidationCluster,
+)
+from vnedge.scalping.delta_engine.absorption_research import (
+    AbsorptionResearchConfig,
+    AbsorptionResearchOutcome,
+    AbsorptionResearchSummary,
+    AbsorptionResearchTracker,
+    summarize_absorption_outcomes,
+)
 from vnedge.scalping.delta_engine.architecture import architecture_manifest
 from vnedge.scalping.delta_engine.candle_store import MultiTimeframeCandleStore
 from vnedge.scalping.delta_engine.context import MarketContextBuilder
+from vnedge.scalping.delta_engine.event_trigger import (
+    AbsorptionReversalScanner,
+    DeltaVerifiedEventBridge,
+    EventDrivenTriggerLayer,
+    EventMarketSnapshot,
+    EventTriggerConfig,
+    EventTriggerDecision,
+    SustainedFlowImbalanceScanner,
+)
 from vnedge.scalping.delta_engine.factory import (
     DeltaScalperAssembly,
     build_delta_scalper_assembly,
@@ -51,19 +75,35 @@ from vnedge.scalping.delta_engine.validation import (
 )
 
 __all__ = [
+    "AbsorptionDetector",
+    "AbsorptionDetectorConfig",
+    "AbsorptionInstrumentConfig",
+    "AbsorptionObservation",
+    "AbsorptionResearchConfig",
+    "AbsorptionResearchOutcome",
+    "AbsorptionResearchSummary",
+    "AbsorptionResearchTracker",
+    "AbsorptionReversalScanner",
     "Candle",
     "ChannelSequenceTracker",
     "DeltaFeeModel",
     "DeltaScalperAssembly",
     "DeltaScalperSignalGenerator",
+    "DeltaVerifiedEventBridge",
     "EngineDecision",
+    "EventDrivenTriggerLayer",
+    "EventMarketSnapshot",
+    "EventTriggerConfig",
+    "EventTriggerDecision",
     "ExitPath",
     "FeeBreakdown",
     "FlowSnapshot",
+    "FootprintLevel",
     "ForwardOutcome",
     "ForwardOutcomeTracker",
     "L2Confirmation",
     "L2TradeFlowStore",
+    "LiquidationCluster",
     "MarketContext",
     "MarketContextBuilder",
     "MomentumBurstScanner",
@@ -77,9 +117,11 @@ __all__ = [
     "SequenceHealth",
     "Side",
     "SignalCandidate",
+    "SustainedFlowImbalanceScanner",
     "architecture_manifest",
     "build_delta_scalper_assembly",
     "fee_sensitivity",
     "robust_validation_report",
+    "summarize_absorption_outcomes",
     "untouched_window_summary",
 ]

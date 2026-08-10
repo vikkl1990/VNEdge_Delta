@@ -33,6 +33,51 @@ logger = logging.getLogger(__name__)
 #: "PO" = post-only (maker-or-cancel); the adapter maps it to ccxt's
 #: unified ``postOnly`` param rather than ``timeInForce``.
 ALLOWED_TIME_IN_FORCE = ("GTC", "IOC", "FOK", "PO")
+ALLOWED_BRACKET_TRIGGER_METHODS = ("mark_price", "last_traded_price", "spot_price")
+
+
+@dataclass(frozen=True)
+class ServerSideBracket:
+    """Exchange-resident stop/target contract attached atomically to an entry."""
+
+    stop_loss_trigger_price: float
+    take_profit_trigger_price: float
+    stop_loss_limit_price: float | None = None
+    take_profit_limit_price: float | None = None
+    trigger_method: str = "mark_price"
+
+    def __post_init__(self) -> None:
+        prices = {
+            "stop_loss_trigger_price": self.stop_loss_trigger_price,
+            "take_profit_trigger_price": self.take_profit_trigger_price,
+            "stop_loss_limit_price": self.stop_loss_limit_price,
+            "take_profit_limit_price": self.take_profit_limit_price,
+        }
+        invalid = [name for name, value in prices.items() if value is not None and value <= 0]
+        if invalid:
+            raise ValueError(f"server-side bracket prices must be positive: {', '.join(invalid)}")
+        if self.stop_loss_trigger_price == self.take_profit_trigger_price:
+            raise ValueError("server-side bracket stop and target must differ")
+        if self.trigger_method not in ALLOWED_BRACKET_TRIGGER_METHODS:
+            raise ValueError(
+                f"invalid bracket trigger method {self.trigger_method!r} "
+                f"(allowed: {', '.join(ALLOWED_BRACKET_TRIGGER_METHODS)})"
+            )
+
+    def validate_for(self, side: str, reference_price: float | None = None) -> None:
+        if side not in {"long", "short"}:
+            raise ValueError(f"invalid bracket side: {side}")
+        stop = self.stop_loss_trigger_price
+        target = self.take_profit_trigger_price
+        if side == "long":
+            valid = stop < target and (reference_price is None or stop < reference_price < target)
+        else:
+            valid = target < stop and (reference_price is None or target < reference_price < stop)
+        if not valid:
+            anchor = "unknown entry" if reference_price is None else f"entry {reference_price}"
+            raise ValueError(
+                f"invalid {side} bracket geometry around {anchor}: stop={stop}, target={target}"
+            )
 
 
 @dataclass(frozen=True)
@@ -51,6 +96,7 @@ class OrderIntent:
     # it is live-phase preparation only; the paper/simulated venue maps
     # intents field-by-field and ignores it harmlessly.
     time_in_force: str | None = None
+    server_side_bracket: ServerSideBracket | None = None
 
     def __post_init__(self) -> None:
         if self.time_in_force is not None and self.time_in_force not in ALLOWED_TIME_IN_FORCE:
@@ -58,6 +104,10 @@ class OrderIntent:
                 f"invalid time_in_force {self.time_in_force!r} "
                 f"(allowed: {', '.join(ALLOWED_TIME_IN_FORCE)}, or None for venue default)"
             )
+        if self.server_side_bracket is not None:
+            if self.reduce_only:
+                raise ValueError("reduce-only exits cannot create a new server-side bracket")
+            self.server_side_bracket.validate_for(self.side, self.limit_price)
 
 
 @dataclass(frozen=True)

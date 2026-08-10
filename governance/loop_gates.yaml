@@ -4,6 +4,7 @@ description: Research-loop control plane for VNEDGE AI Quant OS. These gates nev
   grant paper, shadow, or live permission.
 
 promotion:
+  policy_version: v1.2.0
   burn_registry_required: true
   verifier_required_before_paper: true
   untouched_window_required: true

@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 
 from vnedge.data.delta_native_history import (
+    delta_history_symbol,
     fetch_delta_candle_history,
     fetch_delta_funding_history,
 )
@@ -180,3 +181,16 @@ async def test_public_candle_history_filters_forming_bar_and_normalizes():
     assert len(frame) == 1  # 00:01 bar is still forming at t=90
     assert frame.loc[0, "close"] == 101
     assert api.calls[0]["symbol"] == "BTCUSD"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("MARK:BTC/USD:USD", "MARK:BTCUSD"),
+        ("OI:eth/usd:usd", "OI:ETHUSD"),
+        ("FUNDING:BTCUSD", "FUNDING:BTCUSD"),
+        (".DEXBTUSD", ".DEXBTUSD"),
+    ],
+)
+def test_delta_history_symbol_preserves_documented_synthetic_prefixes(raw, expected):
+    assert delta_history_symbol(raw) == expected

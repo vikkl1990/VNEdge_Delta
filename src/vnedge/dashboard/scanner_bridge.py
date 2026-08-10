@@ -78,7 +78,7 @@ def dashboard_scanner_payload(payload: dict, *, now: datetime | None = None) -> 
         elif fresh_alert:
             why = "fresh completed-candle MTF/AMF rejection observation"
         else:
-            why = "waiting; latest historical observation is outside the firing window"
+            why = "waiting; no current live alert"
         rows.append(
             {
                 "strategy_id": str(report.get("scanner_id") or payload.get("scanner_id")),
@@ -86,6 +86,12 @@ def dashboard_scanner_payload(payload: dict, *, now: datetime | None = None) -> 
                 "symbol": str(symbol),
                 "timeframe": timeframe,
                 "state": state,
+                # The batch MTF scanner publishes historical alert counts but
+                # does not expose a cumulative live evaluation counter. Keep
+                # that distinction explicit; the dashboard must not invent 1.
+                "evaluations": summary.get("evaluations"),
+                "historical_alerts": int(summary.get("alerts") or 0),
+                "last_alert_ts": observed_at,
                 "latest_eval_ts": observed_at or generated_at,
                 "latest_bar_ts": generated_at,
                 "latest_eval": {

@@ -53,13 +53,16 @@ _REQUEST_TIMEOUT_SECONDS = 15.0
 
 _RESOLUTION_SECONDS: dict[str, int] = {
     "1m": 60,
+    "3m": 180,
     "5m": 300,
     "15m": 900,
     "30m": 1_800,
     "1h": 3_600,
     "2h": 7_200,
     "4h": 14_400,
+    "6h": 21_600,
     "1d": 86_400,
+    "1w": 604_800,
 }
 
 
@@ -85,7 +88,7 @@ async def fetch_delta_candle_history(
     if start_s >= end_s:
         raise ValueError("start_s must be before end_s")
     get = http_get_json or _http_get_json
-    native = delta_native_symbol(symbol)
+    native = delta_history_symbol(symbol)
     window_s = _CANDLES_PER_PAGE * step_s
     rows: list[dict] = []
     cursor = int(start_s)
@@ -133,6 +136,22 @@ async def fetch_delta_candle_history(
         cutoff = pd.Timestamp(end_s, unit="s", tz="UTC")
         frame = frame.loc[frame["timestamp"] + pd.to_timedelta(step_s, unit="s") <= cutoff]
     return frame.reset_index(drop=True)
+
+
+def delta_history_symbol(symbol: str) -> str:
+    """Normalize a traded or documented synthetic Delta history symbol.
+
+    ``delta_native_symbol`` quite correctly treats ``:`` as the CCXT settle
+    suffix delimiter. Delta's historical API also uses ``:`` for its MARK,
+    OI, and FUNDING namespaces, so those prefixes must be preserved explicitly.
+    """
+
+    raw = symbol.strip()
+    upper = raw.upper()
+    for prefix in ("MARK:", "OI:", "FUNDING:"):
+        if upper.startswith(prefix):
+            return prefix + delta_native_symbol(raw[len(prefix) :])
+    return delta_native_symbol(raw)
 
 
 def _http_get_json(url: str) -> dict:

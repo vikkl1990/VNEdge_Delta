@@ -82,6 +82,7 @@ def test_lane_summary_carries_feed_and_eval_observability():
             "features": {"funding_pct": 0.62, "close_z": -0.4},
             "thresholds": {"extreme_pct": 0.85, "z_entry": 1.5},
         },
+        "why_no_trade": "last_eval_no_signal",
     }
     p.sink("binance", "binanceusdm").publish(s)
     lane = p.latest()["lanes"][0]
@@ -89,6 +90,7 @@ def test_lane_summary_carries_feed_and_eval_observability():
     assert lane["staleness_ms"] == 1234.0
     assert lane["last_eval"]["features"]["funding_pct"] == 0.62
     assert lane["last_eval"]["thresholds"]["z_entry"] == 1.5
+    assert lane["why_no_trade"] == "last_eval_no_signal"
     assert lane["funnel"]["live_evals"] == 5
     assert lane["funnel"]["backfill_evals"] == 3
     assert lane["funnel"]["live_signals"] == 2

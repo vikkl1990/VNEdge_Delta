@@ -1321,6 +1321,7 @@ class LivePaperSession:
                 "recon_mismatches": self.recon_mismatches,
                 "dropped_candles": self.dropped_candles,
                 "timeframe": self.config.timeframe,
+                "why_no_trade": self._why_no_trade("waiting_for_closed_candle"),
                 "last_fired_ts": self.last_fired_ts,
                 "last_eval": self.last_eval,
                 "shadow_perf": self.shadow_outcomes.stats()

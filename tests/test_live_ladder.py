@@ -1,6 +1,16 @@
 """Live promotion ladder — explainable, no skipping, no automatic live."""
 
+from datetime import UTC, datetime, timedelta
+
 from vnedge.config.settings import LIVE_CONFIRMATION_PHRASE, Settings, TradingMode
+from vnedge.governance.promotion_policy import DEFAULT_PROMOTION_POLICY
+from vnedge.governance.proofs import (
+    ArtifactDigest,
+    PaperEligibilityProof,
+    PromotionMetrics,
+    PromotionPolicyEvaluator,
+    VerifiableProof,
+)
 from vnedge.runtime.live_ladder import (
     LiveLadderEvidence,
     LiveLadderStage,
@@ -9,20 +19,73 @@ from vnedge.runtime.live_ladder import (
 )
 
 
+def _paper_proof(*, expired: bool = False) -> PaperEligibilityProof:
+    now = datetime.now(UTC)
+    created = now - timedelta(days=2) if expired else now
+    chain_ttl = timedelta(days=30)
+    artifacts = (
+        ArtifactDigest.from_json("strategy_config", {"id": "candidate_v1"}),
+        ArtifactDigest.from_text("source_commit", "0123456789abcdef"),
+        ArtifactDigest.from_json("dataset_window", {"end": "sealed"}),
+        ArtifactDigest.from_json("cost_model", {"round_trip_bps": 12.0}),
+    )
+    common = {
+        "issuer": "test",
+        "strategy_id": "candidate_v1",
+        "symbol": "BTCUSD",
+        "policy": DEFAULT_PROMOTION_POLICY,
+        "artifacts": artifacts,
+        "created_at": created,
+        "ttl": chain_ttl,
+    }
+    selection = VerifiableProof.issue(
+        proof_type="selection_evidence", claims={"passed": True}, **common
+    )
+    untouched = VerifiableProof.issue(
+        proof_type="untouched_evidence",
+        claims={"passed": True},
+        previous_proof_hash=selection.proof_hash,
+        **common,
+    )
+    human = VerifiableProof.issue(
+        proof_type="human_approval",
+        claims={"approved": True},
+        previous_proof_hash=untouched.proof_hash,
+        **common,
+    )
+    decision = PromotionPolicyEvaluator(
+        DEFAULT_PROMOTION_POLICY, issuer="test-evaluator"
+    ).evaluate_paper_eligibility(
+        selection_proof=selection,
+        untouched_proof=untouched,
+        human_approval_proof=human,
+        metrics=PromotionMetrics(
+            completed_trades=30,
+            average_net_bps=30.0,
+            profit_factor=1.6,
+        ),
+        artifacts=artifacts,
+        now=created,
+        ttl=timedelta(days=1) if expired else timedelta(days=30),
+    )
+    assert decision.proof is not None
+    return decision.proof
+
+
 def test_backtest_to_paper_requires_locked_untouched_human_evidence():
     decision = evaluate_live_ladder(
         LiveLadderEvidence(
             current_stage=LiveLadderStage.BACKTEST,
             target_stage=LiveLadderStage.PAPER,
-            params_locked=True,
-            model_registered=True,
-            untouched_judgment_passed=True,
-            human_approved=True,
+            strategy_id="candidate_v1",
+            symbol="BTCUSD",
+            paper_eligibility_proof=_paper_proof(),
         )
     )
 
     assert decision.allowed
     assert decision.blockers == ()
+    assert decision.policy_version == DEFAULT_PROMOTION_POLICY.policy_version
 
 
 def test_backtest_to_paper_lists_all_missing_evidence():
@@ -34,12 +97,38 @@ def test_backtest_to_paper_lists_all_missing_evidence():
     )
 
     assert not decision.allowed
-    assert set(decision.blockers) == {
-        "paper requires frozen, versioned strategy parameters",
-        "paper requires a strategy/model registry entry",
-        "paper requires a passed untouched-data judgment",
-        "paper requires explicit human approval",
-    }
+    assert decision.blockers == ("paper requires a valid PaperEligibilityProof",)
+
+
+def test_backtest_to_paper_rejects_expired_proof():
+    decision = evaluate_live_ladder(
+        LiveLadderEvidence(
+            current_stage=LiveLadderStage.BACKTEST,
+            target_stage=LiveLadderStage.PAPER,
+            strategy_id="candidate_v1",
+            symbol="BTCUSD",
+            paper_eligibility_proof=_paper_proof(expired=True),
+        )
+    )
+
+    assert not decision.allowed
+    assert "proof expired" in decision.blockers
+
+
+def test_backtest_to_paper_rejects_proof_for_another_strategy_or_market():
+    decision = evaluate_live_ladder(
+        LiveLadderEvidence(
+            current_stage=LiveLadderStage.BACKTEST,
+            target_stage=LiveLadderStage.PAPER,
+            strategy_id="different_candidate",
+            symbol="ETHUSD",
+            paper_eligibility_proof=_paper_proof(),
+        )
+    )
+
+    assert not decision.allowed
+    assert "strategy mismatch: candidate_v1 != different_candidate" in decision.blockers
+    assert "symbol mismatch: BTCUSD != ETHUSD" in decision.blockers
 
 
 def test_ladder_cannot_skip_from_paper_to_live_small():

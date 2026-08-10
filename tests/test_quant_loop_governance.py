@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -11,7 +11,6 @@ from vnedge.research.quant_loop_governance import (
     publish_quant_loop_audit,
     run_quant_loop_audit,
 )
-
 
 NOW = datetime(2026, 7, 23, 12, 0, tzinfo=UTC)
 
@@ -29,6 +28,7 @@ def _write_gates(path: Path, *, max_runs: int = 96) -> Path:
             {
                 "version": 1,
                 "promotion": {
+                    "policy_version": "v1.2.0",
                     "burn_registry_required": True,
                     "verifier_required_before_paper": True,
                     "untouched_window_required": True,

@@ -96,6 +96,12 @@ def test_delta_fee_model_all_offer_and_deto_routes(deto, maker, hold, expected_f
 def test_checked_in_config_is_valid_and_cannot_unlock_live():
     config = load_delta_scalper_config()
     assert config.engine.symbols == ("BTCUSD", "ETHUSD")
+    assert config.engine.can_trade is False
+    assert config.engine.can_promote is False
+    assert config.engine.order_route == "absent"
+    assert config.engine.broker == "absent"
+    assert config.engine.validated_edge is False
+    config.assert_runtime_safe()
     assert config.scanners.hierarchical_pullback.enabled is False
     assert config.scanners.hierarchical_pullback.prefer_maker is False
     assert config.scanners.hierarchical_pullback.min_four_hour_adx == 22.0
@@ -127,6 +133,10 @@ def test_checked_in_config_is_valid_and_cannot_unlock_live():
                 }
             }
         )
+    with pytest.raises(ValueError, match="retired primary scanners"):
+        DeltaScalperConfig.model_validate(
+            {"scanners": {"momentum_burst": {"enabled": True}}}
+        ).assert_runtime_safe()
 
     frozen = load_delta_scalper_config("configs/research/delta_scalper_htf_pullback_v1.yaml")
     assert frozen.scanners.hierarchical_pullback.enabled is True
@@ -161,11 +171,17 @@ def test_shared_assembly_applies_yaml_scanner_fee_and_timeframe_settings():
 
 def test_architecture_manifest_reports_deployed_research_boundary():
     manifest = architecture_manifest()
+    assert manifest["identity"]["scope"] == "local_delta_india_research_laboratory"
+    assert manifest["identity"]["validated_after_cost_edge"] is False
+    assert manifest["identity"]["active_research_direction"] == (
+        "event_time_data_integrity_and_replay"
+    )
     assert manifest["runtime"]["process_model"] == "single_process_asyncio_research_sidecar"
     assert manifest["runtime"]["offline_replay_uses_live_modules"] is True
     assert manifest["components"]["existing_risk_gateway_adapter"] == ("available_not_invoked")
     assert manifest["safety"]["order_route_present"] is False
     assert manifest["safety"]["can_trade"] is False
+    assert "momentum_burst_v1" in manifest["retired_primary_hypotheses"]
 
 
 def test_scalper_offer_is_never_assumed_without_opt_in():
@@ -174,6 +190,64 @@ def test_scalper_offer_is_never_assumed_without_opt_in():
     )
     assert not result.scalper_eligible
     assert result.total_bps == pytest.approx(2.36 + 5.90)
+
+
+def test_standard_delta_india_round_trip_cost_scenarios():
+    model = DeltaFeeModel(
+        deto_enabled=False,
+        scalper_opted_in=False,
+        default_slippage_bps_per_leg=0,
+    )
+    maker = model.breakdown(
+        "BTCUSD", entry_is_maker=True, exit_is_maker=True, hold_seconds=300
+    )
+    mixed = model.breakdown(
+        "BTCUSD", entry_is_maker=True, exit_is_maker=False, hold_seconds=300
+    )
+    taker = model.breakdown(
+        "BTCUSD", entry_is_maker=False, exit_is_maker=False, hold_seconds=300
+    )
+    conservative = model.breakdown(
+        "BTCUSD",
+        entry_is_maker=False,
+        exit_is_maker=False,
+        hold_seconds=300,
+        slippage_bps_per_leg=1.5,
+    )
+
+    assert maker.total_bps == pytest.approx(4.72)
+    assert mixed.total_bps == pytest.approx(8.26)
+    assert taker.total_bps == pytest.approx(11.80)
+    assert conservative.total_bps == pytest.approx(14.80)
+    assert conservative.funding_bps is None
+    assert conservative.funding_included is False
+
+
+def test_settled_funding_is_signed_and_included_only_when_supplied():
+    model = DeltaFeeModel(
+        scalper_opted_in=False,
+        default_slippage_bps_per_leg=1.5,
+    )
+    rates = (0.0001, -0.000025)
+    long_funding = model.settled_funding_bps("long", rates)
+    short_funding = model.settled_funding_bps("short", rates)
+    long = model.breakdown(
+        "ETHUSD", entry_is_maker=False, hold_seconds=86_400, funding_bps=long_funding
+    )
+    short = model.breakdown(
+        "ETHUSD", entry_is_maker=False, hold_seconds=86_400, funding_bps=short_funding
+    )
+
+    assert long_funding == pytest.approx(0.75)
+    assert short_funding == pytest.approx(-0.75)
+    assert long.funding_bps == pytest.approx(0.75)
+    assert long.funding_included is True
+    assert long.total_bps == pytest.approx(15.55)
+    assert short.total_bps == pytest.approx(14.05)
+    with pytest.raises(ValueError, match="finite"):
+        model.breakdown(
+            "ETHUSD", entry_is_maker=False, hold_seconds=300, funding_bps=float("nan")
+        )
 
 
 def test_candle_store_converts_delta_start_to_close_and_rejects_future():

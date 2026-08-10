@@ -203,13 +203,97 @@ def test_dashboard_shell_is_not_cached(client):
     assert "no-store" in r.headers.get("cache-control", "").lower()
 
 
-def test_dashboard_shell_is_the_perps_desk(client):
+def test_dashboard_home_is_delta_research_sidecar(client):
     r = client.get("/")
     assert r.status_code == 200
     html = r.text
-    # Redesigned dashboard (2026-07): an autonomous perps *desk*, not a lab.
-    # Views — Desk / Journal / Promote / Research / System / About — reading the
-    # read-only /state stream. The VN-monogram mark + the desk cockpit are the shell.
+    assert "VNEDGE · Delta India Research Sidecar" in html
+    assert 'value !== null && value !== undefined && value !== ""' in html
+    assert "Paper &amp; Live Trading Locked" in html
+    assert "All primary scanners disabled" in html
+    assert "No validated after-cost edge" in html
+    assert "Event hypotheses remain feature-only until deterministic causal replay is proven" in html
+    assert "No active scanners. No research candidates. System is monitoring only." in html
+    assert 'fetch("/delta-scalper"' in html
+    assert 'fetch("/event-research-infrastructure"' in html
+    assert 'href="/research-lab"' in html
+    assert "BTCUSD" in html
+    assert "ETHUSD" in html
+    assert "Local Event, AI and Safety Build" in html
+    assert "Delta Research Lanes" in html
+    assert "Signal Funnel" in html
+    assert "Live Market Context" in html
+    assert "System Health" in html
+    assert "Multi-TF Coherence" in html
+    assert "Observations &amp; Latest Decisions" in html
+    assert "/api/delta/health/stream" in html
+    assert "new EventSource" in html
+    assert 'href="/delta-research#evidence"' in html
+    assert 'id="laneGrid"' in html
+    assert 'id="signalFunnel"' in html
+    assert 'data-funnel-stage=' in html
+    for capability in (
+        "Delta Event Recorder",
+        "Incremental Event Trigger",
+        "Absorption Detector",
+        "Deterministic Event Replay",
+        "Kronos AI Research",
+        "Forced-Flow Panel",
+        "Governance Proof Chain",
+        "Delta Execution Safety",
+        "TradingView Rule Adapter",
+    ):
+        assert capability in html
+
+
+def test_delta_research_detail_is_secondary_read_only_view(client):
+    response = client.get("/delta-research")
+    assert response.status_code == 200
+    html = response.text
+    assert "Delta Research Detail" in html
+    assert "Evidence &amp; Backtests" in html
+    assert "Data Integrity" in html
+    assert "Config &amp; Scanners" in html
+    assert "Latency &amp; Feeds" in html
+    assert "can_trade=false" in html
+    assert 'fetch("/delta-scalper"' in html
+    assert 'fetch("/event-research-infrastructure"' in html
+
+
+def test_delta_endpoint_reports_locked_identity_and_unproven_edge(tmp_path):
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    app = create_app(
+        provider,
+        token="t3st-token",
+        delta_scalper_path=tmp_path / "missing-delta-snapshot.json",
+    )
+    payload = TestClient(app).get("/delta-scalper?token=t3st-token").json()
+
+    assert payload["identity"] == {
+        "product": "VNEDGE Delta India Research Laboratory",
+        "runtime": "delta_scalper_research_shadow",
+        "primary_symbols": ["BTCUSD", "ETHUSD"],
+        "validated_after_cost_edge": False,
+        "active_research_direction": "event_time_data_integrity_and_replay",
+    }
+    assert payload["policy"] == {
+        "research_only": True,
+        "l2_is_confirmation_only": True,
+        "paper_trading": False,
+        "live_trading": False,
+        "validated_edge": False,
+        "order_route": "absent",
+        "broker": "absent",
+        "can_trade": False,
+        "can_promote": False,
+    }
+
+
+def test_multi_venue_perps_desk_is_secondary_research_lab(client):
+    r = client.get("/research-lab")
+    assert r.status_code == 200
+    html = r.text
     assert "Autonomous Perps Desk" in html
     assert 'id="vnmark"' in html                       # the logo mark
     for view in ("desk", "journal", "promote", "research", "system", "about"):
@@ -219,8 +303,8 @@ def test_dashboard_shell_is_the_perps_desk(client):
     assert 'id="tape"' in html                         # live signal tape
     assert 'id="watch"' in html                        # coverage strip
     assert 'id="eqChart"' in html                      # equity curve
-    assert "Active Lanes" in html
-    assert "Live Signal Tape" in html
+    assert "Research Lanes" in html
+    assert "Research Observation Tape" in html
     assert "Delta 5m Event Clock" in html
     assert "/delta-5m-event-clock" in html
     assert "Exchange Connections" in html
@@ -294,6 +378,7 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
     provider.publish({"mode": "shadow", "equity": 500.0})
     kb = tmp_path / "pine_research_kb.json"
     distiller = tmp_path / "pine_alpha_distiller_latest.json"
+    tv_rule = tmp_path / "tv_rule_adapter_latest.json"
     progress = tmp_path / "scanner_tournament_progress.json"
     uplift = tmp_path / "pine_edge_uplift_agent_latest.json"
     executor = tmp_path / "edge_uplift_experiments_latest.json"
@@ -320,6 +405,22 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
         "distiller_id": "pine_alpha_distiller_v1",
         "summary": {"source_backed_reviewed": 1, "port_candidates": 1},
         "port_tasks": [{"recommended_port": "fvg_liquidity_breakout_v1"}],
+        "can_trade": False,
+        "can_promote": False,
+    }))
+    tv_rule.write_text(json.dumps({
+        "adapter_id": "tv_rule_adapter_v1",
+        "status": "READY_FOR_LOCAL_REPLAY",
+        "summary": {"assignments": 4, "indicator_assignments": 3, "blockers": 0},
+        "rule_spec": {"title": "Local Breakout", "timeframe": "5m", "blockers": []},
+        "evaluation": {"long_signals": 3, "short_signals": 1},
+        "policy": {
+            "network_access": False,
+            "tradingview_data_used": False,
+            "unofficial_tvscreener_dependency": False,
+            "local_closed_candles_only": True,
+            "research_only": True,
+        },
         "can_trade": False,
         "can_promote": False,
     }))
@@ -532,6 +633,7 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
         token="t3st-token",
         pine_research_path=kb,
         pine_alpha_distiller_path=distiller,
+        tv_rule_spec_path=tv_rule,
         backtest_progress_path=progress,
         pine_edge_uplift_path=uplift,
         edge_uplift_executor_path=executor,
@@ -549,6 +651,7 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
     assert "Pine Research Lab" in page.text
     assert "/pine-research/kb" in page.text
     assert "/pine-research/distiller" in page.text
+    assert "/pine-research/rule-spec" in page.text
     assert "/pine-research/progress" in page.text
     assert "/pine-research/uplift-agent" in page.text
     assert "/pine-research/uplift-executor" in page.text
@@ -567,6 +670,7 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
     assert "Unified Evidence Index" in page.text
     assert "Execution Replay Profile" in page.text
     assert "Pine Coverage Auditor" in page.text
+    assert "Local TradingView Rule Adapter" in page.text
     assert "renderCoverageAudit" in page.text
     assert "renderBacktestProgress" in page.text
     assert "renderUpliftAgent" in page.text
@@ -576,6 +680,7 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
     assert "renderUpliftExecutor" in page.text
     assert "renderEvidenceIndex" in page.text
     assert "renderExecutionProfile" in page.text
+    assert "renderTVRuleAdapter" in page.text
     assert "AI review" in page.text
     assert "hasCompletedEvidence" in page.text
     assert "publisherEvidenceCounts" in page.text
@@ -585,6 +690,7 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
 
     assert client.get("/pine-research/kb").status_code == 401
     assert client.get("/pine-research/distiller").status_code == 401
+    assert client.get("/pine-research/rule-spec").status_code == 401
     assert client.get("/pine-research/progress").status_code == 401
     assert client.get("/pine-research/uplift-agent").status_code == 401
     assert client.get("/pine-research/uplift-executor").status_code == 401
@@ -608,6 +714,14 @@ def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
     assert distiller_payload["summary"]["port_candidates"] == 1
     assert distiller_payload["can_trade"] is False
     assert distiller_payload["can_promote"] is False
+    tv = client.get("/pine-research/rule-spec?token=t3st-token")
+    assert tv.status_code == 200
+    tv_payload = tv.json()
+    assert tv_payload["adapter_id"] == "tv_rule_adapter_v1"
+    assert tv_payload["policy"]["network_access"] is False
+    assert tv_payload["policy"]["tradingview_data_used"] is False
+    assert tv_payload["can_trade"] is False
+    assert tv_payload["can_promote"] is False
     p = client.get("/pine-research/progress?token=t3st-token")
     assert p.status_code == 200
     progress_payload = p.json()
@@ -944,17 +1058,21 @@ def test_dashboard_inline_js_parses_under_node():
     node = shutil.which("node")
     if node is None:
         pytest.skip("node not available")
-    html = (_Path(__file__).resolve().parents[1]
-            / "src/vnedge/dashboard/static/index.html").read_text()
-    scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
-    assert scripts, "no inline script found"
-    for block in scripts:
-        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
-            fh.write(block)
-            path = fh.name
-        result = subprocess.run([node, "--check", path],
-                                capture_output=True, text=True)
-        assert result.returncode == 0, result.stderr
+    static_dir = (
+        _Path(__file__).resolve().parents[1] / "src/vnedge/dashboard/static"
+    )
+    for filename in ("index.html", "delta_home.html"):
+        html = (static_dir / filename).read_text()
+        scripts = re.findall(r"<script>(.*?)</script>", html, re.S)
+        assert scripts, f"no inline script found in {filename}"
+        for block in scripts:
+            with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as fh:
+                fh.write(block)
+                path = fh.name
+            result = subprocess.run(
+                [node, "--check", path], capture_output=True, text=True
+            )
+            assert result.returncode == 0, f"{filename}: {result.stderr}"
 
 
 def test_no_snapshot_yet_is_503():

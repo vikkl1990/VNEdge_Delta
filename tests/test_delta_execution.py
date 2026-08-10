@@ -1,4 +1,5 @@
 """Tests for the native Delta India execution adapter — safety + mapping."""
+
 from __future__ import annotations
 
 import asyncio
@@ -39,7 +40,7 @@ class FakeDelta:
 
     def get_order_by_client_id(self, coid):
         if coid not in self.lookup:
-            raise Exception("not found")
+            raise RuntimeError("not found")
         return self.lookup[coid]
 
     def cancel_order(self, product_id, order_id):
@@ -66,11 +67,19 @@ def test_real_orders_require_credentials():
 def test_mainnet_requires_live_confirmed():
     with pytest.raises(ValueError, match="live_confirmed"):
         DeltaRestExecutionAdapter(
-            dry_run=False, api_key="k", api_secret="s", testnet=False, live_confirmed=False,
+            dry_run=False,
+            api_key="k",
+            api_secret="s",
+            testnet=False,
+            live_confirmed=False,
         )
     # with the gate set, construction is allowed
     DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", testnet=False, live_confirmed=True,
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        testnet=False,
+        live_confirmed=True,
         product_ids={"BTCUSD": 27},
     )
 
@@ -100,22 +109,19 @@ def test_delta_india_url_defaults_to_official_production_even_for_dry_run():
     assert live._base_url == "https://api.india.delta.exchange"
 
 
-def test_maps_long_to_buy_with_post_only_and_idempotent_id():
+def test_live_entry_cannot_bypass_execution_safety_wrapper():
     fake = FakeDelta()
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=fake, product_ids={"BTCUSD": 27},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=fake,
+        product_ids={"BTCUSD": 27},
     )
-    oid = _run(a.submit_order(_order(side="long", time_in_force="PO")))
-    assert oid == "987654"
-    call = fake.calls[0]
-    assert call["side"] == "buy"
-    assert call["post_only"] == "true"          # maker-first
-    assert call["reduce_only"] == "false"
-    assert call["client_order_id"] == "coid-1"  # journaled id sent verbatim
-    assert call["product_id"] == 27
-    assert call["order_type"].value == "limit_order"
-    assert call["time_in_force"] is None         # PO is post_only, not Delta TIF
+    with pytest.raises(AdapterRejection, match="ExecutionSafetyWrapper"):
+        _run(a.submit_order(_order(side="long", time_in_force="PO")))
+    assert fake.calls == []
 
 
 def test_delta_contract_spec_converts_base_quantity_to_integer_contracts():
@@ -144,6 +150,7 @@ def test_delta_contract_spec_converts_base_quantity_to_integer_contracts():
                 quantity=0.2,
                 notional_usd=376.2,
                 limit_price=1881.0,
+                reduce_only=True,
             )
         )
     )
@@ -202,6 +209,7 @@ def test_delta_contract_spec_market_order_uses_notional_reference_price():
                 limit_price=None,
                 order_type="market_order",
                 time_in_force=None,
+                reduce_only=True,
             )
         )
     )
@@ -212,23 +220,33 @@ def test_delta_contract_spec_market_order_uses_notional_reference_price():
 def test_short_reduce_only_exit_maps_to_sell_reduce_only():
     fake = FakeDelta()
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=fake, product_ids={"ETHUSD": 30},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=fake,
+        product_ids={"ETHUSD": 30},
     )
-    _run(a.submit_order(_order(symbol="ETHUSD", side="short", reduce_only=True, time_in_force=None)))
+    _run(
+        a.submit_order(_order(symbol="ETHUSD", side="short", reduce_only=True, time_in_force=None))
+    )
     call = fake.calls[0]
     assert call["side"] == "sell"
     assert call["reduce_only"] == "true"
-    assert call["post_only"] == "false"         # not PO -> not post-only
+    assert call["post_only"] == "false"  # not PO -> not post-only
 
 
 def test_maps_delta_ioc_time_in_force_enum_shape():
     fake = FakeDelta()
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=fake, product_ids={"BTCUSD": 27},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=fake,
+        product_ids={"BTCUSD": 27},
     )
-    _run(a.submit_order(_order(time_in_force="IOC")))
+    _run(a.submit_order(_order(time_in_force="IOC", reduce_only=True)))
     call = fake.calls[0]
     assert call["time_in_force"].value == "ioc"
 
@@ -236,8 +254,12 @@ def test_maps_delta_ioc_time_in_force_enum_shape():
 def test_rejects_nonsensical_market_post_only():
     fake = FakeDelta()
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=fake, product_ids={"BTCUSD": 27},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=fake,
+        product_ids={"BTCUSD": 27},
     )
     with pytest.raises(AdapterRejection, match="post_only"):
         _run(a.submit_order(_order(order_type="market_order", time_in_force="PO")))
@@ -246,23 +268,32 @@ def test_rejects_nonsensical_market_post_only():
 def test_unmapped_symbol_is_rejected_not_guessed():
     fake = FakeDelta()
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=fake, product_ids={},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=fake,
+        product_ids={},
     )
     with pytest.raises(AdapterRejection, match="product_id"):
-        _run(a.submit_order(_order()))
+        _run(a.submit_order(_order(reduce_only=True)))
 
 
 def test_venue_rejection_classified_as_adapter_rejection():
     class Rejecting(FakeDelta):
         def place_order(self, **kw):
-            raise Exception("insufficient margin")
+            raise RuntimeError("insufficient margin")
+
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=Rejecting(), product_ids={"BTCUSD": 27},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=Rejecting(),
+        product_ids={"BTCUSD": 27},
     )
     with pytest.raises(AdapterRejection, match="rejected"):
-        _run(a.submit_order(_order()))
+        _run(a.submit_order(_order(reduce_only=True)))
 
 
 def test_dry_run_ignores_missing_credentials():
@@ -274,8 +305,12 @@ def test_dry_run_ignores_missing_credentials():
 def test_fetch_order_status_uses_client_order_id_for_reconciliation():
     fake = FakeDelta()
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=fake, product_ids={"BTCUSD": 27},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=fake,
+        product_ids={"BTCUSD": 27},
     )
     status = _run(a.fetch_order_status(_order()))
     assert status == {"id": 111, "state": "open"}
@@ -284,8 +319,12 @@ def test_fetch_order_status_uses_client_order_id_for_reconciliation():
 def test_cancel_order_uses_verified_id_and_product_mapping():
     fake = FakeDelta()
     a = DeltaRestExecutionAdapter(
-        dry_run=False, api_key="k", api_secret="s", live_confirmed=True,
-        client=fake, product_ids={"BTCUSD": 27},
+        dry_run=False,
+        api_key="k",
+        api_secret="s",
+        live_confirmed=True,
+        client=fake,
+        product_ids={"BTCUSD": 27},
     )
     state = _run(a.cancel_order(_order()))
     assert state == "cancelled"

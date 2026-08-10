@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "src/vnedge/dashboard/static/index.html"
 QUANTIFIED = ROOT / "src/vnedge/dashboard/static/quantified_strategy_lab.html"
 APP = ROOT / "src/vnedge/dashboard/app.py"
+README = ROOT / "README.md"
+DELTA_LAUNCHER = ROOT / "scripts/start_delta_research_dashboard.sh"
 
 
 def _index() -> str:
@@ -15,6 +17,24 @@ def _index() -> str:
 
 def _quantified() -> str:
     return QUANTIFIED.read_text()
+
+
+def test_root_readme_states_current_delta_research_identity():
+    text = README.read_text()
+    assert "Local Delta India Research Laboratory" in text
+    assert "there is no validated after-cost trading edge" in text
+    assert "can_trade     = false" in text
+    assert "order_route   = absent" in text
+    assert "active research direction is **event-time data integrity" in text
+    assert "Binance Futures, Bybit, Delta Exchange India (multi-exchange design)" not in text
+
+
+def test_delta_dashboard_launcher_is_read_only_and_does_not_start_paper_runtime():
+    text = DELTA_LAUNCHER.read_text()
+    assert "vnedge.dashboard.scanner_live" in text
+    assert "vnedge.runtime.multi_lane_shadow" not in text
+    assert "MULTI_LANE_MODES" not in text
+    assert DELTA_LAUNCHER.stat().st_mode & 0o111
 
 
 def test_promote_view_has_joined_operator_lifecycle_console():
@@ -113,7 +133,29 @@ def test_dashboard_has_self_health_console_for_poll_and_ws_truth():
     assert "function renderDashboardHealth" in html
     assert "st.lastStatus" in html
     assert "wsHealth" in html
-    assert "endpoint status, browser poll failures, and payload freshness" in html
+    assert "HTTP success and research readiness are counted separately" in html
+    assert "semanticPayloadState" in html
+
+
+def test_dashboard_has_truthful_event_research_stack_surface():
+    html = _index()
+    app = APP.read_text()
+    assert "Event Research Stack" in html
+    assert 'id="eventResearchInfrastructure"' in html
+    assert "function renderEventResearchInfrastructure" in html
+    assert "function pollEventResearchInfrastructure" in html
+    assert 'poll("/event-research-infrastructure"' in html
+    assert '@app.get("/event-research-infrastructure")' in app
+    assert "implemented; no runtime publisher artifact" in html
+    assert "Kronos AI research" in html
+    assert "Forced-flow panel" in html
+    assert "Governance proofs" in html
+    assert "Delta execution safety" in html
+    assert "signed paper-proof integration still pending" in html
+    assert "No paper/live authority" in html
+    assert "The one surviving edge" not in html
+    assert "Trade-only key · read + trade" not in html
+    assert "reduce-only ready" not in html
 
 
 def test_dashboard_has_agentic_research_os_supervisor_panel():
@@ -134,6 +176,15 @@ def test_dashboard_scanner_tape_renders_trade_lifecycle_truth():
     assert "trade_lifecycle" in html
     assert "final_why_no_trade" in html
     assert "TP ladder journal-only" in html
+
+
+def test_dashboard_cockpit_does_not_render_missing_live_evals_as_zero():
+    html = _index()
+    assert "liveEvalSources" in html
+    assert "historicalAlerts" in html
+    assert "historical alerts · runtime eval count unavailable" in html
+    assert "Research Observation Tape" in html
+    assert "runtime evaluations and historical research alerts are separate" in html
 
 
 def test_dashboard_has_delta_loss_attribution_panel():
@@ -269,3 +320,27 @@ def test_dashboard_has_ctrl_k_command_palette():
     # Ctrl/Cmd-K opens it; reuses existing gotoView navigation
     assert 'toLowerCase()==="k"' in html
     assert "gotoView(" in html
+
+
+def test_research_dashboard_fails_closed_without_fake_execution_or_capital_claims():
+    html = _index()
+    assert "Research only" in html
+    assert "no order route" in html
+    assert "NOT APPLICABLE · research-only runtime" in html
+    assert "no paper capital connected" in html
+    assert "not configured in research" in html
+    assert "Execution reconciliation" in html
+    assert "not connected · no order route" in html
+    assert 'id="eqTop">—<' in html
+    assert 'id="pnlTop">—<' in html
+
+
+def test_dashboard_exposes_l2_sequence_truth_and_safe_ml_gate_defaults():
+    html = _index()
+    app = APP.read_text()
+    assert "sequence unverified" in html
+    assert "snapshot fresh" in html
+    assert "context only" in html
+    assert "g.deflated_sharpe_min==null?0.95" in html
+    assert '"deflated_sharpe_min": 0.95' in app
+    assert "paper trials are still warming up" not in html

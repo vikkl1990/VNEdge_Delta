@@ -21,13 +21,14 @@ from __future__ import annotations
 import itertools
 import logging
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import pandas as pd
 
 from vnedge.backtest.backtester import BacktestConfig, run_backtest
 from vnedge.backtest.metrics import BacktestMetrics, compute_metrics
+from vnedge.governance.promotion_policy import DEFAULT_PROMOTION_POLICY
 from vnedge.strategy.base_strategy import BaseStrategy
 
 logger = logging.getLogger(__name__)
@@ -84,9 +85,11 @@ class WalkForwardResult:
     @property
     def summary(self) -> str:
         lines = [
-            f"walk-forward: {len(self.windows)} windows | "
-            f"OOS net ${self.oos_net_profit_usd:+.2f} | "
-            f"profitable windows {self.oos_profitable_window_pct:.0f}%"
+            (
+                f"walk-forward: {len(self.windows)} windows | "
+                f"OOS net ${self.oos_net_profit_usd:+.2f} | "
+                f"profitable windows {self.oos_profitable_window_pct:.0f}%"
+            )
         ]
         for w in self.windows:
             lines.append(
@@ -198,46 +201,61 @@ def walk_forward(
 # --------------------------------------------------------------------------
 
 
+_STANDARD_POLICY = DEFAULT_PROMOTION_POLICY.walk_forward.standard
+_OFFENSIVE_POLICY = DEFAULT_PROMOTION_POLICY.walk_forward.offensive
+_SPARSE_POLICY = DEFAULT_PROMOTION_POLICY.walk_forward.sparse
+
+
 @dataclass(frozen=True)
 class PromotionGates:
-    min_splits: int = 3
-    min_total_oos_trades: int = 10
-    min_profit_factor: float = 1.1
-    max_window_drawdown_pct: float = 15.0
+    min_splits: int = _STANDARD_POLICY.min_splits
+    min_total_oos_trades: int = _STANDARD_POLICY.min_total_oos_trades
+    min_profit_factor: float = _STANDARD_POLICY.min_profit_factor
+    max_window_drawdown_pct: float = _STANDARD_POLICY.max_window_drawdown_pct
     # If in-sample was profitable, OOS must retain at least this fraction of
     # the per-window IS net profit — otherwise the edge is fitted, not real.
-    min_is_retention: float = 0.25
+    min_is_retention: float = _STANDARD_POLICY.min_is_retention
     # Sparse-event strategies (pre-registered 2026-07-02): an eventless
     # window is expected behavior, so per-window zero-trade rejection can be
     # replaced by an explicit coverage floor — never silently ignored.
-    reject_zero_trade_windows: bool = True
-    min_windows_with_trades_pct: float = 0.0
+    reject_zero_trade_windows: bool = _STANDARD_POLICY.reject_zero_trade_windows
+    min_windows_with_trades_pct: float = _STANDARD_POLICY.min_windows_with_trades_pct
     # Offensive-lane gates (0 / 1.0 = disabled). High-R strategies are
     # judged on payoff distribution, not win rate — but a "great" result
     # carried by one lucky trade is luck, and gets rejected as such.
-    min_payoff_ratio: float = 0.0
-    max_single_trade_profit_share: float = 1.0
+    min_payoff_ratio: float = _STANDARD_POLICY.min_payoff_ratio
+    max_single_trade_profit_share: float = _STANDARD_POLICY.max_single_trade_profit_share
+    policy_version: str = DEFAULT_PROMOTION_POLICY.policy_version
 
 
 #: Offensive-lane profile: asymmetric-payoff candidates. Wider drawdown
 #: tolerance and no per-window trade demand, but a stricter profit factor,
 #: a payoff-ratio floor, and a win-concentration cap.
 OFFENSIVE_GATES = PromotionGates(
-    min_total_oos_trades=15,
-    min_profit_factor=1.25,
-    max_window_drawdown_pct=12.0,
-    reject_zero_trade_windows=False,
-    min_windows_with_trades_pct=50.0,
-    min_payoff_ratio=1.8,
-    max_single_trade_profit_share=0.40,
+    min_splits=_OFFENSIVE_POLICY.min_splits,
+    min_total_oos_trades=_OFFENSIVE_POLICY.min_total_oos_trades,
+    min_profit_factor=_OFFENSIVE_POLICY.min_profit_factor,
+    max_window_drawdown_pct=_OFFENSIVE_POLICY.max_window_drawdown_pct,
+    min_is_retention=_OFFENSIVE_POLICY.min_is_retention,
+    reject_zero_trade_windows=_OFFENSIVE_POLICY.reject_zero_trade_windows,
+    min_windows_with_trades_pct=_OFFENSIVE_POLICY.min_windows_with_trades_pct,
+    min_payoff_ratio=_OFFENSIVE_POLICY.min_payoff_ratio,
+    max_single_trade_profit_share=_OFFENSIVE_POLICY.max_single_trade_profit_share,
 )
 
 
 #: Round-3 pre-registered configuration for sparse event strategies. Chosen
 #: BEFORE seeing round-3 data; do not adjust after results exist.
 SPARSE_STRATEGY_GATES = PromotionGates(
-    reject_zero_trade_windows=False,
-    min_windows_with_trades_pct=60.0,
+    min_splits=_SPARSE_POLICY.min_splits,
+    min_total_oos_trades=_SPARSE_POLICY.min_total_oos_trades,
+    min_profit_factor=_SPARSE_POLICY.min_profit_factor,
+    max_window_drawdown_pct=_SPARSE_POLICY.max_window_drawdown_pct,
+    min_is_retention=_SPARSE_POLICY.min_is_retention,
+    reject_zero_trade_windows=_SPARSE_POLICY.reject_zero_trade_windows,
+    min_windows_with_trades_pct=_SPARSE_POLICY.min_windows_with_trades_pct,
+    min_payoff_ratio=_SPARSE_POLICY.min_payoff_ratio,
+    max_single_trade_profit_share=_SPARSE_POLICY.max_single_trade_profit_share,
 )
 
 
@@ -245,6 +263,7 @@ SPARSE_STRATEGY_GATES = PromotionGates(
 class PromotionDecision:
     passed: bool
     reject_reasons: tuple[str, ...]
+    policy_version: str
 
     @property
     def summary(self) -> str:
@@ -254,8 +273,9 @@ class PromotionDecision:
 
 
 def evaluate_promotion(
-    result: WalkForwardResult, gates: PromotionGates = PromotionGates()
+    result: WalkForwardResult, gates: PromotionGates | None = None
 ) -> PromotionDecision:
+    gates = gates or PromotionGates()
     reasons: list[str] = []
     windows = result.windows
 
@@ -347,4 +367,8 @@ def evaluate_promotion(
             f"(need >= {gates.min_is_retention:.0%})"
         )
 
-    return PromotionDecision(passed=not reasons, reject_reasons=tuple(reasons))
+    return PromotionDecision(
+        passed=not reasons,
+        reject_reasons=tuple(reasons),
+        policy_version=gates.policy_version,
+    )

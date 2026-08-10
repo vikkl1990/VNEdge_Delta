@@ -31,6 +31,9 @@ New route:
 - `/pine-research/kb` serves the token-gated JSON knowledge base.
 - `/pine-research/distiller` serves the token-gated source-backed primitive
   and VNEDGE port-task queue.
+- `/pine-research/rule-spec` serves the token-gated local safe-subset compiler
+  and Delta-candle evaluation status. It never calls TradingView or the
+  unofficial `tvscreener` endpoints.
 - `/pine-research/scanner-uplift` serves the token-gated fee-wall/near-miss
   uplift report from completed scanner backtests.
 - `/pine-research/quant-loop-governance` serves the token-gated research-loop

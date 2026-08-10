@@ -34,6 +34,7 @@ import hashlib
 import json
 import logging
 import os
+import signal
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -1429,6 +1430,15 @@ async def _watch_lane_set(
 
 
 async def main() -> int:
+    shutdown_requested = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    installed_signals: list[signal.Signals] = []
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(sig, shutdown_requested.set)
+            installed_signals.append(sig)
+        except NotImplementedError:  # pragma: no cover - non-POSIX fallback
+            pass
     journal_dir = Path(os.environ.get("MULTI_LANE_JOURNAL_DIR", "logs/paper_trials"))
     lanes = desired_lane_specs()
     primary = next(spec.lane_id for spec in lanes if spec.is_primary)
@@ -1451,6 +1461,7 @@ async def main() -> int:
     )
 
     server_task = None
+    server = None
     from vnedge.dashboard.auth import TokenStore
 
     token_store = TokenStore.from_env()  # DASHBOARD_USERS + legacy DASHBOARD_TOKEN
@@ -1474,6 +1485,9 @@ async def main() -> int:
             realtime_scanner_path=Path(
                 "research/live_research/realtime_scanner_latest.json"
             ),
+            delta_scalper_path=Path(
+                "research/live_research/delta_scalper_engine_latest.json"
+            ),
             pine_research_path=Path("research/pine_scripts/pine_research_kb.json"),
         )
         server = uvicorn.Server(uvicorn.Config(
@@ -1495,8 +1509,16 @@ async def main() -> int:
             ),
             name="lane-set-watch",
         ))
+    shutdown_task = asyncio.create_task(
+        shutdown_requested.wait(), name="runtime-shutdown-request"
+    )
     try:
-        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        done, pending = await asyncio.wait(
+            [*tasks, shutdown_task], return_when=asyncio.FIRST_COMPLETED
+        )
+        if shutdown_task in done:
+            logger.info("managed shutdown requested")
+            return 0
         for task in done:
             exc = task.exception()
             if isinstance(exc, LaneSetChanged):
@@ -1506,11 +1528,23 @@ async def main() -> int:
                 raise exc
         return 0
     finally:
+        shutdown_task.cancel()
+        await asyncio.gather(shutdown_task, return_exceptions=True)
         for task in tasks:
             if not task.done():
                 task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
         if server_task is not None:
-            server_task.cancel()
+            if server is not None:
+                server.should_exit = True
+            try:
+                await asyncio.wait_for(server_task, timeout=5.0)
+            except TimeoutError:
+                server_task.cancel()
+                await asyncio.gather(server_task, return_exceptions=True)
+        for sig in installed_signals:
+            loop.remove_signal_handler(sig)
 
 
 if __name__ == "__main__":

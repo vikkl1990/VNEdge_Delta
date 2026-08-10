@@ -274,6 +274,7 @@ class MultiLaneProvider:
                 # two let the dashboard show "last fired 2d ago · 4h bars"
                 "last_fired_ts": self._lanes[lid].get("session", {}).get("last_fired_ts"),
                 "timeframe": self._lanes[lid].get("session", {}).get("timeframe"),
+                "why_no_trade": self._lanes[lid].get("session", {}).get("why_no_trade"),
                 "daily_factory": self._lanes[lid].get("session", {}).get("daily_factory"),
                 "trade_log": (self._lanes[lid].get("session", {}).get("trade_log") or [])[-10:],
                 "trade_compatibility": _lane_trade_compatibility(self._lanes[lid]),
@@ -805,6 +806,24 @@ def _save_candle_cache(cache_path: Path, history) -> None:
         logger.warning("candle cache save failed for %s: %s", cache_path, exc)
 
 
+def _closed_warmup_candles(frame, *, timeframe: str, until_ms: int):
+    """Return only candles that were fully closed at ``until_ms``.
+
+    CCXT OHLCV timestamps identify the *opening* instant of a candle and many
+    venues include the currently-forming row in REST responses.  Seeding that
+    row makes the first websocket/REST close look like a duplicate, delaying
+    live evaluation by a whole timeframe.  Keep the causal contract explicit:
+    an opening timestamp is warmup-eligible only after ``open + timeframe``.
+    """
+    if frame.empty:
+        return frame
+    closes_at = frame["timestamp"] + pd.to_timedelta(
+        _timeframe_ms(timeframe), unit="ms"
+    )
+    cutoff = pd.to_datetime(until_ms, unit="ms", utc=True)
+    return frame.loc[closes_at <= cutoff].reset_index(drop=True)
+
+
 async def _warmup_candles(rest, spec: LaneSpec, cache_path: Path, since: int, until: int):
     """Normalized warmup candles for [since, until], reusing the persisted window
     and fetching only the gap since the last run. Any cache miss/shortfall/error
@@ -828,11 +847,17 @@ async def _warmup_candles(rest, spec: LaneSpec, cache_path: Path, since: int, un
                     )
             cutoff = pd.to_datetime(since, unit="ms", utc=True)
             frame = frame[frame["timestamp"] >= cutoff].reset_index(drop=True)
+            frame = _closed_warmup_candles(
+                frame, timeframe=spec.timeframe, until_ms=until
+            )
             _save_candle_cache(cache_path, frame)
             logger.info("lane %s warmup: cache + gap-fill (%d bars)", spec.lane_id, len(frame))
             return frame
     history = normalize_candles(
         await rest.fetch_candles(spec.symbol, spec.timeframe, since, until)
+    )
+    history = _closed_warmup_candles(
+        history, timeframe=spec.timeframe, until_ms=until
     )
     _save_candle_cache(cache_path, history)
     return history

@@ -13,6 +13,7 @@ from vnedge.runtime.multi_lane import (
     LaneSpec,
     MultiLaneProvider,
     _load_candle_cache,
+    _closed_warmup_candles,
     _timeframe_ms,
     _warmup_bars,
     _warmup_candles,
@@ -54,6 +55,43 @@ def test_first_run_full_fetches_and_writes_cache(tmp_path):
     assert len(frame) >= 499
     assert cache.exists()
     assert len(rest.calls) == 1  # one full fetch
+
+
+def test_warmup_excludes_current_forming_candle():
+    import pandas as pd
+
+    frame = pd.DataFrame({
+        "timestamp": pd.to_datetime([0, _TF, 2 * _TF], unit="ms", utc=True),
+        "open": [100.0] * 3,
+        "high": [101.0] * 3,
+        "low": [99.0] * 3,
+        "close": [100.5] * 3,
+        "volume": [10.0] * 3,
+    })
+
+    # At 2.5 bars, the candle opened at 2 bars is still forming.
+    closed = _closed_warmup_candles(
+        frame, timeframe="5m", until_ms=int(2.5 * _TF)
+    )
+
+    assert closed["timestamp"].tolist() == frame["timestamp"].iloc[:2].tolist()
+
+
+def test_warmup_keeps_candle_closing_exactly_at_cutoff():
+    import pandas as pd
+
+    frame = pd.DataFrame({
+        "timestamp": pd.to_datetime([0, _TF], unit="ms", utc=True),
+        "open": [100.0] * 2,
+        "high": [101.0] * 2,
+        "low": [99.0] * 2,
+        "close": [100.5] * 2,
+        "volume": [10.0] * 2,
+    })
+
+    closed = _closed_warmup_candles(frame, timeframe="5m", until_ms=2 * _TF)
+
+    assert len(closed) == 2
 
 
 def test_second_run_fetches_only_the_gap(tmp_path):

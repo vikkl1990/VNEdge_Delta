@@ -61,6 +61,7 @@ from vnedge.dashboard.auth import (
 from vnedge.dashboard.scanner_bridge import dashboard_scanner_payload
 from vnedge.dashboard.session import SessionIssuer
 from vnedge.dashboard.session_regime import build_session_regime
+from vnedge.dashboard.sse_health import health_event_generator
 from vnedge.dashboard.trade_journal import build_trade_journal
 from vnedge.research.external_repo_synthesis import build_external_repo_synthesis
 from vnedge.research.pine_script_research import load_pine_research_payload
@@ -138,6 +139,389 @@ def _safe_float(value: object) -> float | None:
     if parsed != parsed:
         return None
     return parsed
+
+
+def _read_json_dict(path: Path | None) -> dict[str, object]:
+    """Read one research artifact without ever turning a bad file into truth."""
+
+    if path is None or not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def event_research_infrastructure_payload(
+    *,
+    event_root: Path,
+    event_trigger_telemetry_path: Path,
+    absorption_dashboard_path: Path,
+    event_replay_dir: Path,
+    kronos_matrix_path: Path | None = None,
+    kronos_confirmation_path: Path | None = None,
+    forced_flow_dir: Path | None = None,
+    tv_rule_adapter_path: Path | None = None,
+    htf_structure_path: Path | None = None,
+    htf_structure_v2_path: Path | None = None,
+) -> dict[str, object]:
+    """Truthful, read-only inventory of the new event-research stack.
+
+    Presence of code is deliberately separated from runtime evidence. A missing
+    artifact means *implemented but not running*, never "healthy" or "live".
+    """
+
+    shards = sorted(event_root.rglob("*.jsonl.gz")) if event_root.is_dir() else []
+    shards += sorted(event_root.rglob("*.jsonl.zst")) if event_root.is_dir() else []
+    partials = sorted(event_root.rglob("*.partial")) if event_root.is_dir() else []
+    manifests = sorted(event_root.rglob("*.manifest.json")) if event_root.is_dir() else []
+    recorder_runtime = _read_json_dict(event_root / "_recorder_status.json")
+    recorder_runtime_state = str(recorder_runtime.get("state") or "UNKNOWN").upper()
+    recorder_status_age_seconds: float | None = None
+    updated_at = recorder_runtime.get("updated_at")
+    if isinstance(updated_at, str):
+        try:
+            updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+            recorder_status_age_seconds = max(
+                0.0,
+                (datetime.now(UTC) - updated.astimezone(UTC)).total_seconds(),
+            )
+        except ValueError:
+            recorder_status_age_seconds = None
+    stats_seconds = _safe_float(recorder_runtime.get("stats_seconds")) or 30.0
+    recorder_is_fresh = (
+        recorder_status_age_seconds is not None
+        and recorder_status_age_seconds <= max(90.0, stats_seconds * 3.0)
+    )
+    recorder_is_running = recorder_runtime_state == "RECORDING" and recorder_is_fresh
+    recorded_events = 0
+    unreadable_manifests = 0
+    for path in manifests:
+        manifest = _read_json_dict(path)
+        records = manifest.get("records")
+        if isinstance(records, int) and not isinstance(records, bool) and records >= 0:
+            recorded_events += records
+        else:
+            unreadable_manifests += 1
+
+    if recorder_is_running:
+        recorder_status = "RECORDING"
+    elif recorder_runtime_state == "RECORDING" and not recorder_is_fresh:
+        recorder_status = "STALE_RECORDER_STATUS"
+    elif not shards:
+        recorder_status = "WAITING_FOR_TAPE"
+    elif partials or unreadable_manifests or len(manifests) != len(shards):
+        recorder_status = "ATTENTION"
+    else:
+        recorder_status = "RECORDED"
+
+    trigger = _read_json_dict(event_trigger_telemetry_path)
+    trigger_counts = trigger.get("counts") if isinstance(trigger.get("counts"), dict) else {}
+    trigger_status = "OBSERVING" if trigger else "IMPLEMENTED_NOT_RUNNING"
+    trigger_funnel = trigger.get("funnel") if isinstance(trigger.get("funnel"), dict) else {}
+    trigger_rejections = (
+        trigger.get("rejection_reasons")
+        if isinstance(trigger.get("rejection_reasons"), dict)
+        else {}
+    )
+    counterfactual = (
+        trigger.get("counterfactual_absorption")
+        if isinstance(trigger.get("counterfactual_absorption"), dict)
+        else {}
+    )
+
+    absorption = _read_json_dict(absorption_dashboard_path)
+    absorption_timeline = (
+        absorption.get("timeline") if isinstance(absorption.get("timeline"), list) else []
+    )
+    absorption_status = (
+        str(absorption.get("status") or "OBSERVING").upper()
+        if absorption
+        else "AWAITING_EVENT_TAPE"
+    )
+
+    result_files = (
+        sorted(
+            event_replay_dir.rglob("*.result.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if event_replay_dir.is_dir()
+        else []
+    )
+    replay = _read_json_dict(result_files[0]) if result_files else {}
+    validation = replay.get("validation") if isinstance(replay.get("validation"), dict) else {}
+    replay_status = (
+        "VALIDATED_RESULT"
+        if replay and validation.get("passed") is True
+        else "ATTENTION"
+        if replay
+        else "RECORDED_NOT_VALIDATED"
+        if shards
+        else "WAITING_FOR_TAPE"
+    )
+
+    kronos_matrix = _read_json_dict(kronos_matrix_path)
+    kronos_confirmation = _read_json_dict(kronos_confirmation_path)
+    kronos_completion = (
+        kronos_matrix.get("completion")
+        if isinstance(kronos_matrix.get("completion"), dict)
+        else {}
+    )
+    confirmation_completion = (
+        kronos_confirmation.get("completion")
+        if isinstance(kronos_confirmation.get("completion"), dict)
+        else {}
+    )
+    eligible = kronos_confirmation.get("eligible_selection_candidates")
+    eligible_count = len(eligible) if isinstance(eligible, list) else 0
+    forced_flow_manifests = (
+        sorted(forced_flow_dir.glob("*_manifest.json"))
+        if forced_flow_dir is not None and forced_flow_dir.is_dir()
+        else []
+    )
+    forced_flow_symbols: list[str] = []
+    forced_flow_quality_passed = 0
+    for path in forced_flow_manifests:
+        panel = _read_json_dict(path)
+        if panel.get("symbol"):
+            forced_flow_symbols.append(str(panel["symbol"]))
+        quality = panel.get("quality") if isinstance(panel.get("quality"), dict) else {}
+        if quality.get("passed") is True:
+            forced_flow_quality_passed += 1
+    tv_rule_adapter = _read_json_dict(tv_rule_adapter_path)
+    htf_structure = _read_json_dict(htf_structure_path)
+    htf_selection = (
+        htf_structure.get("selection")
+        if isinstance(htf_structure.get("selection"), dict)
+        else {}
+    )
+    htf_metrics = (
+        htf_selection.get("metrics")
+        if isinstance(htf_selection.get("metrics"), dict)
+        else {}
+    )
+    htf_gate = (
+        htf_selection.get("gate")
+        if isinstance(htf_selection.get("gate"), dict)
+        else {}
+    )
+    htf_structure_v2 = _read_json_dict(htf_structure_v2_path)
+    htf_v2_selection = (
+        htf_structure_v2.get("selection")
+        if isinstance(htf_structure_v2.get("selection"), dict)
+        else {}
+    )
+    htf_v2_metrics = (
+        htf_v2_selection.get("metrics")
+        if isinstance(htf_v2_selection.get("metrics"), dict)
+        else {}
+    )
+    htf_v2_gate = (
+        htf_v2_selection.get("gate")
+        if isinstance(htf_v2_selection.get("gate"), dict)
+        else {}
+    )
+
+    return {
+        "schema_version": "vnedge.event_research_infrastructure.v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "recorder": {
+            "implementation": "available",
+            "status": recorder_status,
+            "event_root": str(event_root),
+            "finalized_shards": len(shards),
+            "manifest_files": len(manifests),
+            "partial_files": len(partials),
+            "recorded_events_from_manifests": recorded_events,
+            "live_events": int(recorder_runtime.get("events") or 0),
+            "active_session": (
+                recorder_runtime.get("session_id") if recorder_is_running else None
+            ),
+            "runtime_state": recorder_runtime_state,
+            "runtime_status_age_seconds": recorder_status_age_seconds,
+            "runtime": recorder_runtime,
+            "unreadable_manifests": unreadable_manifests,
+            "integrity_note": "inventory only; full sequence/checksum validation runs before replay",
+            "connection": recorder_runtime.get("connection") or {
+                "connected": None,
+                "attempts": int(recorder_runtime.get("connections") or 0),
+                "reconnects": None,
+                "disconnects": None,
+            },
+            "feed_delay_by_channel": recorder_runtime.get("feed_delay_by_channel") or {},
+            "feed_delay_corrected_by_channel": (
+                recorder_runtime.get("feed_delay_corrected_by_channel") or {}
+            ),
+            "timestamp_quality": recorder_runtime.get("feed_timestamp_quality") or {},
+        },
+        "event_trigger": {
+            "implementation": "available",
+            "status": trigger_status,
+            "telemetry_present": bool(trigger),
+            "counts": trigger_counts,
+            "feed_delay": trigger.get("feed_delay") if trigger else None,
+            "receive_to_decision": trigger.get("receive_to_decision") if trigger else None,
+            "funnel": trigger_funnel,
+            "rejection_reasons": trigger_rejections,
+            "market_states": trigger.get("market_states") or {},
+            "counterfactual_absorption": counterfactual,
+        },
+        "absorption": {
+            "implementation": "available",
+            "status": absorption_status,
+            "telemetry_present": bool(absorption),
+            "symbol": absorption.get("symbol") if absorption else None,
+            "strength_gauge": absorption.get("strength_gauge") if absorption else None,
+            "observations": int(
+                trigger_counts.get("absorption_observations") or len(absorption_timeline)
+            ),
+            "counterfactual_observations": int(
+                trigger_counts.get("counterfactual_observations") or 0
+            ),
+            "counterfactual_outcomes": int(
+                trigger_counts.get("counterfactual_outcomes") or 0
+            ),
+            "latest": absorption.get("latest") if absorption else None,
+            "liquidation_strength_applied_to_signal": False,
+        },
+        "replay": {
+            "implementation": "available",
+            "status": replay_status,
+            "results_present": bool(replay),
+            "latest_result": str(result_files[0]) if result_files else None,
+            "events_processed": replay.get("events_processed") if replay else 0,
+            "candidates_emitted": replay.get("candidates_emitted") if replay else 0,
+            "deterministic_hash": replay.get("deterministic_hash") if replay else None,
+            "validation": validation,
+            "summary_metrics": replay.get("summary_metrics") if replay else {},
+            "deterministic_hash_scope": (
+                replay.get("summary_metrics", {}).get("deterministic_hash_scope")
+                if isinstance(replay.get("summary_metrics"), dict)
+                else None
+            ),
+        },
+        "research_modules": {
+            "htf_structure_break": {
+                "implementation": "available",
+                "status": (
+                    "SELECTION_PASS_TAIL_SEALED"
+                    if htf_gate.get("passed") is True
+                    else "SELECTION_REJECTED"
+                    if htf_structure
+                    else "READY_NO_ARTIFACT"
+                ),
+                "selection_trades": int(htf_metrics.get("trades") or 0),
+                "selection_net_bps": float(htf_metrics.get("net_bps") or 0.0),
+                "profit_factor": float(htf_metrics.get("profit_factor") or 0.0),
+                "scanner_funnel": htf_metrics.get("scanner_funnel") or {},
+                "untouched": htf_structure.get("untouched") or {},
+                "can_trade": False,
+                "can_promote": False,
+            },
+            "htf_structure_break_v2": {
+                "implementation": "available",
+                "status": (
+                    "SELECTION_PASS_TAIL_SEALED"
+                    if htf_v2_gate.get("passed") is True
+                    else "SELECTION_REJECTED"
+                    if htf_structure_v2
+                    else "READY_NO_ARTIFACT"
+                ),
+                "selection_trades": int(htf_v2_metrics.get("trades") or 0),
+                "selection_net_bps": float(htf_v2_metrics.get("net_bps") or 0.0),
+                "average_gross_bps": float(
+                    htf_v2_metrics.get("average_gross_bps") or 0.0
+                ),
+                "average_cost_bps": float(
+                    htf_v2_metrics.get("average_total_cost_bps") or 0.0
+                ),
+                "average_net_bps": float(
+                    htf_v2_metrics.get("average_net_bps") or 0.0
+                ),
+                "profit_factor": float(htf_v2_metrics.get("profit_factor") or 0.0),
+                "markets": htf_v2_metrics.get("markets") or {},
+                "untouched": htf_structure_v2.get("untouched") or {},
+                "funding_used": htf_v2_metrics.get("funding_used") is True,
+                "can_trade": False,
+                "can_promote": False,
+            },
+            "kronos": {
+                "implementation": "available",
+                "status": "EXPLORATORY_ONLY" if kronos_matrix else "READY_NO_ARTIFACT",
+                "matrix_present": bool(kronos_matrix),
+                "matrix_complete": kronos_completion.get("complete") is True,
+                "base_runs": kronos_completion.get("completed_base_runs", 0),
+                "permutations": kronos_completion.get("scored_permutations", 0),
+                "confirmation_base_runs": confirmation_completion.get(
+                    "completed_base_runs", 0
+                ),
+                "eligible_selection_candidates": eligible_count,
+                "holdback_evaluated": False,
+                "operator_answer": (
+                    kronos_confirmation.get("operator_answer")
+                    or kronos_matrix.get("operator_answer")
+                    or "Kronos artifacts not published"
+                ),
+            },
+            "forced_flow_panel": {
+                "implementation": "available",
+                "status": (
+                    "PANEL_READY_PROXY_ONLY"
+                    if forced_flow_manifests
+                    else "READY_NO_ARTIFACT"
+                ),
+                "symbols": sorted(set(forced_flow_symbols)),
+                "manifests": len(forced_flow_manifests),
+                "quality_passed": forced_flow_quality_passed,
+                "claims_actual_liquidations": False,
+                "can_trade": False,
+            },
+            "governance": {
+                "implementation": "available",
+                "status": "SIGNED_PROOF_MIGRATION_PENDING",
+                "sha256_proof_chain": "implemented",
+                "ed25519_keyring_primitives": "implemented",
+                "paper_manifest_signature_required": False,
+                "note": "Ed25519 primitives are tested; current proof envelopes remain SHA-256 integrity proofs, not signed identity proofs.",
+            },
+            "delta_execution_safety": {
+                "implementation": "available",
+                "status": "IMPLEMENTED_NOT_CONNECTED",
+                "deadman_interlock": "implemented",
+                "server_side_protection": "implemented",
+                "dashboard_runtime_connected": False,
+                "note": "Execution safety code is isolated from this research dashboard and has no loaded credentials or route.",
+            },
+            "tv_rule_adapter": {
+                "implementation": "available",
+                "status": (
+                    "RESEARCH_ARTIFACT_PRESENT"
+                    if tv_rule_adapter
+                    else "IMPLEMENTED_NO_PUBLISHED_ARTIFACT"
+                ),
+                "artifact_present": bool(tv_rule_adapter),
+                "research_only": True,
+                "can_trade": False,
+                "note": "TradingView rules are normalized for causal research only and cannot create execution authority.",
+            },
+        },
+        "safety": {
+            "research_only": True,
+            "can_trade": False,
+            "can_promote": False,
+            "order_route": "absent",
+            "live_state_shared": False,
+        },
+        "operator_answer": (
+            "The event recorder, incremental trigger, absorption detector, and deterministic "
+            "replay are installed as research-only components. Runtime evidence is shown "
+            "separately; missing tape or telemetry is not reported as live."
+        ),
+        "can_trade": False,
+        "can_promote": False,
+    }
 
 
 def _agent_job_adapter(job: dict) -> str:
@@ -454,6 +838,8 @@ def create_app(
     lane_readiness_path: Path | None = None,
     promotion_review_runbook_path: Path | None = None,
     realtime_scanner_path: Path | None = None,
+    delta_scalper_path: Path | None = None,
+    delta_active_cost_evidence_path: Path | None = None,
     scanner_forward_evidence_path: Path | None = None,
     lane_firing_causality_path: Path | None = None,
     paper_lane_activation_path: Path | None = None,
@@ -479,6 +865,7 @@ def create_app(
     quantified_proof_arbiter_path: Path | None = None,
     quantified_pullback_proof_path: Path | None = None,
     pine_alpha_distiller_path: Path | None = None,
+    tv_rule_spec_path: Path | None = None,
     backtest_progress_path: Path | None = None,
     pine_edge_uplift_path: Path | None = None,
     edge_uplift_executor_path: Path | None = None,
@@ -488,6 +875,15 @@ def create_app(
     quant_loop_governance_path: Path | None = None,
     evidence_index_path: Path | None = None,
     execution_replay_profile_path: Path | None = None,
+    delta_event_root: Path | None = None,
+    event_trigger_telemetry_path: Path | None = None,
+    absorption_dashboard_path: Path | None = None,
+    event_replay_dir: Path | None = None,
+    kronos_matrix_path: Path | None = None,
+    kronos_confirmation_path: Path | None = None,
+    forced_flow_dir: Path | None = None,
+    htf_structure_path: Path | None = None,
+    htf_structure_v2_path: Path | None = None,
     token_store: TokenStore | None = None,
     agent_token_store: AgentTokenStore | None = None,
     agent_audit_path: Path | None = None,
@@ -635,6 +1031,10 @@ def create_app(
         pine_alpha_distiller_path
         or Path("research/live_research/pine_alpha_distiller_latest.json")
     )
+    tv_rule_spec_file = (
+        tv_rule_spec_path
+        or Path("research/live_research/tv_rule_adapter_latest.json")
+    )
     quantified_strategy_lab_file = (
         quantified_strategy_lab_path
         or Path("research/live_research/quantified_strategy_lab_latest.json")
@@ -712,6 +1112,39 @@ def create_app(
         execution_replay_profile_path
         or Path("research/live_research/execution_replay_profile_latest.json")
     )
+    # The Delta product homepage has its own source of truth.  Keep the
+    # realtime-scanner fallback for callers that still publish the historical
+    # combined payload, but allow production/local runtimes to point directly
+    # at the dedicated Delta sidecar snapshot.
+    delta_scalper_file = (
+        delta_scalper_path
+        or realtime_scanner_path
+        or Path("research/live_research/delta_scalper_engine_latest.json")
+    )
+    delta_active_cost_evidence_file = delta_active_cost_evidence_path
+    delta_event_root_dir = delta_event_root or Path("data/delta_events")
+    event_trigger_telemetry_file = event_trigger_telemetry_path or Path(
+        "research/live_research/delta_event_trigger_telemetry_latest.json"
+    )
+    absorption_dashboard_file = absorption_dashboard_path or Path(
+        "research/live_research/delta_absorption_dashboard_latest.json"
+    )
+    event_replay_output_dir = event_replay_dir or Path("research/event_replay")
+    kronos_matrix_file = kronos_matrix_path or Path(
+        "research/live_research/kronos_permutation_matrix_latest.json"
+    )
+    kronos_confirmation_file = kronos_confirmation_path or Path(
+        "research/live_research/kronos_permutation_confirmation_latest.json"
+    )
+    forced_flow_output_dir = forced_flow_dir or Path(
+        "research/live_research/delta_forced_flow_panel"
+    )
+    htf_structure_file = htf_structure_path or Path(
+        "research/live_research/htf_structure_break_v1_latest.json"
+    )
+    htf_structure_v2_file = htf_structure_v2_path or Path(
+        "research/live_research/htf_structure_break_v2_latest.json"
+    )
     paper_lane_activation_file = (
         paper_lane_activation_path
         or Path("research/live_research/paper_lane_activation_latest.json")
@@ -783,11 +1216,28 @@ def create_app(
 
     @app.get("/")
     async def index() -> FileResponse:
-        # The shell page contains no data; all data endpoints require the token.
-        # no-store: the SPA ships on every deploy, so never let a browser serve a
-        # stale cached shell — that showed empty panels against a live backend.
+        # Delta India is the product identity. The multi-venue desk remains
+        # available below as a secondary research surface.
+        return FileResponse(
+            _STATIC_DIR / "delta_home.html",
+            headers={"Cache-Control": "no-store, must-revalidate"},
+        )
+
+    @app.get("/research-lab")
+    async def research_lab_page() -> FileResponse:
+        """Secondary, read-only multi-venue research and archival desk."""
+
         return FileResponse(
             _STATIC_DIR / "index.html",
+            headers={"Cache-Control": "no-store, must-revalidate"},
+        )
+
+    @app.get("/delta-research")
+    async def delta_research_page() -> FileResponse:
+        """Delta-only evidence, integrity, scanner, and latency detail."""
+
+        return FileResponse(
+            _STATIC_DIR / "delta_research.html",
             headers={"Cache-Control": "no-store, must-revalidate"},
         )
 
@@ -1245,8 +1695,8 @@ def create_app(
     @app.get("/ml-status")
     async def ml_status(request: Request) -> JSONResponse:
         """ML pipeline status — the meta-labeling training set accumulating from
-        live journals, the pipeline stage, and the locked promotion gates.
-        Read-only; no model trades outside the gateway/registry."""
+        research journals, the pipeline stage, and the locked promotion gates.
+        Read-only; no model or endpoint receives trade authority here."""
         user = _authorized(request)
         return JSONResponse(
             _read_json_payload(
@@ -1256,7 +1706,12 @@ def create_app(
                     "stages": [],
                     "dataset": {"samples": 0, "min_to_train": 200, "progress_pct": 0.0, "by_strategy": {}},
                     "foundation": {},
-                    "gates": {},
+                    "gates": {
+                        "deflated_sharpe_min": 0.95,
+                        "pbo_max": 0.20,
+                        "cpcv_median_profit_factor_min": 1.30,
+                        "must_beat_rule_based_baseline": True,
+                    },
                     "model": None,
                     "can_trade": False,
                     "can_promote": False,
@@ -2038,22 +2493,367 @@ def create_app(
 
         user = _authorized(request)
         payload = _read_json_payload(
-            realtime_scanner_path,
-            {"rows": [], "delta_scalper": None, "can_trade": False, "can_promote": False},
+            delta_scalper_file,
+            {"rows": [], "can_trade": False, "can_promote": False},
         )
+
         rows = [
             row
             for row in payload.get("rows", [])
             if isinstance(row, dict) and row.get("strategy_id") == "delta_scalper_engine_v1"
         ]
+        embedded_panels = payload.get("delta_scalper")
+        if not isinstance(embedded_panels, dict):
+            embedded_panels = {
+                "summary": payload.get("summary"),
+                "architecture": payload.get("architecture"),
+                "fee_model": payload.get("fee_model"),
+                "backtest_summary": payload.get("backtest_summary"),
+                "fee_effectiveness": payload.get("fee_effectiveness"),
+                "robust_validation": payload.get("robust_validation"),
+                "untouched_window": payload.get("untouched_window"),
+            }
+        else:
+            embedded_panels = dict(embedded_panels)
+
+        active_cost_evidence = embedded_panels.get("active_cost_evidence")
+        if (
+            not isinstance(active_cost_evidence, dict)
+            and delta_active_cost_evidence_file is not None
+        ):
+            active_cost_evidence = _read_json_payload(
+                delta_active_cost_evidence_file, {}
+            )
+        active_cost_metrics = (
+            active_cost_evidence.get("metrics")
+            if isinstance(active_cost_evidence, dict)
+            else None
+        )
+        if isinstance(active_cost_metrics, dict):
+            source_backtest = embedded_panels.get("backtest_summary")
+            if not isinstance(source_backtest, dict):
+                source_backtest = {}
+            active_backtest = dict(source_backtest)
+            active_backtest.update(active_cost_metrics)
+            active_backtest["positive_markets"] = active_cost_evidence.get(
+                "positive_markets", 0
+            )
+            active_backtest["markets"] = active_cost_evidence.get("markets", {})
+            active_backtest["profit_factor_note"] = (
+                "recomputed from per-trade gross returns under the active fee model"
+            )
+            active_backtest["active_cost_scenario"] = active_cost_evidence.get(
+                "fee_model", {}
+            )
+            active_backtest["source_data_quality_pass"] = bool(
+                source_backtest.get("data_quality_pass")
+            )
+            embedded_panels["source_backtest_summary"] = source_backtest
+            embedded_panels["backtest_summary"] = active_backtest
+
+        # The archived headline backtest was produced with the scalper fee
+        # discount, while the current local config is not opted in. Present the
+        # matching fixed-trade-set scenario as the active-cost headline and do
+        # not reuse a profit factor computed under a different cost model.
+        fee_model_view = embedded_panels.get("fee_model")
+        fee_rows = embedded_panels.get("fee_effectiveness")
+        backtest_view = embedded_panels.get("backtest_summary")
+        if (
+            not isinstance(active_cost_metrics, dict)
+            and isinstance(fee_model_view, dict)
+            and isinstance(fee_rows, list)
+            and isinstance(backtest_view, dict)
+        ):
+            active_fee_row = next(
+                (
+                    row
+                    for row in fee_rows
+                    if isinstance(row, dict)
+                    and bool(row.get("deto_enabled"))
+                    == bool(fee_model_view.get("deto_enabled"))
+                    and bool(row.get("scalper_opted_in"))
+                    == bool(fee_model_view.get("scalper_opted_in"))
+                ),
+                None,
+            )
+            if active_fee_row is not None:
+                source_backtest = dict(backtest_view)
+                active_backtest = dict(source_backtest)
+                active_backtest["average_net_bps"] = active_fee_row.get("average_net_bps")
+                active_backtest["net_bps"] = active_fee_row.get("net_bps")
+                source_average = (
+                    float(source_backtest.get("net_bps") or 0.0)
+                    / int(source_backtest.get("trades") or 1)
+                )
+                cost_mismatch = abs(
+                    float(active_fee_row.get("average_net_bps") or 0.0) - source_average
+                ) > 1e-12
+                active_backtest["source_profit_factor"] = source_backtest.get("profit_factor")
+                active_backtest["profit_factor"] = (
+                    None if cost_mismatch else source_backtest.get("profit_factor")
+                )
+                active_backtest["profit_factor_note"] = (
+                    "not recomputed for active fee scenario"
+                    if cost_mismatch
+                    else "matches active fee scenario"
+                )
+                active_backtest["active_cost_scenario"] = {
+                    "deto_enabled": bool(fee_model_view.get("deto_enabled")),
+                    "scalper_opted_in": bool(fee_model_view.get("scalper_opted_in")),
+                }
+                active_backtest["source_data_quality_pass"] = bool(
+                    source_backtest.get("data_quality_pass")
+                )
+                embedded_panels["source_backtest_summary"] = source_backtest
+                embedded_panels["backtest_summary"] = active_backtest
+
+        enabled_scanners = []
+        architecture = embedded_panels.get("architecture")
+        components = architecture.get("components") if isinstance(architecture, dict) else None
+        scanner_state = (
+            str(components.get("scanner_engine") or "unknown")
+            if isinstance(components, dict)
+            else "unknown"
+        )
+        if scanner_state not in {
+            "available_all_hypotheses_rejected_and_disabled",
+            "disabled",
+            "none",
+            "unknown",
+        }:
+            enabled_scanners.append(scanner_state)
+
+        lanes: list[dict] = []
+        for row in rows:
+            latest_eval = row.get("latest_eval")
+            if not isinstance(latest_eval, dict):
+                latest_eval = {}
+            l2 = latest_eval.get("l2_confirmation")
+            if not isinstance(l2, dict):
+                l2 = {}
+            pipeline_trace = latest_eval.get("pipeline_trace")
+            if not isinstance(pipeline_trace, list):
+                pipeline_trace = []
+
+            latest_candidates = 0
+            latest_accepted = 0
+            for stage in pipeline_trace:
+                if not isinstance(stage, dict):
+                    continue
+                if stage.get("name") != "fee_probability_confidence_gates":
+                    continue
+                match = re.search(
+                    r"(\d+)\s*/\s*(\d+)\s+accepted",
+                    str(stage.get("detail") or ""),
+                )
+                if match:
+                    latest_accepted = int(match.group(1))
+                    latest_candidates = int(match.group(2))
+                break
+
+            forward = row.get("forward_evidence")
+            if not isinstance(forward, dict):
+                forward = latest_eval.get("forward_evidence")
+            if not isinstance(forward, dict):
+                forward = {}
+
+            if not enabled_scanners:
+                no_signal_reason = (
+                    "All primary scanner hypotheses are rejected and disabled; "
+                    "this lane is monitoring context only."
+                )
+            else:
+                no_signal_reason = str(
+                    row.get("why") or "No candidate cleared the latest scanner and gate evaluation."
+                )
+
+            symbol = str(row.get("symbol") or "unknown")
+            lanes.append(
+                {
+                    "lane_id": f"delta_scalper_{symbol.lower()}",
+                    "strategy_id": row.get("strategy_id"),
+                    "symbol": symbol,
+                    "exchange": row.get("exchange") or "delta_india",
+                    "timeframe": row.get("timeframe"),
+                    "state": row.get("state") or "WAITING",
+                    "active_regime": latest_eval.get("active_regime"),
+                    "l2_status": l2.get("status") or "unavailable",
+                    "evaluations": int(row.get("evaluations") or 0),
+                    "latest_candidates": latest_candidates,
+                    "latest_accepted": latest_accepted,
+                    "alerts_journaled": int(row.get("alerts") or 0),
+                    "forward_outcomes": int(forward.get("completed_alerts") or 0),
+                    "last_eval_ts": row.get("latest_eval_ts"),
+                    "pipeline_duration_us": latest_eval.get("pipeline_duration_us"),
+                    "pipeline_trace": pipeline_trace,
+                    "why_no_signal": no_signal_reason,
+                    "can_trade": False,
+                }
+            )
+
+        total_evaluations = sum(lane["evaluations"] for lane in lanes)
+        latest_candidates = sum(lane["latest_candidates"] for lane in lanes)
+        latest_accepted = sum(lane["latest_accepted"] for lane in lanes)
+        alerts_journaled = sum(lane["alerts_journaled"] for lane in lanes)
+        forward_outcomes = sum(lane["forward_outcomes"] for lane in lanes)
+        scanner_count = len(enabled_scanners)
+        funnel_blocker = (
+            "No primary scanners enabled; gates received zero candidates. "
+            "This is an intentional safety state, not a processing failure."
+            if scanner_count == 0
+            else "No candidate cleared the latest scanner and gate evaluation."
+        )
+        signal_funnel = {
+            "scope": "latest evaluation for candidate and gate counts; cumulative for all other counts",
+            "blocker": funnel_blocker,
+            "stages": [
+                {
+                    "id": "evaluations",
+                    "label": "Context evaluations",
+                    "count": total_evaluations,
+                    "state": "ACTIVE" if total_evaluations else "WAITING",
+                },
+                {
+                    "id": "scanners",
+                    "label": "Enabled scanners",
+                    "count": scanner_count,
+                    "state": "ACTIVE" if scanner_count else "BLOCKED",
+                },
+                {
+                    "id": "candidates",
+                    "label": "Latest candidates",
+                    "count": latest_candidates,
+                    "state": "ACTIVE" if latest_candidates else "NOT_REACHED",
+                },
+                {
+                    "id": "gates",
+                    "label": "Gate accepted",
+                    "count": latest_accepted,
+                    "state": "ACTIVE" if latest_accepted else "NOT_REACHED",
+                },
+                {
+                    "id": "journal",
+                    "label": "Journaled alerts",
+                    "count": alerts_journaled,
+                    "state": "ACTIVE" if alerts_journaled else "WAITING",
+                },
+                {
+                    "id": "outcomes",
+                    "label": "Forward outcomes",
+                    "count": forward_outcomes,
+                    "state": "ACTIVE" if forward_outcomes else "WAITING",
+                },
+            ],
+        }
+
+        latest_eval_times = [
+            str(lane["last_eval_ts"])
+            for lane in lanes
+            if lane.get("last_eval_ts")
+        ]
+        latest_eval_ts = max(latest_eval_times, default=None)
+        journal_states = [
+            row.get("latest_eval", {}).get("journal_write_success")
+            for row in rows
+            if isinstance(row.get("latest_eval"), dict)
+        ]
+        if journal_states and all(value is True for value in journal_states):
+            journal_status = "healthy"
+        elif any(value is False for value in journal_states):
+            journal_status = "attention"
+        else:
+            journal_status = "unavailable"
+
+        # The current candle snapshot intentionally does not publish prices or
+        # the mechanical MultiTFState object. Expose that absence explicitly so
+        # the dashboard cannot substitute placeholders that look like live
+        # structure. These fields become populated only when the publisher
+        # gains a point-in-time state contract.
+        multi_tf_state = {
+            str(row.get("symbol") or "unknown"): {
+                "available": False,
+                "snapshot_ts": row.get("latest_eval_ts"),
+                "timeframes": {
+                    timeframe: {"status": "not_published"}
+                    for timeframe in ("4h", "1h", "15m", "5m", "1m")
+                },
+                "stack_aligned": None,
+                "reason": (
+                    "The live sidecar publishes closed-candle regime context, "
+                    "not a mechanical MultiTFState snapshot."
+                ),
+            }
+            for row in rows
+        }
+        recent_decisions = [
+            {
+                "timestamp": lane.get("last_eval_ts"),
+                "symbol": lane.get("symbol"),
+                "decision": "MONITOR_ONLY" if scanner_count == 0 else "NO_SELECTION",
+                "candidates": lane.get("latest_candidates", 0),
+                "accepted": lane.get("latest_accepted", 0),
+                "journal_status": journal_status,
+                "reason": lane.get("why_no_signal"),
+            }
+            for lane in lanes
+        ]
+        observations = {
+            "active": [],
+            "pending": [],
+            "count": 0,
+            "status": "none",
+            "reason": (
+                "No scanner is enabled, so no research observation can be opened."
+                if scanner_count == 0
+                else "No active or pending observation is present in the snapshot."
+            ),
+        }
+        system_health = {
+            "snapshot_available": bool(payload.get("generated_at") and rows),
+            "snapshot_generated_at": payload.get("generated_at"),
+            "connected_symbols": len(rows),
+            "expected_symbols": ["BTCUSD", "ETHUSD"],
+            "l2_fresh": sum(lane.get("l2_status") == "fresh" for lane in lanes),
+            "l2_total": len(lanes),
+            "l2_age_ms": None,
+            "feed_lag_ms": {timeframe: None for timeframe in ("1m", "5m", "1h")},
+            "feed_lag_note": "per-timeframe exchange-to-receive lag is not published",
+            "gap_guard": "not_published_in_candle_snapshot",
+            "journal": journal_status,
+            "last_evaluation_ts": latest_eval_ts,
+        }
+
         return JSONResponse(
             {
                 "generated_at": payload.get("generated_at"),
                 "rows": rows,
-                "panels": payload.get("delta_scalper"),
+                "lanes": lanes,
+                "signal_funnel": signal_funnel,
+                "system_health": system_health,
+                "multi_tf_state": multi_tf_state,
+                "observations": observations,
+                "recent_decisions": recent_decisions,
+                "panels": embedded_panels,
+                "identity": {
+                    "product": "VNEDGE Delta India Research Laboratory",
+                    "runtime": payload.get("mode") or "delta_scalper_research_shadow",
+                    "primary_symbols": ["BTCUSD", "ETHUSD"],
+                    "validated_after_cost_edge": False,
+                    "active_research_direction": "event_time_data_integrity_and_replay",
+                },
+                "scanner_status": {
+                    "enabled": enabled_scanners,
+                    "enabled_count": len(enabled_scanners),
+                    "state": scanner_state,
+                },
                 "policy": {
                     "research_only": True,
                     "l2_is_confirmation_only": True,
+                    "paper_trading": False,
+                    "live_trading": False,
+                    "validated_edge": False,
+                    "order_route": "absent",
+                    "broker": "absent",
                     "can_trade": False,
                     "can_promote": False,
                 },
@@ -2061,6 +2861,53 @@ def create_app(
                 "can_promote": False,
             },
             headers=_identity(user),
+        )
+
+    @app.get("/event-research-infrastructure")
+    async def event_research_infrastructure(request: Request) -> JSONResponse:
+        """Installed-vs-running truth for event recorder, trigger, absorption and replay."""
+
+        user = _authorized(request)
+        return JSONResponse(
+            event_research_infrastructure_payload(
+                event_root=delta_event_root_dir,
+                event_trigger_telemetry_path=event_trigger_telemetry_file,
+                absorption_dashboard_path=absorption_dashboard_file,
+                event_replay_dir=event_replay_output_dir,
+                kronos_matrix_path=kronos_matrix_file,
+                kronos_confirmation_path=kronos_confirmation_file,
+                forced_flow_dir=forced_flow_output_dir,
+                tv_rule_adapter_path=tv_rule_spec_file,
+                htf_structure_path=htf_structure_file,
+                htf_structure_v2_path=htf_structure_v2_file,
+            ),
+            headers=_identity(user),
+        )
+
+    @app.get("/api/delta/health/stream")
+    async def delta_health_stream(request: Request) -> StreamingResponse:
+        """Compact, authenticated SSE projection of Delta research health."""
+
+        user = _authorized(request)
+
+        def snapshot_supplier() -> tuple[
+            dict[str, object], dict[str, object], dict[str, object]
+        ]:
+            return (
+                _read_json_payload(delta_scalper_file, {}),
+                _read_json_payload(delta_event_root_dir / "_recorder_status.json", {}),
+                _read_json_payload(event_trigger_telemetry_file, {}),
+            )
+
+        return StreamingResponse(
+            health_event_generator(request, snapshot_supplier),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-store",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                **_identity(user),
+            },
         )
 
     @app.get("/delta-5m-event-clock")
@@ -2187,6 +3034,44 @@ def create_app(
                     "port_tasks": [],
                     "script_distillations": [],
                     "operator_answer": "pine alpha distiller artifact unavailable",
+                    "can_trade": False,
+                    "can_promote": False,
+                },
+            ),
+            headers=_identity(user),
+        )
+
+    @app.get("/pine-research/rule-spec")
+    async def tv_rule_spec(request: Request) -> JSONResponse:
+        """Local Pine RuleSpec compiler/evaluator status.
+
+        The artifact is source-hash-bound, research-only, and built exclusively from
+        operator-supplied/open-source Pine plus local closed-candle data. It
+        never proxies TradingView or the unofficial tvscreener endpoints.
+        """
+        user = _authorized(request)
+        return JSONResponse(
+            _read_json_payload(
+                tv_rule_spec_file,
+                {
+                    "adapter_id": "tv_rule_adapter_v1",
+                    "status": "READY_NO_RULE_COMPILED",
+                    "summary": {},
+                    "rule_spec": None,
+                    "evaluation": None,
+                    "policy": {
+                        "network_access": False,
+                        "tradingview_data_used": False,
+                        "unofficial_tvscreener_dependency": False,
+                        "local_closed_candles_only": True,
+                        "raw_source_emitted": False,
+                        "normalized_rule_expressions_emitted": True,
+                        "research_only": True,
+                    },
+                    "operator_answer": (
+                        "Local RuleSpec adapter is available; compile a lawful Pine source "
+                        "artifact before replay."
+                    ),
                     "can_trade": False,
                     "can_promote": False,
                 },

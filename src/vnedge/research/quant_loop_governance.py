@@ -9,17 +9,20 @@ control-plane view. It never creates orders, paper lanes, or promotions.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
-from dataclasses import dataclass
-from datetime import UTC, datetime
 import json
 import math
+import time
+from collections import Counter
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-import time
-from typing import Any, Iterable
+from typing import Any
 
 import yaml
+
+from vnedge.governance.promotion_policy import DEFAULT_PROMOTION_POLICY
 
 GOVERNANCE_ID = "quant_loop_governance_v1"
 DEFAULT_GATES = Path("governance/loop_gates.yaml")
@@ -60,9 +63,10 @@ def run_quant_loop_audit(
     scanner_progress_path: Path | str = DEFAULT_SCANNER_PROGRESS,
     gateway_snapshot_path: Path | str = DEFAULT_GATEWAY_SNAPSHOT,
     run_log_path: Path | str = DEFAULT_RUN_LOG,
-    config: QuantLoopGovernanceConfig = QuantLoopGovernanceConfig(),
+    config: QuantLoopGovernanceConfig | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
+    config = config or QuantLoopGovernanceConfig()
     generated = now or datetime.now(UTC)
     gates_artifact = _read_yaml_artifact(Path(gates_path))
     state_artifact = _read_json_artifact(Path(state_path))
@@ -415,6 +419,8 @@ def _gate_checks(
     min_net = _float(promotion.get("min_net_bps")) or 0.0
     min_pf = _float(promotion.get("min_profit_factor")) or 0.0
     min_trades = _int(promotion.get("sample_min_trades"))
+    policy_version = str(promotion.get("policy_version") or "")
+    requirements = DEFAULT_PROMOTION_POLICY.governance
     checks = [
         {
             "gate_id": "machine_readable_gates",
@@ -435,12 +441,14 @@ def _gate_checks(
             "gate_id": "promotion_proof_thresholds",
             "status": (
                 "PASS"
-                if min_net >= 25.0
-                and min_pf >= 1.5
-                and min_trades >= 20
+                if policy_version == DEFAULT_PROMOTION_POLICY.policy_version
+                and min_net >= requirements.minimum_average_net_bps
+                and min_pf >= requirements.minimum_profit_factor
+                and min_trades >= requirements.minimum_trades
                 else "BLOCKED"
             ),
             "detail": (
+                f"policy={policy_version or 'missing'} "
                 f"net>={promotion.get('min_net_bps')}bps "
                 f"PF>={promotion.get('min_profit_factor')} "
                 f"trades>={promotion.get('sample_min_trades')}"
@@ -499,6 +507,8 @@ def _policy(gates: dict[str, Any]) -> dict[str, Any]:
         "can_trade": False,
         "can_promote": False,
         "live_orders_enabled": False,
+        "policy_version": promotion.get("policy_version"),
+        "policy_sha256": DEFAULT_PROMOTION_POLICY.sha256,
         "min_net_bps": _float(promotion.get("min_net_bps")),
         "min_profit_factor": _float(promotion.get("min_profit_factor")),
         "sample_min_trades": _int(promotion.get("sample_min_trades")),
@@ -619,7 +629,7 @@ def _parse_dt(value: Any) -> datetime | None:
         return None
     raw = value.strip()
     try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(raw)
     except ValueError:
         return None
     if parsed.tzinfo is None:

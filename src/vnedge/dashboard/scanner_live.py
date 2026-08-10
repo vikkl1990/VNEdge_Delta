@@ -16,7 +16,11 @@ from typing import Any
 
 import uvicorn
 
-from vnedge.dashboard.app import SnapshotProvider, create_app
+from vnedge.dashboard.app import (
+    SnapshotProvider,
+    create_app,
+    event_research_infrastructure_payload,
+)
 from vnedge.dashboard.scanner_bridge import dashboard_scanner_payload
 
 HOST = os.environ.get("DASHBOARD_HOST", "127.0.0.1")
@@ -100,10 +104,56 @@ DELTA_SCALPER_LIGHTGBM_SHAP_PATH = Path(
         "research/live_research/delta_scalper_lightgbm_shap_latest.json",
     )
 )
+DELTA_ACTIVE_COST_EVIDENCE_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_DELTA_ACTIVE_COST_EVIDENCE_PATH",
+        "research/live_research/delta_active_cost_evidence_latest.json",
+    )
+)
 COMBINED_SCANNER_PATH = Path(
     os.environ.get(
         "DASHBOARD_COMBINED_SCANNER_PATH",
         "research/live_research/dashboard_scanner_combined_latest.json",
+    )
+)
+DELTA_EVENT_ROOT = Path(os.environ.get("DASHBOARD_DELTA_EVENT_ROOT", "data/delta_events"))
+EVENT_TRIGGER_TELEMETRY_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_EVENT_TRIGGER_TELEMETRY_PATH",
+        "research/live_research/delta_event_trigger_telemetry_latest.json",
+    )
+)
+ABSORPTION_DASHBOARD_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_ABSORPTION_PATH",
+        "research/live_research/delta_absorption_dashboard_latest.json",
+    )
+)
+EVENT_REPLAY_DIR = Path(
+    os.environ.get("DASHBOARD_EVENT_REPLAY_DIR", "research/event_replay")
+)
+HTF_STRUCTURE_V2_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_HTF_STRUCTURE_V2_PATH",
+        "research/live_research/htf_structure_break_v2_latest.json",
+    )
+)
+KRONOS_MATRIX_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_KRONOS_MATRIX_PATH",
+        "research/live_research/kronos_permutation_matrix_latest.json",
+    )
+)
+KRONOS_CONFIRMATION_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_KRONOS_CONFIRMATION_PATH",
+        "research/live_research/kronos_permutation_confirmation_latest.json",
+    )
+)
+FORCED_FLOW_DIR = Path(
+    os.environ.get(
+        "DASHBOARD_FORCED_FLOW_DIR",
+        "research/live_research/delta_forced_flow_panel",
     )
 )
 
@@ -129,6 +179,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     categorical_encoding = _read_payload(DELTA_SCALPER_CATEGORICAL_ENCODING_PATH)
     cusum_interactions = _read_payload(DELTA_SCALPER_CUSUM_INTERACTIONS_PATH)
     lightgbm_shap = _read_payload(DELTA_SCALPER_LIGHTGBM_SHAP_PATH)
+    active_cost_evidence = _read_payload(DELTA_ACTIVE_COST_EVIDENCE_PATH)
     if not primary and not scalper:
         return {
             "generated_at": None,
@@ -176,6 +227,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "categorical_encoding": categorical_encoding or None,
             "cusum_interactions": cusum_interactions or None,
             "lightgbm_shap": lightgbm_shap or None,
+            "active_cost_evidence": active_cost_evidence or None,
         }
         if scalper
         else None,
@@ -197,7 +249,12 @@ def publish_combined_payload(payload: dict[str, Any]) -> None:
     temporary.replace(COMBINED_SCANNER_PATH)
 
 
-def build_scanner_snapshot(payload: dict[str, Any], *, now: datetime | None = None) -> dict:
+def build_scanner_snapshot(
+    payload: dict[str, Any],
+    *,
+    now: datetime | None = None,
+    research_infrastructure: dict[str, object] | None = None,
+) -> dict:
     current = now or datetime.now(UTC)
     bridge = dashboard_scanner_payload(payload, now=current)
     summary = bridge.get("summary") if isinstance(bridge.get("summary"), dict) else {}
@@ -215,10 +272,20 @@ def build_scanner_snapshot(payload: dict[str, Any], *, now: datetime | None = No
         if not isinstance(row, dict):
             continue
         latest = row.get("latest_eval") if isinstance(row.get("latest_eval"), dict) else {}
+        evaluations = row.get("evaluations")
+        if not isinstance(evaluations, int) or isinstance(evaluations, bool) or evaluations < 0:
+            evaluations = None
+        historical_alerts = row.get("historical_alerts", row.get("alerts", 0))
+        if (
+            not isinstance(historical_alerts, int)
+            or isinstance(historical_alerts, bool)
+            or historical_alerts < 0
+        ):
+            historical_alerts = 0
         lanes.append(
             {
                 "lane_id": f"scanner_{str(row.get('symbol') or '').lower()}",
-                "mode": "shadow",
+                "mode": "research_observation",
                 "strategy_id": row.get("strategy_id"),
                 "exchange": "delta_india",
                 "symbol": row.get("symbol"),
@@ -236,12 +303,16 @@ def build_scanner_snapshot(payload: dict[str, Any], *, now: datetime | None = No
                     "signal_reason": row.get("why"),
                     "l2_confirmation": latest.get("l2_confirmation"),
                 },
-                "last_fired_ts": row.get("latest_eval_ts")
-                if row.get("state") == "FIRING"
-                else None,
+                "last_fired_ts": row.get("last_alert_ts")
+                or (row.get("latest_eval_ts") if row.get("state") == "FIRING" else None),
                 "funnel": {
-                    "live_evals": 1,
+                    "live_evals": evaluations,
                     "live_signals": 1 if row.get("state") == "FIRING" else 0,
+                    "historical_alerts": historical_alerts,
+                },
+                "trade_compatibility": {
+                    "state": "RESEARCH_ONLY",
+                    "reason": "scanner observation only; no paper or order route",
                 },
                 "can_trade": False,
                 "can_promote": False,
@@ -294,6 +365,7 @@ def build_scanner_snapshot(payload: dict[str, Any], *, now: datetime | None = No
         "can_trade": False,
         "can_promote": False,
         "orders_sent": 0,
+        "research_infrastructure": research_infrastructure or {},
     }
 
 
@@ -301,13 +373,33 @@ async def main() -> None:
     provider = SnapshotProvider()
     initial = read_scanner_payload()
     publish_combined_payload(initial)
-    provider.publish(build_scanner_snapshot(initial))
+    infrastructure = event_research_infrastructure_payload(
+        event_root=DELTA_EVENT_ROOT,
+        event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
+        absorption_dashboard_path=ABSORPTION_DASHBOARD_PATH,
+        event_replay_dir=EVENT_REPLAY_DIR,
+        kronos_matrix_path=KRONOS_MATRIX_PATH,
+        kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
+        forced_flow_dir=FORCED_FLOW_DIR,
+        htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
+    )
+    provider.publish(build_scanner_snapshot(initial, research_infrastructure=infrastructure))
     app = create_app(
         provider,
         token=TOKEN,
         snapshot_hz=2.0,
         realtime_scanner_path=COMBINED_SCANNER_PATH,
+        delta_scalper_path=DELTA_SCALPER_PATH,
+        delta_active_cost_evidence_path=DELTA_ACTIVE_COST_EVIDENCE_PATH,
         scanner_forward_evidence_path=SCANNER_EVIDENCE_PATH,
+        delta_event_root=DELTA_EVENT_ROOT,
+        event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
+        absorption_dashboard_path=ABSORPTION_DASHBOARD_PATH,
+        event_replay_dir=EVENT_REPLAY_DIR,
+        kronos_matrix_path=KRONOS_MATRIX_PATH,
+        kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
+        forced_flow_dir=FORCED_FLOW_DIR,
+        htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
     )
     server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT, log_level="warning"))
 
@@ -315,7 +407,19 @@ async def main() -> None:
         while True:
             payload = read_scanner_payload()
             publish_combined_payload(payload)
-            provider.publish(build_scanner_snapshot(payload))
+            infrastructure = event_research_infrastructure_payload(
+                event_root=DELTA_EVENT_ROOT,
+                event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
+                absorption_dashboard_path=ABSORPTION_DASHBOARD_PATH,
+                event_replay_dir=EVENT_REPLAY_DIR,
+                kronos_matrix_path=KRONOS_MATRIX_PATH,
+                kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
+                forced_flow_dir=FORCED_FLOW_DIR,
+                htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
+            )
+            provider.publish(
+                build_scanner_snapshot(payload, research_infrastructure=infrastructure)
+            )
             await asyncio.sleep(2.0)
 
     print(f"VNEDGE scanner dashboard: http://{HOST}:{PORT}/?token={TOKEN}")

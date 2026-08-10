@@ -67,6 +67,9 @@ def test_mtf_scanner_is_adapted_to_three_safe_dashboard_rows():
     assert rows["BTCUSD"]["latest_eval"]["side"] == "short"
     assert rows["BTCUSD"]["latest_eval"]["l2_confirmation"]["status"] == "aligned"
     assert rows["BTCUSD"]["latest_eval"]["l2_confirmation"]["used_for_execution"] is False
+    assert rows["BTCUSD"]["historical_alerts"] == 3
+    assert rows["BTCUSD"]["evaluations"] is None
+    assert rows["BTCUSD"]["last_alert_ts"] == (now - timedelta(minutes=20)).isoformat()
     assert rows["ETHUSD"]["state"] == "WAITING"
     assert rows["SOLUSD"]["state"] == "DATA_ERROR"
     assert all(row["can_trade"] is False for row in rows.values())
@@ -128,6 +131,40 @@ def test_scanner_dashboard_snapshot_has_no_demo_or_execution_state():
     assert snapshot["can_trade"] is False
     assert snapshot["can_promote"] is False
     assert all(lane["can_trade"] is False for lane in snapshot["lanes"])
+    btc = next(lane for lane in snapshot["lanes"] if lane["symbol"] == "BTCUSD")
+    assert btc["funnel"] == {
+        "live_evals": None,
+        "live_signals": 1,
+        "historical_alerts": 3,
+    }
+    assert btc["last_fired_ts"] == (now - timedelta(minutes=20)).isoformat()
+    assert btc["trade_compatibility"]["state"] == "RESEARCH_ONLY"
+
+
+def test_scalper_lane_preserves_real_evaluation_counter():
+    now = datetime(2026, 8, 5, 1, 0, tzinfo=UTC)
+    payload = {
+        "generated_at": now.isoformat(),
+        "mode": "delta_scalper_research_shadow",
+        "rows": [
+            {
+                "strategy_id": "delta_scalper_engine_v1",
+                "symbol": "BTCUSD",
+                "timeframe": "1m/5m",
+                "state": "WAITING",
+                "evaluations": 1_131,
+                "alerts": 0,
+                "latest_eval": {},
+            }
+        ],
+    }
+
+    snapshot = build_scanner_snapshot(payload, now=now)
+
+    lane = snapshot["lanes"][0]
+    assert lane["funnel"]["live_evals"] == 1_131
+    assert lane["funnel"]["historical_alerts"] == 0
+    assert lane["mode"] == "research_observation"
 
 
 def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch):
@@ -144,6 +181,7 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     categorical_encoding = tmp_path / "categorical-encoding.json"
     cusum_interactions = tmp_path / "cusum-interactions.json"
     lightgbm_shap = tmp_path / "lightgbm-shap.json"
+    active_cost = tmp_path / "active-cost.json"
     primary.write_text(json.dumps(mtf_payload(now)))
     scalper.write_text(
         json.dumps(
@@ -251,6 +289,20 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
         "DELTA_SCALPER_LIGHTGBM_SHAP_PATH",
         lightgbm_shap,
     )
+    active_cost.write_text(
+        json.dumps(
+            {
+                "schema_version": "vnedge.delta_active_cost_evidence.v1",
+                "metrics": {"profit_factor": 0.15},
+                "can_trade": False,
+            }
+        )
+    )
+    monkeypatch.setattr(
+        scanner_live,
+        "DELTA_ACTIVE_COST_EVIDENCE_PATH",
+        active_cost,
+    )
 
     combined = scanner_live.read_scanner_payload(primary)
 
@@ -283,6 +335,9 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     assert combined["delta_scalper"]["lightgbm_shap"]["report_id"] == (
         "delta_scalper_lightgbm_shap_v1"
     )
+    assert combined["delta_scalper"]["active_cost_evidence"]["metrics"][
+        "profit_factor"
+    ] == 0.15
     assert combined["policy"]["order_route_present"] is False
     assert combined["can_trade"] is False
 
@@ -320,6 +375,170 @@ def test_delta_scalper_endpoint_exposes_research_panels_only(tmp_path):
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["rows"]) == 1
+    assert len(payload["lanes"]) == 1
+    assert payload["lanes"][0]["lane_id"] == "delta_scalper_btcusd"
+    assert payload["lanes"][0]["why_no_signal"].startswith("All primary scanner hypotheses")
+    assert payload["signal_funnel"]["stages"][1] == {
+        "id": "scanners",
+        "label": "Enabled scanners",
+        "count": 0,
+        "state": "BLOCKED",
+    }
+    assert payload["system_health"]["snapshot_available"] is True
+    assert payload["system_health"]["journal"] == "unavailable"
+    assert payload["multi_tf_state"]["BTCUSD"]["available"] is False
+    assert payload["multi_tf_state"]["BTCUSD"]["stack_aligned"] is None
+    assert payload["observations"]["count"] == 0
+    assert payload["recent_decisions"][0]["decision"] == "MONITOR_ONLY"
     assert payload["panels"]["backtest_summary"]["profit_factor"] == 0.4
+    assert payload["can_trade"] is False
+    assert payload["can_promote"] is False
+
+
+def test_delta_scalper_endpoint_uses_recomputed_active_cost_pf(tmp_path):
+    path = tmp_path / "combined-active-cost.json"
+    active_cost_path = tmp_path / "active-cost-evidence.json"
+    active_cost = {
+        "metrics": {
+            "trades": 10,
+            "net_bps": -120.0,
+            "average_net_bps": -12.0,
+            "profit_factor": 0.15,
+        },
+        "markets": {"BTCUSD": {"profit_factor": 0.15}},
+        "positive_markets": 0,
+        "fee_model": {"scalper_opted_in": False},
+    }
+    active_cost_path.write_text(json.dumps(active_cost))
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now(UTC).isoformat(),
+                "rows": [
+                    {
+                        "strategy_id": "delta_scalper_engine_v1",
+                        "symbol": "BTCUSD",
+                        "state": "WAITING",
+                    }
+                ],
+                "delta_scalper": {
+                    "backtest_summary": {
+                        "trades": 10,
+                        "profit_factor": 0.4,
+                        "data_quality_pass": False,
+                    },
+                    "fee_effectiveness": [],
+                },
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="token",
+            delta_scalper_path=path,
+            delta_active_cost_evidence_path=active_cost_path,
+        )
+    )
+
+    payload = client.get("/delta-scalper?token=token").json()
+    active = payload["panels"]["backtest_summary"]
+
+    assert active["profit_factor"] == 0.15
+    assert active["average_net_bps"] == -12.0
+    assert active["markets"]["BTCUSD"]["profit_factor"] == 0.15
+    assert "recomputed from per-trade" in active["profit_factor_note"]
+    assert payload["can_trade"] is False
+
+
+def test_delta_scalper_endpoint_reads_dedicated_snapshot_directly(tmp_path):
+    path = tmp_path / "delta_scalper_engine_latest.json"
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now(UTC).isoformat(),
+                "mode": "delta_scalper_research_shadow",
+                "summary": {
+                    "connected_symbols": 2,
+                    "evaluations": 2855,
+                    "alerts": 0,
+                },
+                "architecture": {
+                    "components": {
+                        "scanner_engine": "available_all_hypotheses_rejected_and_disabled"
+                    }
+                },
+                "backtest_summary": {"trades": 19521, "profit_factor": 0.402},
+                "rows": [
+                    {
+                        "strategy_id": "delta_scalper_engine_v1",
+                        "symbol": "BTCUSD",
+                        "state": "WAITING",
+                        "evaluations": 1400,
+                        "alerts": 0,
+                        "latest_eval": {
+                            "active_regime": "quiet",
+                            "pipeline_duration_us": 2500,
+                            "pipeline_trace": [
+                                {
+                                    "name": "fee_probability_confidence_gates",
+                                    "status": "complete",
+                                    "detail": "0/0 accepted",
+                                }
+                            ],
+                            "l2_confirmation": {"status": "fresh"},
+                        },
+                    },
+                    {
+                        "strategy_id": "delta_scalper_engine_v1",
+                        "symbol": "ETHUSD",
+                        "state": "WAITING",
+                        "evaluations": 1455,
+                        "alerts": 0,
+                        "latest_eval": {
+                            "active_regime": "quiet",
+                            "pipeline_duration_us": 1800,
+                            "pipeline_trace": [
+                                {
+                                    "name": "fee_probability_confidence_gates",
+                                    "status": "complete",
+                                    "detail": "0/0 accepted",
+                                }
+                            ],
+                            "l2_confirmation": {"status": "fresh"},
+                        },
+                    },
+                ],
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "shadow", "lanes": [{"symbol": "DOGE/USDT:USDT"}]})
+    client = TestClient(create_app(provider, token="token", delta_scalper_path=path))
+
+    payload = client.get("/delta-scalper?token=token").json()
+    assert [row["symbol"] for row in payload["rows"]] == ["BTCUSD", "ETHUSD"]
+    assert payload["identity"]["product"] == "VNEDGE Delta India Research Laboratory"
+    assert payload["identity"]["validated_after_cost_edge"] is False
+    assert payload["policy"]["validated_edge"] is False
+    assert payload["policy"]["order_route"] == "absent"
+    assert payload["policy"]["broker"] == "absent"
+    assert payload["scanner_status"]["enabled_count"] == 0
+    assert [lane["symbol"] for lane in payload["lanes"]] == ["BTCUSD", "ETHUSD"]
+    assert payload["lanes"][0]["latest_candidates"] == 0
+    assert payload["lanes"][0]["latest_accepted"] == 0
+    funnel = {stage["id"]: stage for stage in payload["signal_funnel"]["stages"]}
+    assert funnel["evaluations"]["count"] == 2855
+    assert funnel["scanners"]["state"] == "BLOCKED"
+    assert funnel["candidates"]["state"] == "NOT_REACHED"
+    assert "intentional safety state" in payload["signal_funnel"]["blocker"]
+    assert payload["panels"]["summary"]["evaluations"] == 2855
+    assert payload["panels"]["backtest_summary"]["profit_factor"] == 0.402
     assert payload["can_trade"] is False
     assert payload["can_promote"] is False

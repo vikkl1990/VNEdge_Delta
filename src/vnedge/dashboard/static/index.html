@@ -84,9 +84,10 @@
   .go-pill{border:1px solid var(--line);background:#070B11;border-radius:8px;padding:8px 10px;min-width:94px}
   .go-pill .k{display:block;font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-faint);font-weight:800}
   .go-pill .v{display:block;margin-top:2px;font:900 12px var(--mono);color:var(--txt)}
-  .ticker-row{display:flex;align-items:center;min-height:30px;border-top:1px solid rgba(255,255,255,.035);overflow:hidden;background:rgba(7,11,17,.72)}
+  .ticker-row{display:flex;align-items:center;min-height:30px;border-top:1px solid rgba(255,255,255,.035);overflow-x:auto;overflow-y:hidden;background:rgba(7,11,17,.72);scrollbar-width:none}
+  .ticker-row::-webkit-scrollbar,.watch::-webkit-scrollbar{display:none}
   .ticker-label{padding:0 14px;color:var(--brand);font:900 10px var(--mono);letter-spacing:.18em;text-transform:uppercase;border-right:1px solid var(--line)}
-  .ticker-tape{display:flex;gap:22px;white-space:nowrap;overflow:hidden;padding:0 14px;font:700 12px var(--mono);color:var(--txt-dim)}
+  .ticker-tape{display:flex;gap:22px;white-space:nowrap;overflow:visible;padding:0 14px;font:700 12px var(--mono);color:var(--txt-dim)}
   .ticker-tape .up{color:var(--long)} .ticker-tape .dn{color:var(--short)}
   .ticker-tape i{font-style:normal;color:var(--brand);margin-right:6px}
   .desk-crumb{display:flex;align-items:center;gap:9px;min-height:28px;padding:0 18px;border-top:1px solid rgba(255,255,255,.035);font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--txt-faint)}
@@ -94,20 +95,20 @@
 
   /* ---------- command bar ---------- */
   .cmd{
-    display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
     background:linear-gradient(180deg, #10151E, #0C1017);
     border:1px solid var(--line); border-radius:var(--r);
-    padding:13px 18px; position:relative; top:auto; z-index:20;
+    padding:9px 13px; position:relative; top:auto; z-index:20;
     box-shadow:0 8px 30px rgba(0,0,0,.35);
   }
   .brand{display:flex; align-items:center; gap:12px; min-width:max-content}
   .glyph{
-    width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;
+    width:31px;height:31px;border-radius:9px;flex:none;display:grid;place-items:center;
     background:radial-gradient(130% 130% at 30% 16%, #1A2230, #0B0F16);
     border:1px solid rgba(246,169,59,.34);
     box-shadow:0 6px 16px rgba(246,169,59,.14), inset 0 1px 0 rgba(255,255,255,.05);
   }
-  .glyph svg{width:22px;height:22px;filter:drop-shadow(0 1px 5px rgba(246,169,59,.42))}
+  .glyph svg{width:19px;height:19px;filter:drop-shadow(0 1px 5px rgba(246,169,59,.42))}
 
   /* ---------- about ---------- */
   .about-hero{display:grid;grid-template-columns:auto 1fr;gap:28px;align-items:center;padding:16px 6px 10px}
@@ -156,10 +157,11 @@
     padding:6px 12px;border-radius:7px;text-decoration:none;cursor:pointer}
   .navrow a.on{background:var(--brand-soft);color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand-line)}
   .navrow a:hover:not(.on){color:var(--txt)}
+  @media(min-width:1101px){.cmd>.brand{display:none}}
 
   /* ---------- watchlist strip ---------- */
-  .watch{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding-bottom:2px}
-  .wcard{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:12px 13px;min-width:0;position:relative;overflow:hidden}
+  .watch{display:flex;gap:10px;padding-bottom:2px;overflow-x:auto;scrollbar-width:none}
+  .wcard{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:12px 13px;min-width:150px;flex:1 0 150px;position:relative;overflow:hidden}
   .wcard .sym{display:flex;align-items:center;justify-content:space-between}
   .wcard .sym b{font-size:13px;font-weight:700;letter-spacing:.04em}
   .wcard .px{font-size:20px;font-weight:700;margin-top:5px;transition:color .35s}
@@ -679,18 +681,18 @@
         <div class="brand-sub">Autonomous Perps Desk</div>
       </div>
     </div>
-    <span class="live"><i></i>Live · streaming</span>
+    <span class="live"><i></i><span id="streamStateText">Research · connecting</span></span>
 
-    <div class="shield" title="This bot evaluates the market and holds shadow/paper positions only. It never places live orders.">
+    <div class="shield" id="modeShield" title="This runtime evaluates markets for research and has no live order route.">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
-      <b>Shadow</b><span>no live orders</span>
+      <b id="modeShieldLabel">Research only</b><span id="modeShieldDetail">no order route</span>
     </div>
 
     <div class="cmd-spacer"></div>
 
-    <div class="metric"><span class="lbl">Equity</span><span class="v num" id="eqTop">$495.38</span></div>
-    <div class="metric"><span class="lbl">Today</span><span class="v num up" id="pnlTop">+$1.42</span></div>
-    <div class="vpill"><span class="k">Mode</span><span class="s" id="modeVal" style="color:var(--info)">SHADOW</span></div>
+    <div class="metric"><span class="lbl">Equity</span><span class="v num" id="eqTop">—</span></div>
+    <div class="metric"><span class="lbl">Today</span><span class="v num" id="pnlTop">—</span></div>
+    <div class="vpill"><span class="k">Mode</span><span class="s" id="modeVal" style="color:var(--info)">RESEARCH</span></div>
     <div class="vpill"><span class="dot" id="killDot" style="background:var(--long)"></span><span class="k">Kill</span><span class="s" id="killVal" style="color:var(--long)">ARMED</span></div>
     <span class="clock" id="clock">18:24:07 UTC</span>
     <nav class="navrow" id="nav">
@@ -741,12 +743,12 @@
 
       <section class="panel">
         <div class="phead">
-          <h2>Active Lanes</h2>
-          <span class="meta"><span id="laneCount">42</span> lanes · 3 venues · shadow</span>
+          <h2>Research Lanes</h2>
+          <span class="meta" id="laneMeta"><span id="laneCount">0</span> lanes · research</span>
         </div>
         <div class="blotter">
           <div class="brow head">
-            <span></span><span>Strategy</span><span>Venue</span><span>Symbol · side</span><span>Shadow P&amp;L</span><span>Evals · fired</span>
+            <span></span><span>Strategy</span><span>Venue</span><span>Symbol · side</span><span>Virtual P&amp;L</span><span>Activity</span>
           </div>
           <div id="lanes"></div>
         </div>
@@ -774,7 +776,7 @@
             <div class="kpi"><div class="lbl">Paper realized</div><div class="v num" id="kPaper">--</div><div class="s" id="kPaperSub">paper-capital lanes</div></div>
             <div class="kpi"><div class="lbl">Shadow virtual net</div><div class="v num" id="kShadow">--</div><div class="s" id="kShadowSub">observation only</div></div>
             <div class="kpi"><div class="lbl">Signals (cumulative)</div><div class="v num" id="kSig">--</div><div class="s" id="kSigSub">across lanes</div></div>
-            <div class="kpi"><div class="lbl">Daily loss</div><div class="v num up" id="kDaily">$0.00</div><div class="s" id="kDailySub">of $10.00 limit</div></div>
+            <div class="kpi"><div class="lbl">Daily loss</div><div class="v num" id="kDaily">—</div><div class="s" id="kDailySub">not configured in research</div></div>
             <div class="kpi"><div class="lbl">Drawdown</div><div class="v num" id="kDD" style="color:var(--warn)">--</div><div class="s">vs peak equity</div></div>
             <div class="kpi"><div class="lbl">Fee wall</div><div class="v num dn" id="kFee">--</div><div class="s" id="kFeeSub">taker round-trip</div></div>
           </div>
@@ -786,8 +788,8 @@
     <div class="col">
       <section class="panel">
         <div class="phead">
-          <h2>Live Signal Tape</h2>
-          <span class="live"><i></i>streaming</span>
+          <h2>Research Observation Tape</h2>
+          <span class="live"><i></i>runtime + history</span>
         </div>
         <div class="tape" id="tape"></div>
       </section>
@@ -822,23 +824,21 @@
         <div class="phead"><h2>Risk &amp; Health</h2><span class="tag">gateway</span></div>
         <div class="risk">
           <div class="meter">
-            <div class="mtop"><b>Daily-loss stop</b><span class="num" id="meterDailyV">$0.00 / $10.00</span></div>
+            <div class="mtop"><b>Daily-loss stop</b><span class="num" id="meterDailyV">not applicable</span></div>
             <div class="mbar"><i id="meterDaily" style="width:0%;background:linear-gradient(90deg,var(--long),#26b385)"></i></div>
           </div>
           <div class="meter">
-            <div class="mtop"><b>Drawdown vs peak</b><span class="num" id="meterDDV" style="color:var(--warn)">-- / 6.0%</span></div>
+            <div class="mtop"><b>Drawdown vs peak</b><span class="num" id="meterDDV" style="color:var(--warn)">not applicable</span></div>
             <div class="mbar"><i id="meterDD" style="width:0%;background:linear-gradient(90deg,var(--warn),#e0a52f)"></i></div>
           </div>
           <div class="rgrid">
-            <div class="rcell"><div class="lbl">Loss streak</div><div class="v num"><span id="rStreak">0</span> <span style="font-size:11px;color:var(--txt-faint)">/ 4 breaker</span></div></div>
-            <div class="rcell"><div class="lbl">Open shadow</div><div class="v num"><span id="rOpen">0</span> <span style="font-size:11px;color:var(--txt-faint)">positions</span></div></div>
+            <div class="rcell"><div class="lbl">Loss streak</div><div class="v num"><span id="rStreak">—</span> <span id="rStreakDetail" style="font-size:11px;color:var(--txt-faint)">research only</span></div></div>
+            <div class="rcell"><div class="lbl">Open observations</div><div class="v num"><span id="rOpen">0</span> <span style="font-size:11px;color:var(--txt-faint)">tracked</span></div></div>
           </div>
           <div>
             <div class="lbl" style="margin-bottom:9px">Venue connectivity</div>
             <div class="venues" id="venues">
-              <div class="venue"><span class="dot" style="background:var(--long)"></span><span class="nm">Binance USDⓈ-M</span><span class="lat num">31 ms</span></div>
-              <div class="venue"><span class="dot" style="background:var(--long)"></span><span class="nm">Bybit V5</span><span class="lat num">44 ms</span></div>
-              <div class="venue"><span class="dot" style="background:var(--warn)"></span><span class="nm">Delta India</span><span class="lat num">210 ms</span></div>
+              <div class="venue"><span class="dot" style="background:var(--warn)"></span><span class="nm">Runtime feeds</span><span class="lat num">waiting</span></div>
             </div>
           </div>
         </div>
@@ -862,11 +862,11 @@
     .veltag{font-size:8px;font-weight:800;background:var(--bg-3);color:var(--txt-faint);border:1px solid var(--line);padding:1px 4px;border-radius:4px;margin-right:5px;vertical-align:middle}
   </style>
   <div class="view" data-view="pipeline" hidden>
-    <p class="intro"><b>Strategy pipeline.</b> Each lane threaded across its whole life — <b>live</b> status → <b>shadow</b> evidence → <b>research</b> verdict → <b>ML</b> labels — so you can follow one strategy end to end instead of hopping between views. Read-only; nothing here trades or promotes.</p>
+    <p class="intro"><b>Strategy pipeline.</b> Each lane is threaded across its read-only life — <b>runtime observation</b> → <b>forward evidence</b> → <b>research</b> verdict → <b>ML</b> labels. Nothing here trades or promotes.</p>
     <section class="panel">
-      <div class="phead"><h2>Live → Shadow → Research → ML</h2><span class="meta" id="pipelineMeta">loading…</span></div>
+      <div class="phead"><h2>Observation → Evidence → Research → ML</h2><span class="meta" id="pipelineMeta">loading…</span></div>
       <div class="pltable">
-        <div class="plrow plhead"><span>Strategy · Symbol · TF</span><span>Live</span><span>Shadow P&amp;L</span><span>Research edge</span><span>ML labels</span><span>Gate</span></div>
+        <div class="plrow plhead"><span>Strategy · Symbol · TF</span><span>Observation</span><span>Forward evidence</span><span>Research edge</span><span>ML labels</span><span>Gate</span></div>
         <div id="pipeline"><div class="jempty">Loading…</div></div>
       </div>
       <div style="padding:8px 16px;font-size:10.5px;color:var(--txt-faint)">Click a lane to drill down into its trades, gate blockers and full lifecycle.</div>
@@ -1010,7 +1010,7 @@
 
   <!-- ===== RESEARCH VIEW ===== -->
   <div class="view" data-view="promote" hidden>
-    <p class="intro"><b>Path to live.</b> Where each lane sits on the promotion ladder — research → replay → untouched judgment → shadow → paper → live-small — and exactly why it is or isn't progressing. Read-only; promotion is human-gated on untouched data.</p>
+    <p class="intro"><b>Research eligibility.</b> This local scanner has no order route. Evidence and promotion gates remain visible, but execution onboarding is not applicable until a separately reviewed runtime exists.</p>
     <style>
       .plgate{display:grid;grid-template-columns:1fr 58px 84px;gap:10px;align-items:center;padding:9px 15px;border-bottom:1px solid var(--line)}
       .plgate .gk{font-size:12.5px;font-weight:600}
@@ -1022,7 +1022,7 @@
       .plstep small{display:block;font-size:10.5px;color:var(--txt-faint);margin-top:2px}
     </style>
     <section class="panel" style="border:1px solid var(--accent-soft,rgba(77,178,255,.25))">
-      <div class="phead"><h2>Live Readiness — gates to a first live order</h2><span class="meta" id="preLiveMeta">loading…</span></div>
+      <div class="phead"><h2>Execution Eligibility</h2><span class="meta" id="preLiveMeta">research-only</span></div>
       <div id="preLive"></div>
     </section>
     <section class="panel" style="margin-bottom:14px;border:1px solid var(--accent-soft,rgba(77,178,255,.25))">
@@ -1119,7 +1119,7 @@
 
   <!-- ===== ML VIEW ===== -->
   <div class="view" data-view="ml" hidden>
-    <p class="intro"><b>ML pipeline.</b> Meta-labeling on top of the rule-based signals — a model that learns <i>P(this signal wins after costs)</i> and gates/sizes accordingly. Data-gated: it trains only once enough real trade outcomes accumulate, then must clear the locked overfit gates on untouched data. Nothing here trades; a model runs only through the gateway.</p>
+    <p class="intro"><b>ML pipeline.</b> Meta-labeling can rank rule-based research candidates only after enough chronologically resolved outcomes exist. It must then clear locked overfit gates on untouched data. No trained model, paper authority, or execution route is active here.</p>
     <div class="kpis" id="mlkpis" style="margin-top:0"></div>
     <section class="panel" style="margin-top:14px">
       <div class="phead"><h2>Pipeline</h2><span class="meta" id="mlStageMeta">loading…</span></div>
@@ -1128,7 +1128,7 @@
     <div class="main" style="margin-top:14px">
       <div class="col">
         <section class="panel">
-          <div class="phead"><h2>Training data</h2><span class="meta">meta-labels from live journals</span></div>
+          <div class="phead"><h2>Training data</h2><span class="meta">meta-labels from research journals</span></div>
           <div id="mlData"></div>
         </section>
       </div>
@@ -1169,9 +1169,9 @@
         </section>
         <section class="panel">
           <div class="phead"><h2>Standing Findings</h2></div>
-          <div class="note"><b>The one surviving edge</b> is the maker liquidation-exhaustion fade on BTC/ETH — <span class="k">+6 bps net</span> at true base fees, survives even worst-case 7 bps. Thin (n≈53) but robust.</div>
-          <div class="note"><b>Mechanical candle edge:</b> none, at any timeframe or hold. Proven exhaustively — the scalp patterns don't clear Delta/Bybit fees taker-side.</div>
-          <div class="note"><b>Maker execution</b> is the only thing that turns these patterns fee-positive. stealth_trail is the cleanest maker-first candidate in the fleet.</div>
+          <div class="note"><b>Event-driven absorption is an unvalidated hypothesis.</b> It is implemented for research, but it has no claimed edge until verified event tape is replayed and an untouched result passes after costs.</div>
+          <div class="note"><b>Closed-candle scanners remain negative after costs.</b> Momentum, imbalance-fade, hierarchical and lead-lag candidates are retained as rejected research benchmarks, not active alpha.</div>
+          <div class="note"><b>Execution edge is not claimed.</b> Maker queue, fills, liquidation strength and adverse selection require real event replay plus shadow evidence before promotion can even be reviewed.</div>
         </section>
         <section class="panel">
           <div class="phead"><h2>Agentic Research OS</h2><span class="meta" id="agenticOsMeta">supervisor loading…</span></div>
@@ -1183,7 +1183,12 @@
 
   <!-- ===== SYSTEM VIEW ===== -->
   <div class="view" data-view="system" hidden>
-    <p class="intro"><b>System.</b> The single-process asyncio kernel, its data integrity, and the gates that keep capital safe. Every order — even shadow — passes the pre-trade risk gateway; there is no bypass path.</p>
+    <p class="intro"><b>System.</b> This local process is a read-only research dashboard. It has no broker, credentials, order manager, risk execution path, or order route; future executable components remain separately gated.</p>
+
+    <section class="panel" style="margin-bottom:14px">
+      <div class="phead"><h2>Event Research Stack</h2><span class="meta" id="eventResearchMeta">checking installed vs running…</span></div>
+      <div id="eventResearchInfrastructure"><div class="note">loading recorder, event-trigger, absorption and deterministic-replay truth…</div></div>
+    </section>
 
     <section class="panel" style="margin-bottom:14px">
       <div class="phead"><h2>Dashboard Self-Health</h2><span class="meta" id="dashboardHealthMeta">waiting for browser telemetry…</span></div>
@@ -1196,16 +1201,16 @@
     </section>
 
     <section class="panel" style="margin-bottom:14px">
-      <div class="phead"><h2>Exchange Connections</h2><span class="tag">trade-only keys · env-provisioned</span></div>
+      <div class="phead"><h2>Exchange Connections · Research Truth</h2><span class="tag">no account or order access</span></div>
       <div>
         <div class="conn">
           <div class="vlogo" style="background:var(--binance)">B</div>
           <div>
             <div class="cn">Binance USDⓈ-M Futures</div>
             <div class="cmeta">
-              <span class="badge ok"><span class="d" style="background:var(--long)"></span>Market data live</span>
+              <span class="badge off">Not connected in this dashboard runtime</span>
               <span class="badge off">Trade key · not linked</span>
-              <span class="badge net">Mainnet</span>
+              <span class="badge net">adapter available</span>
             </div>
           </div>
           <div class="cacct"><div class="v">public</div><div class="s">shadow · no account</div></div>
@@ -1215,9 +1220,9 @@
           <div>
             <div class="cn">Bybit V5 Perpetuals</div>
             <div class="cmeta">
-              <span class="badge ok"><span class="d" style="background:var(--long)"></span>Market data live</span>
+              <span class="badge off">Not connected in this dashboard runtime</span>
               <span class="badge off">Trade key · not linked</span>
-              <span class="badge net">Mainnet</span>
+              <span class="badge net">adapter available</span>
             </div>
           </div>
           <div class="cacct"><div class="v">public</div><div class="s">shadow · no account</div></div>
@@ -1225,19 +1230,18 @@
         <div class="conn">
           <div class="vlogo" style="background:var(--delta)">Δ</div>
           <div>
-            <div class="cn">Delta Exchange India <span style="font-size:10px;color:var(--brand);font-weight:700;letter-spacing:.06em">· FIRST LIVE CANDIDATE</span></div>
+            <div class="cn">Delta Exchange India · research source</div>
             <div class="cmeta">
-              <span class="badge ok"><span class="d" style="background:var(--long)"></span>Market data live</span>
-              <span class="badge ok">Trade-only key · read + trade</span>
-              <span class="badge gate"><span class="d" style="background:var(--info)"></span>Live-gated</span>
-              <span class="badge net">Mainnet</span>
+              <span class="badge gate"><span class="d" style="background:var(--info)"></span>Public candle snapshots configured</span>
+              <span class="badge off">Event tape status shown above</span>
+              <span class="badge off">No trade key loaded</span>
             </div>
           </div>
-          <div class="cacct"><div class="v">gated</div><div class="s">reduce-only ready</div></div>
+          <div class="cacct"><div class="v">research</div><div class="s">no account access</div></div>
         </div>
       </div>
       <div style="padding:11px 15px;border-top:1px solid var(--line);font-size:11px;color:var(--txt-faint);line-height:1.5">
-        API keys are <b style="color:var(--txt-dim)">trade-only</b> and injected via <span class="num">env / .env</span> on the host — never entered in this UI. The live order path stays three-gate locked until a strategy is promoted.
+        This dashboard process uses public research artifacts only. It does not load exchange credentials and cannot submit, amend, cancel, or reconcile orders.
       </div>
     </section>
 
@@ -1279,7 +1283,7 @@
         <div class="about-eyebrow">Autonomous Perps Desk</div>
         <div class="wordmark" style="font-size:27px;margin-top:6px">VN&nbsp;<b>EDGE</b></div>
         <h1 class="about-tag">A trading desk that hunts for edge — and refuses to risk your capital finding it.</h1>
-        <p class="about-lede">VN Edge watches BTC, ETH, SOL, XRP and DOGE across Binance, Bybit and Delta India, and runs a fleet of scanners that read the market on every bar. It holds only shadow and paper positions. It never places a live order until a strategy earns it — through governed, human-gated promotion on data it has never seen.</p>
+        <p class="about-lede" id="aboutLede">VN Edge is a local, read-only research cockpit. Runtime coverage and scanner counts below come directly from the connected state rather than design-time claims.</p>
       </div>
     </section>
 
@@ -1287,7 +1291,7 @@
       <div class="pcard">
         <div class="pn">Principle 01</div>
         <h3>Capital protection beats profit</h3>
-        <p>The first rule is not losing the money. Position size comes from risk-per-trade and stop distance — never from leverage — and a fixed daily-loss halt ends the day before a bad one can compound.</p>
+        <p>The research runtime cannot place orders. Any future execution runtime must supply position sizing, daily-loss limits, reconciliation and kill-switch evidence before it can become eligible.</p>
       </div>
       <div class="pcard">
         <div class="pn">Principle 02</div>
@@ -1296,8 +1300,8 @@
       </div>
       <div class="pcard">
         <div class="pn">Principle 03</div>
-        <h3>Shadow before live</h3>
-        <p>A strict ladder — backtest → paper → shadow → live — where each rung is validated before the next. The live order path stays sealed behind three independent locks and never opens on its own.</p>
+        <h3>Proof before authority</h3>
+        <p>Replay, untouched validation and governed proof objects must precede paper or live authority. This local scanner remains outside that execution ladder because its order route is absent.</p>
       </div>
       <div class="pcard">
         <div class="pn">Principle 04</div>
@@ -1309,21 +1313,21 @@
     <section class="panel">
       <div class="phead"><h2>By the numbers</h2><span class="tag">design point</span></div>
       <div class="nums">
-        <div class="n"><div class="v">3</div><div class="l">Venues</div></div>
-        <div class="n"><div class="v">6</div><div class="l">Symbols</div></div>
-        <div class="n"><div class="v">42</div><div class="l">Active lanes</div></div>
-        <div class="n"><div class="v">11</div><div class="l">Scanners</div></div>
-        <div class="n"><div class="v">&lt;$1k</div><div class="l">Capital</div></div>
-        <div class="n"><div class="v">$10</div><div class="l">Daily halt</div></div>
-        <div class="n"><div class="v z">0</div><div class="l">Live orders</div></div>
+        <div class="n"><div class="v" id="aboutVenues">—</div><div class="l">Connected venues</div></div>
+        <div class="n"><div class="v" id="aboutSymbols">—</div><div class="l">Covered symbols</div></div>
+        <div class="n"><div class="v" id="aboutLanes">—</div><div class="l">Research lanes</div></div>
+        <div class="n"><div class="v" id="aboutScanners">—</div><div class="l">Scanner families</div></div>
+        <div class="n"><div class="v" id="aboutCapital">—</div><div class="l">Paper capital</div></div>
+        <div class="n"><div class="v" id="aboutDailyHalt">—</div><div class="l">Daily halt</div></div>
+        <div class="n"><div class="v z" id="aboutLiveOrders">0</div><div class="l">Live orders</div></div>
       </div>
     </section>
 
-    <p class="intro" style="margin-top:16px;color:var(--txt-faint)">Crypto derivatives are extreme-risk. This is paper and shadow research tooling — not financial advice, and not a promise of returns. Build <span class="num" id="aboutBuild">loading</span> · single-process asyncio kernel · read-only surface.</p>
+    <p class="intro" style="margin-top:16px;color:var(--txt-faint)">Crypto derivatives are extreme-risk. This is read-only research tooling — not financial advice, and not a promise of returns. Build <span class="num" id="aboutBuild">loading</span> · single-process asyncio kernel · read-only surface.</p>
   </div>
 
   <footer class="foot">
-    <span>Read-only · shadow research · <span class="num">can_trade=false</span> · <span class="num">can_promote=false</span> · not financial advice</span>
+    <span>Read-only · research observation · <span class="num">can_trade=false</span> · <span class="num">can_promote=false</span> · not financial advice</span>
     <span>snapshot <span class="num" id="snap">240 ms</span> ago · build <span class="num" id="footBuild">loading</span></span>
   </footer>
 </div>
@@ -1440,7 +1444,12 @@
     }
     el.innerHTML=rows.map(function(g){
       var px=g.price!=null?(g.price>=1000?g.price.toLocaleString(undefined,{maximumFractionDigits:1}):g.price>=1?g.price.toFixed(2):g.price.toFixed(4)):"--";
-      var fund=g.fund!=null?((g.fund>=0?"+":"")+(g.fund*100).toFixed(3)+"%"):(g.fired?g.fired+" firing":g.sig.toLocaleString()+" evals");
+      var activity=g.liveEvalSources
+        ? g.liveEvals.toLocaleString()+" runtime evals"+(g.historicalAlerts?" · "+g.historicalAlerts.toLocaleString()+" hist":"")
+        : g.historicalAlerts
+          ? g.historicalAlerts.toLocaleString()+" hist alerts"
+          : "waiting";
+      var fund=g.fund!=null?((g.fund>=0?"+":"")+(g.fund*100).toFixed(3)+"%"):(g.fired?g.fired+" firing":activity);
       var cls=g.fund==null?"":g.fund>=0?"up":"dn";
       return '<span><i>'+safe(g.sym)+'</i>'+px+' <b class="'+cls+'">'+safe(fund)+'</b></span>';
     }).join('');
@@ -1450,7 +1459,7 @@
     rows=(rows||[]).filter(function(r){return r.strategy_id;});
     rows.sort(function(a,b){var af=a.state==="FIRING"?1:0,bf=b.state==="FIRING"?1:0;return (bf-af)||((b.live_fire_rate||0)-(a.live_fire_rate||0));});
     var top=rows.slice(0,14);
-    if(!top.length){el.innerHTML='<div class="sig"><span class="t">--</span><div class="body"><div class="why">scanner report loading…</div></div></div>';return;}
+    if(!top.length){el.innerHTML='<div class="sig"><span class="t">--</span><div class="body"><div class="why">No runtime scanner rows are published.</div></div></div>';return;}
     el.innerHTML=top.map(function(r){
       var v=ven(r.exchange),fired=r.state==="FIRING",ev=r.latest_eval||r.latest_shadow_intent||{},lc=r.trade_lifecycle||{};
       var sigPlan=ev.signal||{},side=String(ev.side||sigPlan.side||lc.side||"").toLowerCase(),sc=side==="short"?"s":"l",sl=side==="short"?"SHORT":side==="long"?"LONG":"";
@@ -1459,7 +1468,8 @@
       var stage=String(lc.stage||r.state||"waiting").toLowerCase().replace(/_/g," ");
       var levels=lc.take_profit_levels||[],ladder=levels.length?" · TP ladder journal-only":"";
       var l2=ev.l2_confirmation||r.l2_confirmation||{},l2State=String(l2.status||"unavailable").toLowerCase();
-      var l2Text=" · L2 "+l2State+" (context only)";
+      var seq=l2.sequence_healthy===true?"sequence verified":l2.sequence_healthy===false?"sequence unhealthy":"sequence unverified";
+      var l2Text=" · L2 "+(l2State==="fresh"?"snapshot fresh":l2State)+" · "+seq+" · context only";
       var why=String(lc.final_why_no_trade||r.final_why_no_trade||r.why||"").slice(0,76);
       return '<div class="sig"><span class="t">'+fmtTs(r.latest_eval_ts||r.latest_bar_ts)+'</span>'+
         '<div class="body"><div class="line1">'+
@@ -1583,6 +1593,34 @@
     el.innerHTML=hero+body+'<div class="eventfine">'+safe(fine)+'</div>';
   }
 
+  function eventInfraCls(status){
+    status=String(status||"").toUpperCase();
+    if(status==="RECORDED"||status==="OBSERVING"||status==="VALIDATED_RESULT"||status==="ACTIVE")return"ok";
+    if(status==="ATTENTION"||status==="BOOK_UNHEALTHY")return"bad";
+    return"wait";
+  }
+  function renderEventResearchInfrastructure(d){
+    var el=$("eventResearchInfrastructure"),meta=$("eventResearchMeta"); if(!el||!d)return;
+    var r=d.recorder||{},t=d.event_trigger||{},a=d.absorption||{},p=d.replay||{},s=d.safety||{},m=d.research_modules||{};
+    if(meta)meta.textContent="research only · order route "+String(s.order_route||"absent");
+    function card(title,status,value,detail){
+      return '<div class="perfk"><div class="l">'+esc(title)+'</div><div class="v" style="font-size:13px"><span class="actstate '+eventInfraCls(status)+'">'+esc(String(status||"UNKNOWN").toLowerCase().replace(/_/g," "))+'</span></div><div class="s">'+esc(value)+'<br>'+esc(detail)+'</div></div>';
+    }
+    var tc=t.counts||{},vh=(p.deterministic_hash||"");
+    var k=m.kronos||{},f=m.forced_flow_panel||{},g=m.governance||{},x=m.delta_execution_safety||{};
+    el.innerHTML='<div class="actionmetrics">'+
+      card("Event recorder",r.status,num(r.finalized_shards)+" finalized shards · "+num(r.recorded_events_from_manifests)+" events",num(r.partial_files)+" partial · validation runs before replay")+
+      card("Incremental trigger",t.status,num(tc.events)+" events · "+num(tc.evaluations)+" evaluations",t.telemetry_present?"runtime telemetry published":"implemented; no runtime publisher artifact")+
+      card("Absorption research",a.status,num(a.observations)+" observations · strength "+(a.strength_gauge==null?"—":num(a.strength_gauge).toFixed(1)),"L2/trade-tape hypothesis · liquidation strength not used")+
+      card("Deterministic replay",p.status,num(p.events_processed)+" events · "+num(p.candidates_emitted)+" candidates",vh?("hash "+String(vh).slice(0,12)+"…"):"engine ready; no local result artifact")+
+      '</div><div class="note"><b>Other recent implementations · exact maturity</b></div><div class="actionmetrics">'+
+      card("Kronos AI research",k.status,num(k.base_runs)+" base runs · "+num(k.permutations)+" permutations",num(k.eligible_selection_candidates)+" exploratory candidates · holdback not opened")+
+      card("Forced-flow panel",f.status,num(f.manifests)+" manifests · "+((f.symbols||[]).join(", ")||"no symbols"),num(f.quality_passed)+" quality-passed · candle/OI proxy, not liquidation tape")+
+      card("Governance proofs",g.status,"SHA-256 chain + Ed25519 primitives implemented","signed paper-proof integration still pending")+
+      card("Delta execution safety",x.status,"dead-man + protected-entry interlocks implemented","isolated here · no credentials · no route")+
+      '</div><div class="fblocker"><b>Current truth:</b> '+esc(d.operator_answer||"")+' <b>No paper/live authority.</b></div>';
+  }
+
   /* ---- main render from /state snapshot ---- */
   function lpnl(l){return num(l.realized_pnl)+num(l.unrealized_pnl);}
   function render(s){
@@ -1593,29 +1631,51 @@
     // accounts. Falls back to the flat primary equity in demo mode.
     var fleet=s.fleet||null;
     var nav=fleet?num(fleet.paper_equity):num(s.equity);
+    var hasPaperCapital=!!(fleet&&num(fleet.paper_lanes)>0&&num(fleet.paper_starting_equity)>0);
+    var researchMode=!live&&(String(s.mode||"").toLowerCase().indexOf("research")>=0||String(s.risk_status||"").toLowerCase().indexOf("research_only")>=0);
 
     // command bar
-    text("eqTop",moneyAbs(nav));
-    var pe=$("pnlTop"); if(pe){pe.textContent=usd(pnl);pe.className="v num "+(pnl>=0?"up":"dn");}
-    text("modeVal",live?"LIVE":"SHADOW");
+    text("eqTop",hasPaperCapital?moneyAbs(nav):"—");
+    var pe=$("pnlTop"); if(pe){pe.textContent=hasPaperCapital?usd(pnl):"—";pe.className="v num "+(hasPaperCapital?(pnl>=0?"up":"dn"):"");}
+    text("modeVal",live?"LIVE":researchMode?"RESEARCH":"SHADOW");
+    text("streamStateText",live?"Live · streaming":researchMode?"Research · streaming":"Shadow · streaming");
+    text("modeShieldLabel",live?"Live enabled":researchMode?"Research only":"Shadow only");
+    text("modeShieldDetail",live?"order route reviewed":researchMode?"no order route":"no live orders");
     text("killVal",kill?"TRIPPED":"ARMED");
     var kd=$("killDot"); if(kd)kd.style.background=kill?"var(--short)":"var(--long)";
-    text("railMode",live?"LIVE":"SHDW");
+    text("railMode",live?"LIVE":researchMode?"RSCH":"SHDW");
     text("railLanes",String(lanes.length));
     text("topGateway",(s.risk_status||"ok").toString().toUpperCase());
     text("topLiveLock",live?"OPEN":"LOCKED");
     text("snap", s.ts?ageMs(Math.max(0,Date.now()-Date.parse(s.ts))):"--");
     text("laneCount",lanes.length);
+    var connectedVenues={};lanes.forEach(function(l){if(l.exchange)connectedVenues[l.exchange]=1;});
+    var venueCount=Object.keys(connectedVenues).length;
+    if($("laneMeta"))$("laneMeta").innerHTML='<span id="laneCount">'+lanes.length+'</span> lanes · '+venueCount+' venue'+(venueCount===1?'':'s')+' · '+(researchMode?'research':live?'live':'shadow');
 
     // watchlist — real per-symbol price + funding (each lane forwards its quote)
     var bySym={};
-    lanes.forEach(function(l){var k=symShort(l.symbol);if(!k)return;if(!bySym[k])bySym[k]={sym:k,ven:{},lanes:0,sig:0,fired:0,price:null,fund:null};var g=bySym[k];g.lanes++;g.ven[l.exchange]=1;var f=l.funnel||{};g.sig+=num(f.live_evals||f.evals||0);if(l.last_eval&&l.last_eval.fired)g.fired++;if(g.price==null&&l.price&&fin(l.price.mid))g.price=l.price.mid;if(g.fund==null&&fin(l.funding_rate))g.fund=l.funding_rate;});
+    lanes.forEach(function(l){
+      var k=symShort(l.symbol);if(!k)return;
+      if(!bySym[k])bySym[k]={sym:k,ven:{},lanes:0,liveEvals:0,liveEvalSources:0,historicalAlerts:0,fired:0,price:null,fund:null};
+      var g=bySym[k],f=l.funnel||{};g.lanes++;g.ven[l.exchange]=1;
+      if(f.live_evals!=null){g.liveEvals+=num(f.live_evals);g.liveEvalSources++;}
+      g.historicalAlerts+=num(f.historical_alerts||0);
+      if(l.last_eval&&l.last_eval.fired)g.fired++;
+      if(g.price==null&&l.price&&fin(l.price.mid))g.price=l.price.mid;
+      if(g.fund==null&&fin(l.funding_rate))g.fund=l.funding_rate;
+    });
     var cov=Object.keys(bySym).map(function(k){return bySym[k];}).sort(function(a,b){return ((b.price!=null)-(a.price!=null))||(b.lanes-a.lanes);});
     renderTickerTape(cov);
     if($("watch"))$("watch").innerHTML=cov.map(function(g){
       var chips=Object.keys(g.ven).map(function(x){var v=ven(x);return '<i style="background:'+v.col+'">'+v.sh+'</i>';}).join('');
       var px=g.price!=null?("$"+(g.price>=1000?g.price.toLocaleString(undefined,{maximumFractionDigits:1}):g.price>=1?g.price.toFixed(2):g.price.toFixed(4))):(g.lanes+" lanes");
-      var sub=g.fund!=null?((g.fund>=0?"+":"")+(g.fund*100).toFixed(3)+"% fund"):(g.sig.toLocaleString()+" evals");
+      var activity=g.liveEvalSources
+        ? g.liveEvals.toLocaleString()+" runtime evals"+(g.historicalAlerts?" · "+g.historicalAlerts.toLocaleString()+" historical alerts":"")
+        : g.historicalAlerts
+          ? g.historicalAlerts.toLocaleString()+" historical alerts · runtime eval count unavailable"
+          : "waiting for activity";
+      var sub=g.fund!=null?((g.fund>=0?"+":"")+(g.fund*100).toFixed(3)+"% fund"):activity;
       return '<div class="wcard">'+(g.fired?'<span class="fire">◆ '+g.fired+' firing</span>':'')+
         '<div class="sym"><b>'+g.sym+'</b></div>'+
         '<div class="px num">'+px+'</div>'+
@@ -1630,48 +1690,70 @@
       var side=String(ev.side||"").toLowerCase(),sc=side==="short"?"s":"l",sl=side==="short"?"SHORT":side==="long"?"LONG":"—";
       var p=lpnl(l),pc=p>0?"up":p<0?"dn":"",f=l.funnel||{},w=Math.min(100,Math.abs(p)/12*100);
       var bar=p===0?'<i style="width:0"></i>':'<i style="'+(p>0?'left:50%;background:var(--long)':'right:50%;background:var(--short)')+';width:'+(w/2)+'%"></i>';
-      var why=ev.signal_reason||ev.skip_reason||(l.trade_compatibility&&l.trade_compatibility.state)||"evaluating";
+      var why=f.live_evals==null
+        ? "waiting; no current runtime alert"
+        : ev.signal_reason||ev.skip_reason||(l.trade_compatibility&&l.trade_compatibility.state)||"evaluating";
       var isVel=String(l.lane_id||"").indexOf("velocity_")===0;
       var velTag=isVel?'<span style="font-size:8px;font-weight:800;letter-spacing:.04em;background:var(--bg-3);color:var(--txt-faint);border:1px solid var(--line);padding:1px 4px;border-radius:4px;margin-right:5px;vertical-align:middle">VEL</span>':'';
+      var activityCount=f.live_evals!=null?num(f.live_evals):num(f.historical_alerts||0);
+      var activityKind=f.live_evals!=null?"runtime evals":"historical alerts";
+      var activityAge=l.last_fired_ts?" · last alert "+agoShort(l.last_fired_ts):" · no alert yet";
+      if(f.live_evals==null&&!num(f.historical_alerts||0))activityKind="runtime eval count unavailable";
       return '<div class="brow"><span class="st '+st+'"></span>'+
         '<div class="strat" title="'+(isVel?"velocity — ML training only, never a promotion candidate · ":"")+stratShort(l.strategy_id)+'">'+velTag+'<b>'+stratShort(l.strategy_id)+'</b><span>'+dailyFactoryChip(l.daily_factory)+safe(String(why).slice(0,44))+'</span></div>'+
         '<span class="vchip" style="background:'+v.col+'">'+v.lab+'</span>'+
         '<div><div style="font-size:11px;margin-bottom:3px;color:var(--txt-dim)">'+symShort(l.symbol)+(l.timeframe?' <span style="color:var(--txt-faint)">'+l.timeframe+'</span>':'')+'</div><span class="side '+sc+'">'+sl+'</span></div>'+
         '<div class="pnlbar"><span class="v '+pc+'">'+(p===0?"—":(p>0?"+":"")+"$"+p.toFixed(2))+'</span><div class="track">'+bar+'</div></div>'+
-        '<div class="sigct"><b>'+num(f.live_evals||f.evals||0)+'</b><div style="font-size:9.5px;color:var(--txt-faint);font-weight:400" title="last fired signal">'+(l.last_fired_ts?"fired "+agoShort(l.last_fired_ts):"no fire yet")+'</div></div></div>';
+        '<div class="sigct"><b>'+activityCount.toLocaleString()+'</b><div style="font-size:9.5px;color:var(--txt-faint);font-weight:400" title="runtime evaluations and historical research alerts are separate">'+activityKind+activityAge+'</div></div></div>';
     }).join('');
 
     // equity + KPIs — the headline curve + number track the FLEET, not one lane
-    pushEq(nav); drawEq();
-    text("eqBig",moneyAbs(nav));
-    var navPct=fleet?num(fleet.paper_return_pct):((num(s.equity)-500)/500*100),ep=$("eqPct");
-    if(ep){ep.textContent=(navPct>=0?"+":"")+navPct.toFixed(2)+"% net";ep.className="eqchg "+(navPct>=0?"up":"dn");}
-    if(fleet){
+    if(hasPaperCapital){pushEq(nav);drawEq();}
+    else if($("eqChart"))$("eqChart").innerHTML="";
+    text("eqBig",hasPaperCapital?moneyAbs(nav):"—");
+    var navPct=hasPaperCapital?num(fleet.paper_return_pct):null,ep=$("eqPct");
+    if(ep){ep.textContent=navPct==null?"not applicable":((navPct>=0?"+":"")+navPct.toFixed(2)+"% net");ep.className="eqchg "+(navPct==null?"":navPct>=0?"up":"dn");}
+    if(hasPaperCapital){
       text("eqStart",num(fleet.paper_lanes)+" paper lanes · $"+num(fleet.paper_starting_equity).toLocaleString(undefined,{maximumFractionDigits:0})+" deployed · "+num(fleet.shadow_lanes)+" shadow observing");
       text("eqPrimary","total book "+moneyAbs(fleet.equity)+" · primary "+moneyAbs(s.equity));
       var rp=num(fleet.realized_pnl),kp=$("kPaper"); if(kp)kp.className="v num "+(rp>=0?"up":"dn");
       text("kPaper",usd(rp)); text("kPaperSub",num(fleet.paper_lanes)+" paper · "+num(fleet.profitable_lanes)+"↑ / "+num(fleet.losing_lanes)+"↓");
       var sv=num(fleet.shadow_virtual_net_usd),ksh=$("kShadow"); if(ksh)ksh.className="v num "+(sv>=0?"up":"dn");
       text("kShadow",usd(sv)); text("kShadowSub",num(fleet.shadow_lanes)+" shadow · "+num(fleet.shadow_virtual_trades)+" virtual trades");
+    }else{
+      text("eqStart","research observation only");text("eqPrimary","no paper capital connected");
+      text("kPaper","—");text("kPaperSub","no paper-capital lanes");
+      text("kShadow","—");text("kShadowSub","no virtual trades published");
     }
-    var dd=num(s.peak_equity)>0?(num(s.peak_equity)-num(s.equity))/num(s.peak_equity)*100:0;
-    var stop=(s.trial&&fin(s.trial.daily_stop_usd))?num(s.trial.daily_stop_usd):10, lossUsed=Math.max(0,-pnl);
-    text("kDaily",moneyAbs(lossUsed)); text("kDailySub","of "+moneyAbs(stop)+" limit");
-    text("kDD",dd.toFixed(1)+"%");
+    var dd=hasPaperCapital&&num(s.peak_equity)>0?(num(s.peak_equity)-num(s.equity))/num(s.peak_equity)*100:null;
+    var stop=(s.trial&&fin(s.trial.daily_stop_usd))?num(s.trial.daily_stop_usd):null, lossUsed=hasPaperCapital?Math.max(0,-pnl):null;
+    text("kDaily",lossUsed==null?"—":moneyAbs(lossUsed)); text("kDailySub",stop==null?"not configured in research":"of "+moneyAbs(stop)+" limit");
+    text("kDD",dd==null?"—":dd.toFixed(1)+"%");
     var firing=lanes.filter(function(l){return l.last_eval&&l.last_eval.fired;}).length;
     var sig24=lanes.reduce(function(a,l){var f=l.funnel||{};return a+num(f.live_signals||f.signals||0);},0);
     text("kSig",sig24.toLocaleString()); text("kSigSub",firing+" lane"+(firing===1?"":"s")+" firing now");
-    if(COST&&fin(COST._maxTakerRt)){text("kFee",COST._maxTakerRt.toFixed(1)+" bps");text("kFeeSub","taker RT · "+COST._maxTakerVenue);}
+    if(COST){
+      var activeFee=null,fees=COST.exchanges||[],activeKeys=Object.keys(connectedVenues);
+      for(var fi=0;fi<fees.length;fi++)if(activeKeys.indexOf(fees[fi].exchange)>=0){activeFee=fees[fi];break;}
+      if(activeFee&&fin(activeFee.taker_round_trip_cost_bps)){text("kFee",num(activeFee.taker_round_trip_cost_bps).toFixed(1)+" bps");text("kFeeSub","taker RT · "+(activeFee.label||activeFee.exchange));}
+      else{text("kFee","—");text("kFeeSub","active venue fee unavailable");}
+    }
 
     // risk rail
-    var md=$("meterDaily"); if(md)md.style.width=Math.min(100,lossUsed/stop*100)+"%";
-    text("meterDailyV",moneyAbs(lossUsed)+" / "+moneyAbs(stop));
-    var mdd=$("meterDD"); if(mdd)mdd.style.width=Math.min(100,dd/6*100)+"%";
-    text("meterDDV",dd.toFixed(1)+"% / 6.0%");
-    text("rStreak",num(s.consecutive_losses));
+    var md=$("meterDaily"); if(md)md.style.width=(lossUsed!=null&&stop?Math.min(100,lossUsed/stop*100):0)+"%";
+    text("meterDailyV",lossUsed==null||stop==null?"not applicable":moneyAbs(lossUsed)+" / "+moneyAbs(stop));
+    var mdd=$("meterDD"); if(mdd)mdd.style.width=(dd==null?0:Math.min(100,dd/6*100))+"%";
+    text("meterDDV",dd==null?"not applicable":dd.toFixed(1)+"% / 6.0%");
+    text("rStreak",hasPaperCapital?num(s.consecutive_losses):"—");
+    text("rStreakDetail",hasPaperCapital?"/ configured breaker":"research only");
     text("rOpen",Array.isArray(s.positions)?s.positions.length:0);
     var vs={}; lanes.forEach(function(l){var x=l.exchange;if(!vs[x])vs[x]={n:0,st:0,ok:0};vs[x].n++;vs[x].st+=num(l.staleness_ms);if(l.feed==="ok")vs[x].ok++;});
     if($("venues"))$("venues").innerHTML=Object.keys(vs).map(function(x){var v=ven(x),g=vs[x],lat=g.st/g.n,tone=(lat<3000&&g.ok>0)?"var(--long)":lat<9000?"var(--warn)":"var(--short)";return '<div class="venue"><span class="dot" style="background:'+tone+'"></span><span class="nm">'+v.lab+'</span><span class="lat num">'+ageMs(lat)+'</span></div>';}).join('');
+
+    var scannerFamilies={};lanes.forEach(function(l){if(l.strategy_id)scannerFamilies[stratShort(l.strategy_id)]=1;});
+    text("aboutVenues",venueCount);text("aboutSymbols",Object.keys(bySym).length);text("aboutLanes",lanes.length);text("aboutScanners",Object.keys(scannerFamilies).length);
+    text("aboutCapital",hasPaperCapital?moneyAbs(num(fleet.paper_starting_equity)):"—");text("aboutDailyHalt",stop==null?"—":moneyAbs(stop));text("aboutLiveOrders",num(s.orders_sent||0));
+    text("aboutLede","VN Edge is a local "+(researchMode?"research":"read-only")+" cockpit evaluating "+Object.keys(bySym).length+" markets through "+Object.keys(scannerFamilies).length+" scanner families on "+venueCount+" connected venue"+(venueCount===1?"":"s")+". This runtime has "+(researchMode?"no order route and cannot trade or promote.":"live execution disabled unless explicitly shown otherwise."));
 
     // system
     text("gMode",s.mode||"--");
@@ -1683,7 +1765,7 @@
     text("sysLane",(lhTrade?"trade-ready":"blocked")+(lh.production_summary||lh.summary?" · "+(lh.production_summary||lh.summary):""));
     Object.keys(vs).forEach(function(x){var g=vs[x],fresh=(g.st/g.n)<9000&&g.ok>0,e=$("conn_"+x);if(e){e.textContent=fresh?"Market data live":"Market data stale";e.className="badge "+(fresh?"ok":"off");}});
 
-    lastSnap=s; renderFleet(); renderDataIntegrity(s,vs); renderDeployProv(s);
+    lastSnap=s; renderFleet(); renderDataIntegrity(s,vs); renderDeployProv(s); if(preLiveData)renderPreLive(preLiveData);
     if(curView==="pipeline") renderPipeline(s);
   }
 
@@ -1699,7 +1781,7 @@
   }
   function renderScorecard(sc){
     var el=$("scorecard"); if(!el)return; var rows=(sc&&sc.strategies)||[];
-    if(!rows.length){el.innerHTML='<div class="note">scorecard loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No published scorecard rows. Endpoint connectivity is healthy; research evidence is not available yet.</div>';return;}
     el.innerHTML=rows.map(function(g){
       var net=num(g.best_net_bps),pc=net>0?"up":net<0?"dn":"",pill=verdictPill(g.verdict),venc=(g.venues||[]).length;
       var dot=net>0?"pos":"watch";
@@ -1750,7 +1832,7 @@
     var el=$("darwinianAgentSurvival"),meta=$("darwinianMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.agents)||[],cohorts=(d&&d.cohorts)||[];
     if(meta)meta.textContent=num(s.upweighted_agents)+" up · "+num(s.downweighted_agents)+" down · "+esc(String(s.janus_regime||"").toLowerCase().replace(/_/g," "));
-    if(!rows.length){el.innerHTML='<div class="note">darwinian agent survival report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No published Darwinian survival artifact. The endpoint is reachable, but there is no research evidence to rank.</div>';return;}
     var topC=cohorts[0]||{};
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Top cohort</div><div class="v" style="font-size:15px;color:var(--brand)">'+esc(String(topC.cohort||"--").replace(/_/g," "))+'</div></div>'+
@@ -1782,7 +1864,7 @@
     var el=$("laneFunnel"),meta=$("laneFunnelMeta"); if(!el)return;
     var stages=(d&&d.canonical_funnel)||[],sum=(d&&d.summary)||{};
     if(meta)meta.textContent=(sum.total_rows!=null?sum.total_rows+" lanes":"readiness")+(sum.paper_review_ready!=null?" · "+sum.paper_review_ready+" paper-review":"");
-    if(!stages.length){el.innerHTML='<div class="note">lane readiness report loading…</div>';return;}
+    if(!stages.length){el.innerHTML='<div class="note">No published lane-readiness funnel evidence.</div>';return;}
     var nonzero=stages.filter(function(s){return num(s.count)>0;});
     el.innerHTML='<div class="funnelgrid">'+stages.map(function(s){
       var states=s.state_counts||{},top=Object.keys(states).sort(function(a,b){return num(states[b])-num(states[a]);})[0]||"empty";
@@ -1800,7 +1882,7 @@
     var el=$("causalityBoard"),meta=$("causalityMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=(s.total_rows!=null?s.total_rows+" lanes":"causality")+" · "+num(s.firing_now)+" firing · "+num(s.near_trigger)+" near";
-    if(!rows.length){el.innerHTML='<div class="note">lane causality report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No published lane-causality evidence.</div>';return;}
     var tiles=[
       ["Firing",num(s.firing_now),"var(--long)"],
       ["Near trigger",num(s.near_trigger),"var(--warn)"],
@@ -1853,7 +1935,7 @@
     var el=$("paperLaneRootCause"),meta=$("paperRootCauseMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.total_lanes)+" lanes · "+num(s.p1)+" P1 · "+num(s.entry_blocked)+" entry · "+num(s.exit_blocked)+" exit · "+num(s.negative_after_cost)+" negative";
-    if(!rows.length){el.innerHTML='<div class="note">paper lane root-cause matrix loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper lane root-cause evidence; paper execution is inactive.</div>';return;}
     var k='<div class="actionmetrics">'+
       '<div class="actionmetric"><div class="l">Route / journal</div><div class="v" style="color:var(--short)">'+num(s.route_blocked)+'</div></div>'+
       '<div class="actionmetric"><div class="l">Cadence stale</div><div class="v" style="color:var(--short)">'+num(s.cadence_blocked)+'</div></div>'+
@@ -1949,7 +2031,7 @@
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     var cfg=loadSizePrefs(d),online=num(s.paper_online),hbs=num(s.paper_journal_heartbeats),evals=num(s.paper_journal_evals),orders=num(s.paper_journal_order_intents);
     if(meta)meta.textContent=(online+" online · "+hbs+" pulses · "+evals+" evals · "+orders+" intents");
-    if(!rows.length){el.innerHTML='<div class="note">paper activation report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper activation evidence; this runtime is research-only.</div>';return;}
     var k='<div class="actkpis">'+
       '<div class="actk"><div class="l">Paper online</div><div class="v">'+online+'</div></div>'+
       '<div class="actk"><div class="l">Waiting</div><div class="v">'+num(s.paper_waiting)+'</div></div>'+
@@ -1988,7 +2070,7 @@
     var el=$("paperPerformance"),meta=$("paperPerfMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.closed_trades)+" closed · "+usd(s.net_pnl_usd)+" net · $"+num(s.fees_usd).toFixed(2)+" fees · "+num(s.journal_drift_lanes)+" drift lanes";
-    if(!rows.length){el.innerHTML='<div class="note">paper performance report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper performance evidence; no paper-capital lanes are active.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Candidates</div><div class="v" style="color:var(--long)">'+num(s.promotion_candidates)+'</div></div>'+
       '<div class="perfk"><div class="l">Profitable</div><div class="v" style="color:var(--long)">'+num(s.profitable_lanes)+'</div></div>'+
@@ -2023,7 +2105,7 @@
     var el=$("tradeAnalyzerOS"),meta=$("tradeAnalyzerMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[],recent=(d&&d.recent_trades)||[];
     if(meta)meta.textContent=num(s.closed_trades)+" closed · "+usd(s.net_pnl_usd)+" net · "+num(s.giveback_dominated)+" giveback · "+num(s.healthy_capture)+" healthy";
-    if(!rows.length&&!recent.length){el.innerHTML='<div class="note">trade analyzer OS loading…</div>';return;}
+    if(!rows.length&&!recent.length){el.innerHTML='<div class="note">No closed-trade analyzer evidence; paper execution is inactive.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Giveback lanes</div><div class="v" style="color:var(--short)">'+num(s.giveback_dominated)+'</div></div>'+
       '<div class="perfk"><div class="l">Entry gaps</div><div class="v" style="color:var(--warn)">'+num(s.entry_context_gap)+'</div></div>'+
@@ -2065,7 +2147,7 @@
     var el=$("paperTradeEntryAutopsy"),meta=$("paperEntryAutopsyMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.closed_trades)+" closed · "+num(s.stale_signal_lanes)+" stale · "+num(s.missing_context_lanes)+" missing ctx · "+num(s.direction_drift_lanes)+" drift";
-    if(!rows.length){el.innerHTML='<div class="note">paper entry autopsy loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper entry evidence; no paper orders were routed.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Stale entries</div><div class="v" style="color:var(--short)">'+num(s.stale_signal_lanes)+'</div></div>'+
       '<div class="perfk"><div class="l">Missing context</div><div class="v" style="color:var(--warn)">'+num(s.missing_context_lanes)+'</div></div>'+
@@ -2102,7 +2184,7 @@
     var el=$("paperTradeExitAutopsy"),meta=$("paperExitAutopsyMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.closed_trades)+" closed · "+num(s.stop_dominated)+" stop · "+num(s.strategy_exit_trades)+" smart exits · "+num(s.fee_wall_dominated)+" fee wall · "+num(s.tp_capture_weak)+" weak TP";
-    if(!rows.length){el.innerHTML='<div class="note">paper exit autopsy loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper exit evidence; no paper positions were opened.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Stop dominated</div><div class="v" style="color:var(--short)">'+num(s.stop_dominated)+'</div></div>'+
       '<div class="perfk"><div class="l">Smart exits</div><div class="v" style="color:var(--info)">'+num(s.strategy_exit_trades)+'</div></div>'+
@@ -2141,7 +2223,7 @@
     var el=$("makerQuoteLifecycle"),meta=$("makerQuoteMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.maker_attempts)+" maker quotes · "+num(s.maker_fill_rate_pct).toFixed(1)+"% fill · "+num(s.taker_fallback_blocked)+" taker blocked";
-    if(!rows.length){el.innerHTML='<div class="note">maker quote lifecycle report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No maker quote lifecycle evidence; the order route is absent.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Executor lanes</div><div class="v" style="color:var(--info)">'+num(s.lanes_with_executor_events)+'</div></div>'+
       '<div class="perfk"><div class="l">Maker fill rate</div><div class="v">'+num(s.maker_fill_rate_pct).toFixed(1)+'%</div></div>'+
@@ -2176,7 +2258,7 @@
     var el=$("paperContractTruth"),meta=$("paperContractMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.closed_trades)+" closed · "+num(s.contract_broken_lanes)+" contract · "+num(s.fee_wall_breach_lanes)+" fee · "+num(s.contract_ok_negative_lanes)+" clean-negative";
-    if(!rows.length){el.innerHTML='<div class="note">paper contract reconciler waiting for published evidence…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper contract evidence; no paper orders were routed.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Contract broken</div><div class="v" style="color:var(--short)">'+num(s.contract_broken_lanes)+'</div></div>'+
       '<div class="perfk"><div class="l">Fee wall</div><div class="v" style="color:var(--warn)">'+num(s.fee_wall_breach_lanes)+'</div></div>'+
@@ -2213,7 +2295,7 @@
     var el=$("paperPromotionBridge"),meta=$("paperPromotionBridgeMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.paper_review_ready)+" review · "+num(s.repair_first)+" repair · "+num(s.mine_alpha)+" mine · "+num(s.collect_sample)+" collect";
-    if(!rows.length){el.innerHTML='<div class="note">paper promotion bridge waiting for joined evidence…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper promotion evidence; research-only observations cannot enter the paper bridge.</div>';return;}
     var k='<div class="actionmetrics">'+
       '<div class="actionmetric"><div class="l">Human review</div><div class="v" style="color:var(--long)">'+num(s.paper_review_ready)+'</div></div>'+
       '<div class="actionmetric"><div class="l">Repair first</div><div class="v" style="color:var(--short)">'+num(s.repair_first)+'</div></div>'+
@@ -2248,7 +2330,7 @@
     var el=$("laneSurvival"),meta=$("laneSurvivalMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.survivor_candidates)+" survivors · "+num(s.observe_more)+" observe · "+num(s.demote_to_shadow)+" demote · score "+num(s.avg_survival_score).toFixed(1);
-    if(!rows.length){el.innerHTML='<div class="note">lane survival report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No published lane-survival evidence.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Survivors</div><div class="v" style="color:var(--long)">'+num(s.survivor_candidates)+'</div></div>'+
       '<div class="perfk"><div class="l">Observe</div><div class="v" style="color:var(--info)">'+num(s.observe_more)+'</div></div>'+
@@ -2283,7 +2365,7 @@
     var el=$("paperLaneGovernor"),meta=$("paperGovMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.paper_roster)+" roster · "+num(s.probation_queue)+" probation · "+num(s.demotion_queue)+" demote · "+num(s.repair_queue)+" repair";
-    if(!rows.length){el.innerHTML='<div class="note">paper lane governor report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper lane governor evidence; paper execution is inactive.</div>';return;}
     var k='<div class="perfgrid">'+
       '<div class="perfk"><div class="l">Roster</div><div class="v" style="color:var(--long)">'+num(s.paper_roster)+'</div></div>'+
       '<div class="perfk"><div class="l">Tournament</div><div class="v" style="color:var(--brand)">'+num(s.survivor_tournament)+'</div></div>'+
@@ -2377,7 +2459,7 @@
     var el=$("paperRouteDoctor"),meta=$("paperRouteDoctorMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[],runner=(d&&d.runner_service)||{};
     if(meta)meta.textContent=num(s.journal_active)+" active · "+num(s.journal_missing)+" missing · runner "+esc(runner.state||s.runner_state||"unknown");
-    if(!rows.length){el.innerHTML='<div class="note">paper route doctor loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper route evidence; the order route is absent.</div>';return;}
     var k='<div class="docgrid">'+
       '<div class="dock"><div class="l">Active journals</div><div class="v" style="color:var(--long)">'+num(s.journal_active)+'</div></div>'+
       '<div class="dock"><div class="l">Missing</div><div class="v" style="color:var(--warn)">'+num(s.journal_missing)+'</div></div>'+
@@ -2408,7 +2490,7 @@
     var el=$("paperCadence"),meta=$("paperCadenceMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.cadence_ok)+" ok · "+num(s.stale)+" stale · "+num(s.journal_missing)+" missing · "+num(s.heartbeat_only)+" heartbeat-only";
-    if(!rows.length){el.innerHTML='<div class="note">paper cadence report loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No paper cadence evidence; paper execution is inactive.</div>';return;}
     var k='<div class="docgrid">'+
       '<div class="dock"><div class="l">Cadence ok</div><div class="v" style="color:var(--long)">'+num(s.cadence_ok)+'</div></div>'+
       '<div class="dock"><div class="l">Signals seen</div><div class="v" style="color:var(--info)">'+num(s.signals_seen)+'</div></div>'+
@@ -2441,7 +2523,7 @@
     var el=$("tradeProfileMatrix"),meta=$("tradeProfileMeta"); if(!el)return;
     var s=(d&&d.summary)||{},rows=(d&&d.rows)||[];
     if(meta)meta.textContent=num(s.paper_profile_ready)+" paper ready · "+num(s.live_profile_risk_ok_prelive_required)+" live risk-ok · "+(num(s.paper_profile_blocked_by_risk)+num(s.live_profile_blocked_by_risk))+" blocked";
-    if(!rows.length){el.innerHTML='<div class="note">trade profile matrix loading…</div>';return;}
+    if(!rows.length){el.innerHTML='<div class="note">No published trade-profile evidence.</div>';return;}
     var body=rows.slice(0,10).map(function(r){
       var profile=String(r.profile||"unknown"),lev=num(r.requested_leverage),margin=num(r.requested_margin_usd),notional=num(r.requested_notional_usd);
       var blockers=(r.blockers||[]).join(" · "),source=String(r.venue_spec_source||"");
@@ -2575,8 +2657,8 @@
     var serverRows=(lifeData.operatorActions&&lifeData.operatorActions.rows)||[];
     rows=rows||collectLifecycleRows();
     if(!rows.length&&!serverRows.length){
-      if(meta)meta.textContent="waiting for joined evidence";
-      el.innerHTML='<div class="note">waiting for joined lane evidence before ranking actions…</div>';
+      if(meta)meta.textContent="no paper actions";
+      el.innerHTML='<div class="note">No paper action queue; the execution route is absent.</div>';
       return;
     }
     var actions=(serverRows.length?serverRows.map(actionFromServerRow):rows.map(actionFromLifecycle)).sort(function(a,b){return actionRank(a)-actionRank(b)||a.tone.localeCompare(b.tone)||a.strategy_id.localeCompare(b.strategy_id);});
@@ -2609,8 +2691,8 @@
     var rows=collectLifecycleRows();
     renderOperatorActionQueue();
     if(!rows.length){
-      if(meta)meta.textContent="waiting for joined evidence";
-      el.innerHTML='<div class="note">waiting for activation, route, cadence, profile, and performance evidence…</div>';
+      if(meta)meta.textContent="no paper lifecycle";
+      el.innerHTML='<div class="note">No paper lifecycle evidence; this runtime publishes research observations only.</div>';
       return;
     }
     var ps=(lifeData.performance&&lifeData.performance.summary)||{},as=(lifeData.activation&&lifeData.activation.summary)||{},cs=(lifeData.cadence&&lifeData.cadence.summary)||{},rs=(lifeData.route&&lifeData.route.summary)||{},qs=(lifeData.quote&&lifeData.quote.summary)||{},ss=(lifeData.survival&&lifeData.survival.summary)||{},gs=(lifeData.governor&&lifeData.governor.summary)||{};
@@ -2689,9 +2771,15 @@
       var gate=tc.state||(String(l.mode||"").indexOf("shadow")>=0?"SHADOW_ONLY":"PAPER_COMPATIBLE");
       var gcls=(gate.indexOf("PAPER_COMPAT")>=0)?"maker":(gate.indexOf("PROBATION")>=0||gate.indexOf("BLOCK")>=0)?"wall":"pass";
       var factory=dailyFactoryView(l.daily_factory);
+      var activity=(f.live_evals!=null)
+        ? num(f.live_evals).toLocaleString()+" runtime evals"
+        : num(f.historical_alerts).toLocaleString()+" historical alerts · runtime eval count unavailable";
+      var lastActivity=l.last_fired_ts
+        ? "last alert "+agoShort(l.last_fired_ts)
+        : String(l.why_no_trade||"no alert yet").replace(/_/g," ");
       return "<div class='plrow' data-lane='"+jEsc(encodeURIComponent(l.lane_id||""))+"' style='cursor:pointer'>"+
         "<div class='plcell'>"+(isVel?"<span class='veltag'>VEL</span>":"")+"<b style='display:inline'>"+jEsc(short)+"</b><small>"+jEsc(symShort(l.symbol))+" · "+jEsc(l.timeframe||"?")+" · "+jEsc(ven(l.exchange).lab)+"</small></div>"+
-        "<div class='plcell'><span class='plpill "+st[1]+"'>"+st[0]+"</span><small>"+(l.last_fired_ts?"fired "+agoShort(l.last_fired_ts):"no fire yet")+" · "+num(f.live_evals||f.evals)+" evals</small></div>"+
+        "<div class='plcell'><span class='plpill "+st[1]+"'>"+st[0]+"</span><small>"+lastActivity+" · "+activity+"</small></div>"+
         "<div class='plcell'><b class='num "+vc+"'>"+(vt?usd(vn):"—")+"</b><small>"+vt+" shadow trades</small></div>"+
         "<div class='plcell'>"+(sc?("<span class='route "+(rb>=0?"pass":"wall")+"'>"+(rb>=0?"+":"")+rb.toFixed(0)+" bps</span><small>"+jEsc(String(sc.verdict||"").toLowerCase().replace(/_/g," "))+" · "+rs.toLocaleString()+" smpl</small>"):"<b style='color:var(--txt-faint)'>—</b><small>not on scorecard</small>")+"</div>"+
         "<div class='plcell'><b class='num'>"+(ml!=null?ml:"—")+"</b><small>meta-label"+((ml!=null&&ml!==1)?"s":"")+"</small></div>"+
@@ -2742,7 +2830,7 @@
       "</div>";
     }).join("");
   }
-  var lastSnap={}, fleetData=null, metaData=null;
+  var lastSnap={}, fleetData=null, metaData=null, preLiveData=null;
   function renderFleet(){
     var s=lastSnap||{},lh=s.lane_health||{},tot=lh.totals||{},meta=$("laneFleetMeta"),el=$("laneFleet");
     var svcs=(fleetData&&fleetData.services)||[];
@@ -2758,11 +2846,13 @@
   }
   function renderDataIntegrity(s,vs){
     var el=$("dataIntegrity"); if(!el)return; var lh=s.lane_health||{},tot=lh.totals||{};
+    var safety=((s.research_infrastructure||{}).safety)||{},route=String(safety.order_route||"").toLowerCase();
+    var researchOnly=String(s.risk_status||"").toLowerCase().indexOf("research_only")>=0||route==="absent";
     var rows=Object.keys(vs).map(function(x){var v=ven(x),g=vs[x],lat=g.st/g.n,fresh=(lat<9000&&g.ok>0);
       return '<div class="kvrow"><span class="k">'+v.lab+' feed</span><span class="num" style="color:'+(fresh?"var(--long)":"var(--warn)")+'">'+(fresh?"fresh · ":"stale · ")+ageMs(lat)+'</span></div>';}).join('');
-    rows+='<div class="kvrow"><span class="k">Journal (WAL)</span><span class="num" style="color:'+(s.last_journal_write==="ok"?"var(--long)":"var(--short)")+'">'+(s.last_journal_write||"--")+'</span></div>';
-    rows+='<div class="kvrow"><span class="k">Risk gateway</span><span class="num" style="color:'+(s.risk_status==="ok"?"var(--long)":"var(--short)")+'">'+(s.risk_status||"--")+'</span></div>';
-    rows+='<div class="kvrow"><span class="k">Reconciliation</span><span class="num" style="color:'+(s.risk_status==="reconciling"?"var(--warn)":"var(--long)")+'">'+(s.risk_status==="reconciling"?"rebuilding":"matched")+'</span></div>';
+    rows+='<div class="kvrow"><span class="k">Journal (WAL)</span><span class="num" style="color:'+(s.last_journal_write==="ok"?"var(--long)":"var(--warn)")+'">'+(s.last_journal_write||"not published")+'</span></div>';
+    rows+='<div class="kvrow"><span class="k">Risk gateway</span><span class="num" style="color:'+(researchOnly?"var(--info)":s.risk_status==="ok"?"var(--long)":"var(--short)")+'">'+(researchOnly?"locked · research only":(s.risk_status||"--"))+'</span></div>';
+    rows+='<div class="kvrow"><span class="k">Execution reconciliation</span><span class="num" style="color:'+(researchOnly?"var(--txt-faint)":s.risk_status==="reconciling"?"var(--warn)":"var(--long)")+'">'+(researchOnly?"not connected · no order route":s.risk_status==="reconciling"?"rebuilding":"matched")+'</span></div>';
     var lhTrade=(lh.production_healthy!=null?lh.production_healthy:lh.healthy);
     rows+='<div class="kvrow"><span class="k">Lane production ready</span><span class="num" style="color:'+(lhTrade?"var(--long)":"var(--warn)")+'">'+(lh.production_summary||lh.summary||"--")+'</span></div>';
     rows+='<div class="kvrow"><span class="k">Trade-compatible lanes</span><span class="num '+(lhTrade?"up":"")+'">'+(tot.trade_compatible!=null?tot.trade_compatible+" / "+tot.desired:"--")+'</span></div>';
@@ -2800,19 +2890,38 @@
     }
     return null;
   }
+  function semanticPayloadState(path,d){
+    var p=String(path||"").split("?")[0],reason="";
+    if(!d||typeof d!=="object")return{state:"waiting",reason:"empty payload"};
+    if(p==="/scorecard"&&!(d.strategies||[]).length)reason="no published scorecard rows";
+    else if(p==="/ml-status"&&(!(d.stages||[]).length||String(d.note||"").toLowerCase().indexOf("unavailable")>=0))reason="ML artifact unavailable";
+    else if(p==="/fleet"&&!(d.services||[]).length)reason="service inventory not published";
+    else if(p==="/darwinian-agent-survival"&&!(d.agents||[]).length)reason="survival artifact not published";
+    else if(p==="/session-regime"&&!(d.by_session||[]).length)reason="no closed-trade regime evidence";
+    else if(p==="/event-research-infrastructure"){
+      var er=JSON.stringify(d).toLowerCase();
+      if(er.indexOf("not running")>=0||er.indexOf("waiting")>=0||er.indexOf("awaiting")>=0)reason="event research components are not running";
+    }
+    if(!reason){
+      var note=String(d.note||d.operator_answer||"").toLowerCase();
+      if(note.indexOf("unavailable")>=0||note.indexOf("not populated")>=0)reason=String(d.note||d.operator_answer).slice(0,110);
+    }
+    return reason?{state:"waiting",reason:reason}:{state:"ready",reason:"payload semantically ready"};
+  }
   function healthTone(st){
     if(!st)return"wait";
     if(st.lastStatus==="skipped"||st.lastStatus==="pending")return"wait";
     if(st.lastStatus==="error"||st.lastStatus==="http_error")return"bad";
+    if(st.semantic==="waiting")return"wait";
     var now=Date.now(),pollAge=st.lastPoll?now-st.lastPoll:Infinity,srcAge=st.sourceTs?now-st.sourceTs:0;
     if(pollAge>180000||srcAge>3600000)return"bad";
     if(pollAge>90000||srcAge>900000)return"wait";
     return"ok";
   }
   function recordPoll(path,status,d,detail){
-    var key=String(path||"").split("?")[0],st=pollStats[key]||{path:key,ok:0,fail:0,lastPoll:0,lastOk:0,lastStatus:"pending",sourceTs:null,error:""};
+    var key=String(path||"").split("?")[0],st=pollStats[key]||{path:key,ok:0,fail:0,lastPoll:0,lastOk:0,lastStatus:"pending",sourceTs:null,error:"",semantic:"waiting",semanticReason:"not polled"};
     st.lastPoll=Date.now(); st.lastStatus=status;
-    if(status==="ok"){st.ok+=1;st.lastOk=st.lastPoll;st.error="";var ts=payloadStamp(d);if(ts)st.sourceTs=ts;}
+    if(status==="ok"){st.ok+=1;st.lastOk=st.lastPoll;st.error="";var ts=payloadStamp(d);if(ts)st.sourceTs=ts;var semantic=semanticPayloadState(key,d);st.semantic=semantic.state;st.semanticReason=semantic.reason;}
     else{st.fail+=1;st.error=String(detail||status||"poll failed").slice(0,110);}
     pollStats[key]=st; renderDashboardHealth();
   }
@@ -2833,14 +2942,14 @@
     var head='<div class="healthrow head"><span>Endpoint</span><span>Status</span><span>Failures</span><span>Source age</span><span>Last detail</span></div>';
     var body=rows.map(function(st){
       var tone=healthTone(st),pollAge=st.lastPoll?ageMs(Date.now()-st.lastPoll)+" ago":"--",src=st.sourceTs?ageMs(Date.now()-st.sourceTs)+" ago":"no timestamp";
-      return '<div class="healthrow"><div><b><span class="healthdot '+tone+'"></span>'+safe(endpointLabel(st.path))+'</b><small>last poll '+pollAge+' · ok '+num(st.ok)+'</small></div>'+
-        '<div>'+lifeChip(st.lastStatus,tone)+'</div><div><b>'+num(st.fail)+'</b><small>poll failures</small></div><div><b>'+safe(src)+'</b><small>artifact freshness</small></div><div><small>'+safe(st.error||"latest payload accepted")+'</small></div></div>';
+      return '<div class="healthrow"><div><b><span class="healthdot '+tone+'"></span>'+safe(endpointLabel(st.path))+'</b><small>last poll '+pollAge+' · transport ok '+num(st.ok)+'</small></div>'+
+        '<div>'+lifeChip(st.semantic==="waiting"?"waiting":st.lastStatus,tone)+'</div><div><b>'+num(st.fail)+'</b><small>poll failures</small></div><div><b>'+safe(src)+'</b><small>artifact freshness</small></div><div><small>'+safe(st.error||st.semanticReason||"latest payload accepted")+'</small></div></div>';
     }).join('');
     if(!token){
       el.innerHTML=metrics+'<div class="note"><b>Token missing:</b> append <span class="num">?token=...</span> so the dashboard can poll read-only endpoints.</div>';
       return;
     }
-    el.innerHTML=metrics+head+wsRow+body+'<div class="fblocker"><b>Operator answer:</b> this panel turns a frozen or stale cockpit into visible evidence: endpoint status, browser poll failures, and payload freshness.</div>';
+    el.innerHTML=metrics+head+wsRow+body+'<div class="fblocker"><b>Operator answer:</b> HTTP success and research readiness are counted separately. Empty fallback artifacts remain waiting instead of appearing healthy.</div>';
   }
   function renderExternalRepoSynthesis(d){
     var el=$("externalRepoSynthesis"),meta=$("externalRepoMeta"); if(!el)return;
@@ -2982,10 +3091,24 @@
   function pollScannerEvidence(){ poll("/scanner-evidence", renderScannerEvidence); }
   function pollDeltaAttribution(){ poll("/delta-scalper", renderDeltaAttribution); }
   function pollDeltaEventClock(){ poll("/delta-5m-event-clock", renderDeltaEventClock); }
+  function pollEventResearchInfrastructure(){ poll("/event-research-infrastructure", renderEventResearchInfrastructure); }
   function pollExternalRepoSynthesis(){ poll("/external-repo-synthesis", renderExternalRepoSynthesis); }
   function pollAgenticResearchOS(){ poll("/agentic-research-os", renderAgenticResearchOS); }
   function renderPreLive(d){
     var el=$("preLive"),meta=$("preLiveMeta"); if(!el||!d)return;
+    preLiveData=d;
+    var safety=(((lastSnap||{}).research_infrastructure||{}).safety)||{};
+    var researchOnly=String((lastSnap||{}).risk_status||"").toLowerCase().indexOf("research_only")>=0||String(safety.order_route||"").toLowerCase()==="absent";
+    if(researchOnly){
+      if(meta)meta.textContent="NOT APPLICABLE · research-only runtime";
+      el.innerHTML='<div class="perfgrid">'+
+        '<div class="perfk"><div class="l">Order route</div><div class="v dn" style="font-size:15px">ABSENT</div><div class="s">intentionally not connected</div></div>'+
+        '<div class="perfk"><div class="l">Credentials</div><div class="v" style="font-size:15px;color:var(--txt-faint)">NOT LOADED</div><div class="s">not required for research</div></div>'+
+        '<div class="perfk"><div class="l">Trade authority</div><div class="v dn" style="font-size:15px">FALSE</div><div class="s">can_trade=false</div></div>'+
+        '<div class="perfk"><div class="l">Promotion</div><div class="v dn" style="font-size:15px">BLOCKED</div><div class="s">can_promote=false</div></div></div>'+
+        '<div class="fblocker"><b>Current truth:</b> this scanner dashboard is an observation and research surface. Generic credential setup and “first live order” instructions are deliberately suppressed because this runtime has no execution route.</div>';
+      return;
+    }
     var checks=d.checks||[], path=d.path_to_live||[];
     var green=checks.filter(function(c){return c.passed;}).length;
     if(meta)meta.textContent=green+" / "+checks.length+" gates green"+(d.cleared?" · CLEARED ✓":" · "+num(d.red_count)+" red");
@@ -2999,7 +3122,7 @@
       return "<div class='plstep'><span class='plnum'>"+(i+1)+"</span><div><b>"+jEsc(p.step)+"</b><small><b style='color:var(--txt-dim)'>"+jEsc(p.owner)+"</b> · "+jEsc(p.detail)+"</small></div></div>";
     }).join("");
     el.innerHTML=gates+
-      "<div style='padding:14px 15px 5px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--txt-dim);font-weight:700'>Ordered path to a first live order</div>"+
+      "<div style='padding:14px 15px 5px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--txt-dim);font-weight:700'>Ordered path to reviewed execution eligibility</div>"+
       steps+
       "<div class='fblocker'><b>Where we stand:</b> "+jEsc(d.operator_answer||"")+"</div>";
   }
@@ -3132,6 +3255,10 @@
   function renderMLStatus(d){
     if(!d) return;
     var ds=d.dataset||{},f=d.foundation||{},g=d.gates||{};
+    var dsMin=g.deflated_sharpe_min==null?0.95:g.deflated_sharpe_min;
+    var pboMax=g.pbo_max==null?0.20:g.pbo_max;
+    var cpcvMin=g.cpcv_median_profit_factor_min==null?1.30:g.cpcv_median_profit_factor_min;
+    var mustBeat=g.must_beat_rule_based_baseline==null?true:!!g.must_beat_rule_based_baseline;
     document.getElementById("mlkpis").innerHTML=
       jTile("Active role","<span style='font-size:13px;font-weight:800'>meta-labeling</span>",String(d.stage||"").toLowerCase().replace(/_/g," "))+
       jTile("Training labels","<span class='num'>"+num(ds.samples)+"</span>","target "+num(ds.min_to_train))+
@@ -3152,7 +3279,7 @@
       "<div style='padding:15px'>"+
         "<div class='num' style='font-size:26px;font-weight:800'>"+num(ds.samples)+" <span style='font-size:13px;color:var(--txt-faint);font-weight:400'>/ "+num(ds.min_to_train)+" labels to train</span></div>"+
         "<div class='mlbar'><i style='width:"+Math.min(100,num(ds.progress_pct))+"%'></i></div>"+
-        "<div style='font-size:11px;color:var(--txt-faint);margin-top:9px'>"+(keys.length?keys.map(function(k){return jEsc(k.replace(/_v1$/,""))+" · "+by[k];}).join(" &nbsp; "):"no labeled trades yet — the paper trials are still warming up (4h fires ~2/wk)")+"</div>"+
+        "<div style='font-size:11px;color:var(--txt-faint);margin-top:9px'>"+(keys.length?keys.map(function(k){return jEsc(k.replace(/_v1$/,""))+" · "+by[k];}).join(" &nbsp; "):"no labeled trades published — meta-model training is inactive in this research runtime")+"</div>"+
       "</div>";
     var val=d.validation||null;
     if(val && Array.isArray(val.gates) && val.gates.length){
@@ -3168,17 +3295,17 @@
     } else {
       var wait=val?(" · "+jEsc(String(val.status||"").replace(/_/g," ").toLowerCase())):"";
       document.getElementById("mlGates").innerHTML=
-        mlGate("Deflated Sharpe","≥ "+g.deflated_sharpe_min)+
-        mlGate("Prob. backtest overfit","≤ "+g.pbo_max)+
-        mlGate("CPCV median PF","≥ "+g.cpcv_median_profit_factor_min)+
-        mlGate("Beat rule-based baseline", g.must_beat_rule_based_baseline?"required":"—")+
-        "<div class='fblocker' style='border-top:1px solid var(--line);padding-top:11px'>locked gates — evaluated live once labels clear the CPCV floor"+wait+"</div>";
+        mlGate("Deflated Sharpe","≥ "+dsMin)+
+        mlGate("Prob. backtest overfit","≤ "+pboMax)+
+        mlGate("CPCV median PF","≥ "+cpcvMin)+
+        mlGate("Beat rule-based baseline", mustBeat?"required":"—")+
+        "<div class='fblocker' style='border-top:1px solid var(--line);padding-top:11px'>locked gates — evaluated only after chronological labels clear the CPCV floor"+wait+"</div>";
     }
   }
   function pollMLStatus(){ poll("/ml-status", renderMLStatus); }
 
-  pollScorecard(); pollScanner(); pollScannerEvidence(); pollDeltaAttribution(); pollDeltaEventClock(); pollAgenticResearchOS(); pollExternalRepoSynthesis(); pollLaneReadiness(); pollCausality(); pollPaperActivation(); pollPaperRouteDoctor(); pollPaperCadence(); pollPaperPerformance(); pollTradeAnalyzerOS(); pollPaperTradeEntryAutopsy(); pollPaperTradeExitAutopsy(); pollMakerQuoteLifecycle(); pollPaperContractTruth(); pollPaperPromotionBridge(); pollOperatorActions(); pollLaneSurvival(); pollPaperLaneGovernor(); pollPaperRosterDrift(); pollPaperLaneRootCause(); pollDarwinianAgentSurvival(); pollTradeProfileMatrix(); pollSessionRegime(); pollPreLive(); pollMLStatus(); pollMeta(); pollFleet(); pollJournal();
-  if(!reduce){ setInterval(pollScanner,5000); setInterval(pollScannerEvidence,5000); setInterval(pollDeltaAttribution,30000); setInterval(pollDeltaEventClock,5000); setInterval(pollScorecard,30000); setInterval(pollAgenticResearchOS,30000); setInterval(pollExternalRepoSynthesis,300000); setInterval(pollLaneReadiness,30000); setInterval(pollCausality,30000); setInterval(pollPaperActivation,30000); setInterval(pollPaperRouteDoctor,30000); setInterval(pollPaperCadence,30000); setInterval(pollPaperPerformance,30000); setInterval(pollTradeAnalyzerOS,30000); setInterval(pollPaperTradeEntryAutopsy,30000); setInterval(pollPaperTradeExitAutopsy,30000); setInterval(pollMakerQuoteLifecycle,30000); setInterval(pollPaperContractTruth,30000); setInterval(pollPaperPromotionBridge,30000); setInterval(pollOperatorActions,30000); setInterval(pollLaneSurvival,30000); setInterval(pollPaperLaneGovernor,30000); setInterval(pollPaperRosterDrift,30000); setInterval(pollPaperLaneRootCause,30000); setInterval(pollDarwinianAgentSurvival,30000); setInterval(pollTradeProfileMatrix,30000); setInterval(pollSessionRegime,60000); setInterval(pollPreLive,60000); setInterval(pollMLStatus,60000); setInterval(pollFleet,30000); setInterval(pollMeta,60000); setInterval(pollJournal,20000); }
+  pollScorecard(); pollScanner(); pollScannerEvidence(); pollDeltaAttribution(); pollDeltaEventClock(); pollEventResearchInfrastructure(); pollAgenticResearchOS(); pollExternalRepoSynthesis(); pollLaneReadiness(); pollCausality(); pollPaperActivation(); pollPaperRouteDoctor(); pollPaperCadence(); pollPaperPerformance(); pollTradeAnalyzerOS(); pollPaperTradeEntryAutopsy(); pollPaperTradeExitAutopsy(); pollMakerQuoteLifecycle(); pollPaperContractTruth(); pollPaperPromotionBridge(); pollOperatorActions(); pollLaneSurvival(); pollPaperLaneGovernor(); pollPaperRosterDrift(); pollPaperLaneRootCause(); pollDarwinianAgentSurvival(); pollTradeProfileMatrix(); pollSessionRegime(); pollPreLive(); pollMLStatus(); pollMeta(); pollFleet(); pollJournal();
+  if(!reduce){ setInterval(pollScanner,5000); setInterval(pollScannerEvidence,5000); setInterval(pollDeltaAttribution,30000); setInterval(pollDeltaEventClock,5000); setInterval(pollEventResearchInfrastructure,10000); setInterval(pollScorecard,30000); setInterval(pollAgenticResearchOS,30000); setInterval(pollExternalRepoSynthesis,300000); setInterval(pollLaneReadiness,30000); setInterval(pollCausality,30000); setInterval(pollPaperActivation,30000); setInterval(pollPaperRouteDoctor,30000); setInterval(pollPaperCadence,30000); setInterval(pollPaperPerformance,30000); setInterval(pollTradeAnalyzerOS,30000); setInterval(pollPaperTradeEntryAutopsy,30000); setInterval(pollPaperTradeExitAutopsy,30000); setInterval(pollMakerQuoteLifecycle,30000); setInterval(pollPaperContractTruth,30000); setInterval(pollPaperPromotionBridge,30000); setInterval(pollOperatorActions,30000); setInterval(pollLaneSurvival,30000); setInterval(pollPaperLaneGovernor,30000); setInterval(pollPaperRosterDrift,30000); setInterval(pollPaperLaneRootCause,30000); setInterval(pollDarwinianAgentSurvival,30000); setInterval(pollTradeProfileMatrix,30000); setInterval(pollSessionRegime,60000); setInterval(pollPreLive,60000); setInterval(pollMLStatus,60000); setInterval(pollFleet,30000); setInterval(pollMeta,60000); setInterval(pollJournal,20000); }
 
   /* ---- leverage & PnL calculator · per-exchange fee models ---- */
   var COST=null, calcState={side:"long"};

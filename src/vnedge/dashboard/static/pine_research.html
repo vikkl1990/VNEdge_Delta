@@ -219,6 +219,20 @@
       <div class="policy" id="distillerAnswer">Loading source-backed primitive queue from /pine-research/distiller.</div>
     </section>
 
+    <section class="panel distiller">
+      <h2>Local TradingView Rule Adapter</h2>
+      <div class="summary">
+        <div class="metric"><span>Status</span><b id="tvra_status">--</b><i>local compiler</i></div>
+        <div class="metric"><span>Assignments</span><b id="tvra_assignments">--</b><i>typed rule nodes</i></div>
+        <div class="metric"><span>Indicators</span><b id="tvra_indicators">--</b><i>computed on Delta data</i></div>
+        <div class="metric"><span>Signals</span><b id="tvra_signals">--</b><i>local replay only</i></div>
+        <div class="metric"><span>Blockers</span><b id="tvra_blockers">--</b><i>fail-closed</i></div>
+        <div class="metric"><span>TV network calls</span><b id="tvra_network">--</b><i>must remain zero</i></div>
+      </div>
+      <div class="task-list" id="tvRuleDetails"></div>
+      <div class="policy" id="tvRuleAnswer">Loading local RuleSpec adapter status from /pine-research/rule-spec.</div>
+    </section>
+
     <section class="panel evidence">
       <h2>Backtest Evidence</h2>
       <div class="summary">
@@ -973,6 +987,39 @@
       listEl.appendChild(div);
     }
   }
+  function renderTVRuleAdapter(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    const evaluation=payload.evaluation||{};
+    const policy=payload.policy||{};
+    const spec=payload.rule_spec||{};
+    text("tvra_status",payload.status||"--");
+    text("tvra_assignments",s.assignments??0);
+    text("tvra_indicators",s.indicator_assignments??0);
+    text("tvra_signals",Number(evaluation.long_signals||0)+Number(evaluation.short_signals||0));
+    text("tvra_blockers",s.blockers??0);
+    text("tvra_network",policy.network_access===false?"ZERO":"BLOCK");
+    text("tvRuleAnswer",payload.operator_answer||"No local RuleSpec artifact published yet.");
+    const listEl=$("tvRuleDetails"); listEl.innerHTML="";
+    const cards=[
+      ["Rule",spec.title||spec.rule_id||"none compiled",spec.timeframe?"timeframe "+spec.timeframe:"awaiting lawful local Pine source"],
+      ["Data boundary",policy.local_closed_candles_only?"LOCAL DELTA":"BLOCKED",policy.tradingview_data_used?"TradingView data detected":"no TradingView market-data ingestion"],
+      ["Safety",payload.can_trade?"UNSAFE":"RESEARCH ONLY",(spec.blockers||[]).slice(0,3).join(" | ")||"unsupported/repaint constructs fail closed"]
+    ];
+    cards.forEach(card=>{
+      const div=document.createElement("div"); div.className="task";
+      const title=document.createElement("b"); title.textContent=card[0];
+      const score=document.createElement("div"); score.className="score"; score.textContent=card[1];
+      const meta=document.createElement("span"); meta.textContent=card[2];
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); listEl.appendChild(div);
+    });
+  }
+  function loadTVRuleAdapter(){
+    fetch("/pine-research/rule-spec",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderTVRuleAdapter)
+      .catch(err=>{$("tvRuleAnswer").textContent=String(err);renderTVRuleAdapter({});});
+  }
   function loadProgress(){
     fetch("/pine-research/progress",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
       .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
@@ -1188,6 +1235,7 @@
       .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
       .then(renderDistiller)
       .catch(err=>{$("distillerAnswer").textContent=String(err);renderDistiller({});});
+    loadTVRuleAdapter();
     loadProgress();
     fetch("/pine-research/uplift-agent",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
       .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})

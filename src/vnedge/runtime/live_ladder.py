@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from enum import Enum
 
 from vnedge.config.settings import Settings
+from vnedge.governance.promotion_policy import DEFAULT_PROMOTION_POLICY
+from vnedge.governance.proofs import PaperEligibilityProof
 
 
 class LiveLadderStage(str, Enum):
@@ -29,29 +31,33 @@ _NEXT_STAGE = {
 }
 
 
+_LADDER_POLICY = DEFAULT_PROMOTION_POLICY.ladder
+
+
 @dataclass(frozen=True)
 class LiveLadderConfig:
-    min_paper_days: float = 14.0
-    min_paper_trades: int = 10
-    max_paper_drawdown_pct: float = 6.0
-    min_shadow_days: float = 7.0
-    min_shadow_trades: int = 10
-    min_shadow_profit_factor: float = 1.05
-    max_shadow_drawdown_pct: float = 6.0
-    min_live_small_days: float = 7.0
-    min_live_small_trades: int = 5
-    max_live_small_drawdown_pct: float = 3.0
+    min_paper_days: float = _LADDER_POLICY.min_paper_days
+    min_paper_trades: int = _LADDER_POLICY.min_paper_trades
+    max_paper_drawdown_pct: float = _LADDER_POLICY.max_paper_drawdown_pct
+    min_shadow_days: float = _LADDER_POLICY.min_shadow_days
+    min_shadow_trades: int = _LADDER_POLICY.min_shadow_trades
+    min_shadow_profit_factor: float = _LADDER_POLICY.min_shadow_profit_factor
+    max_shadow_drawdown_pct: float = _LADDER_POLICY.max_shadow_drawdown_pct
+    min_live_small_days: float = _LADDER_POLICY.min_live_small_days
+    min_live_small_trades: int = _LADDER_POLICY.min_live_small_trades
+    max_live_small_drawdown_pct: float = _LADDER_POLICY.max_live_small_drawdown_pct
+    policy_version: str = DEFAULT_PROMOTION_POLICY.policy_version
 
 
 @dataclass(frozen=True)
 class LiveLadderEvidence:
     current_stage: LiveLadderStage
     target_stage: LiveLadderStage
+    strategy_id: str = ""
+    symbol: str = ""
 
     human_approved: bool = False
-    params_locked: bool = False
-    untouched_judgment_passed: bool = False
-    model_registered: bool = False
+    paper_eligibility_proof: PaperEligibilityProof | None = None
 
     paper_days: float = 0.0
     paper_trades: int = 0
@@ -82,6 +88,7 @@ class LiveLadderDecision:
     target_stage: LiveLadderStage
     allowed: bool
     blockers: tuple[str, ...]
+    policy_version: str
 
     @property
     def summary(self) -> str:
@@ -134,19 +141,26 @@ def evaluate_live_ladder(
         target_stage=evidence.target_stage,
         allowed=not blockers,
         blockers=tuple(blockers),
+        policy_version=config.policy_version,
     )
 
 
 def _paper_blockers(evidence: LiveLadderEvidence) -> list[str]:
+    proof = evidence.paper_eligibility_proof
+    if proof is None:
+        return ["paper requires a valid PaperEligibilityProof"]
     blockers: list[str] = []
-    if not evidence.params_locked:
-        blockers.append("paper requires frozen, versioned strategy parameters")
-    if not evidence.model_registered:
-        blockers.append("paper requires a strategy/model registry entry")
-    if not evidence.untouched_judgment_passed:
-        blockers.append("paper requires a passed untouched-data judgment")
-    if not evidence.human_approved:
-        blockers.append("paper requires explicit human approval")
+    if not evidence.strategy_id:
+        blockers.append("paper promotion requires an explicit strategy identity")
+    if not evidence.symbol:
+        blockers.append("paper promotion requires an explicit market identity")
+    blockers.extend(
+        proof.verify(
+            policy=DEFAULT_PROMOTION_POLICY,
+            strategy_id=evidence.strategy_id or None,
+            symbol=evidence.symbol or None,
+        )
+    )
     return blockers
 
 

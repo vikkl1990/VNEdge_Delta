@@ -38,6 +38,8 @@ _MAX_CONSECUTIVE_ERRORS = 5
 _BACKOFF_SECONDS = 2.0
 _DEFAULT_REST_CANDLE_POLL_SECONDS = 10.0
 _DEFAULT_REST_QUOTE_POLL_SECONDS = 2.0
+_DEFAULT_WS_FALLBACK_POLL_SECONDS = 10.0
+_DEFAULT_WS_STALE_SECONDS = 30.0
 _VALIDATED_CCXT_PRO_FEEDS = {"binanceusdm", "bybit"}
 
 
@@ -50,6 +52,8 @@ class LiveMarketFeed:
         timeframe: str = "1m",
         slippage_est_bps: float = 2.0,
         funding_refresh_seconds: float = 900.0,
+        fallback_poll_seconds: float = _DEFAULT_WS_FALLBACK_POLL_SECONDS,
+        ws_stale_seconds: float = _DEFAULT_WS_STALE_SECONDS,
     ) -> None:
         import ccxt.pro as ccxtpro  # heavy import kept local
 
@@ -57,11 +61,13 @@ class LiveMarketFeed:
             raise ValueError(f"unknown CCXT Pro exchange id: {exchange_id}")
         self._ex = getattr(ccxtpro, exchange_id)({"enableRateLimit": True})
         self.exchange_id = exchange_id
-        self.feed_mode = "live ws"
+        self.feed_mode = "live ws (rest fallback)"
         self.symbol = symbol
         self.timeframe = timeframe
         self.slippage_est_bps = slippage_est_bps
         self.funding_refresh_seconds = funding_refresh_seconds
+        self.fallback_poll_seconds = fallback_poll_seconds
+        self.ws_stale_seconds = ws_stale_seconds
 
         self.closed_candles: asyncio.Queue[list] = asyncio.Queue()
         self.quote: tuple[float, float] | None = None  # (bid, ask)
@@ -77,15 +83,16 @@ class LiveMarketFeed:
         self.candles_closed = 0
         self._consecutive_errors = 0
         self._forming: list | None = None
+        self._last_emitted_candle_ts: int | None = None
         self._tasks: list[asyncio.Task] = []
 
     # --- Lifecycle ----------------------------------------------------------------
     async def start(self) -> None:
         self._tasks = [
             asyncio.create_task(self._watch_candles(), name="feed-candles"),
-            asyncio.create_task(self._watch_quotes(), name="feed-quotes"),
             asyncio.create_task(self._refresh_funding(), name="feed-funding"),
             asyncio.create_task(self._watch_book(), name="feed-book"),
+            asyncio.create_task(self._rest_watchdog(), name="feed-rest-watchdog"),
         ]
 
     async def stop(self) -> None:
@@ -138,8 +145,7 @@ class LiveMarketFeed:
                         self._forming = row
                     elif row[0] > self._forming[0]:
                         # a newer interval started: the forming candle is closed
-                        await self.closed_candles.put(self._forming)
-                        self.candles_closed += 1
+                        self._emit_closed(self._forming)
                         self._forming = row
                     else:
                         self._forming = row  # same interval, updated values
@@ -184,25 +190,86 @@ class LiveMarketFeed:
             await asyncio.sleep(self.funding_refresh_seconds)
 
     async def _watch_book(self) -> None:
-        """L2 builder for the fast loop: maintain live book metrics.
+        """Single L2 subscription for quotes, health and fast-loop metrics.
 
         Uses the venue-safe depth limit (Bybit rejects anything but
-        {1,50,200,1000}); metrics are throttled to ~1/s — the consumers
-        (dashboard, future scalper gates) don't need more.
+        {1,50,200,1000}).  Top-of-book previously had a second concurrent
+        ``watch_order_book`` consumer on the same CCXT Pro client.  That
+        duplicate subscription caused intermittent ping timeouts and stale
+        quotes.  One stream now owns both outputs.
         """
         while True:
             try:
                 ob = await self._ex.watch_order_book(self.symbol, limit=50)
-                if ob.get("bids") and ob.get("asks"):
-                    self.book_metrics = compute_book_metrics(
-                        self.symbol, ob["bids"], ob["asks"]
-                    )
-                await asyncio.sleep(1.0)
+                self._apply_order_book(ob)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001
                 self._mark_error("book", exc)
                 await asyncio.sleep(_BACKOFF_SECONDS)
+
+    def _apply_order_book(self, ob: dict) -> bool:
+        """Apply one valid book snapshot to quote, metrics and feed health."""
+        bids, asks = ob.get("bids"), ob.get("asks")
+        if not bids or not asks:
+            return False
+        bid, ask = float(bids[0][0]), float(asks[0][0])
+        if bid <= 0 or ask < bid:
+            return False
+        self.quote = (bid, ask)
+        self.book_metrics = compute_book_metrics(self.symbol, bids, asks)
+        self._mark_ok()
+        return True
+
+    def _emit_closed(self, row: list) -> bool:
+        """Emit a closed candle once across websocket and REST fallback."""
+        ts = int(row[0])
+        if (
+            self._last_emitted_candle_ts is not None
+            and ts <= self._last_emitted_candle_ts
+        ):
+            return False
+        self.closed_candles.put_nowait(list(row))
+        self._last_emitted_candle_ts = ts
+        self.candles_closed += 1
+        return True
+
+    async def _rest_watchdog(self) -> None:
+        """Keep public paper data moving while a websocket is stale.
+
+        This is intentionally a safety/continuity fallback, not a latency path:
+        it activates only after the websocket has been stale for 30 seconds and
+        emits only a fully closed candle through the same monotonic dedup gate.
+        """
+        while True:
+            if self.staleness_seconds() >= self.ws_stale_seconds:
+                await self._poll_rest_fallback_once()
+            await asyncio.sleep(self.fallback_poll_seconds)
+
+    async def _poll_rest_fallback_once(self) -> None:
+        step_ms = TIMEFRAME_MS[self.timeframe]
+        now_ms = int(datetime.now(UTC).timestamp() * 1000)
+        try:
+            rows = await self._ex.fetch_ohlcv(
+                self.symbol,
+                self.timeframe,
+                since=now_ms - 4 * step_ms,
+                limit=4,
+            )
+            closed = RestPollingMarketFeed._latest_closed_row(rows, now_ms, step_ms)
+            if closed is not None:
+                self._emit_closed(closed)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            self._mark_error("rest-candles-fallback", exc)
+        try:
+            book = await self._ex.fetch_order_book(self.symbol, limit=50)
+            self._apply_order_book(book)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            self._mark_error("rest-book-fallback", exc)
 
 
 def compute_book_metrics(symbol: str, bids: list, asks: list) -> dict | None:

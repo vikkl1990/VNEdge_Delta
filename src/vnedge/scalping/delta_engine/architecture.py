@@ -9,6 +9,14 @@ def architecture_manifest() -> dict[str, object]:
     return {
         "name": "VNEDGE Delta India Scalper Engine",
         "version": "1.0",
+        "identity": {
+            "scope": "local_delta_india_research_laboratory",
+            "primary_symbols": ["BTCUSD", "ETHUSD"],
+            "validated_after_cost_edge": False,
+            "paper_trading": False,
+            "live_trading": False,
+            "active_research_direction": "event_time_data_integrity_and_replay",
+        },
         "runtime": {
             "process_model": "single_process_asyncio_research_sidecar",
             "main_kernel_embedded": False,
@@ -45,4 +53,14 @@ def architecture_manifest() -> dict[str, object]:
             "can_trade": False,
             "can_promote": False,
         },
+        "retired_primary_hypotheses": [
+            "momentum_burst_v1",
+            "imbalance_fade_v1",
+            "hierarchical_pullback_v1",
+            "btc_eth_lead_lag_v1",
+            "range_compression_breakout_v1",
+            "session_liquidity_sweep_v1",
+            "continuous_mtf_alignment_v1",
+            "continuous_mtf_alignment_v2",
+        ],
     }

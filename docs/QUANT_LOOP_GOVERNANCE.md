@@ -36,8 +36,9 @@ Every output is research-only:
 - Whether Alpha Arena candidates collide on the same
   `strategy_id/exchange/symbol/timeframe/data_window` lock.
 - Whether loop budgets have been exceeded today.
-- Whether promotion thresholds remain at least 25 bps net edge, PF 1.5, and
-  20 trades.
+- Whether the materialized gate configuration names the active versioned
+  `PromotionPolicy` and preserves its governance floors: 25 bps net edge,
+  PF 1.5, and 20 trades under policy `v1.2.0`.
 - Whether verifier-before-paper, untouched-window, and burn-registry policy are
   present in the machine-readable gates.
 

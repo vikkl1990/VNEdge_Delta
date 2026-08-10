@@ -9,6 +9,7 @@ from vnedge.backtest.walk_forward import (
     WindowResult,
     evaluate_promotion,
 )
+from vnedge.governance.promotion_policy import DEFAULT_PROMOTION_POLICY
 
 BASE = 1_750_000_000_000
 
@@ -52,6 +53,7 @@ def result_with(tests: list[BacktestMetrics], trains: list[BacktestMetrics] | No
 def test_good_result_passes():
     decision = evaluate_promotion(result_with([metrics(), metrics(), metrics()]))
     assert decision.passed, decision.reject_reasons
+    assert decision.policy_version == DEFAULT_PROMOTION_POLICY.policy_version
     assert "eligible for paper trading" in decision.summary
 
 

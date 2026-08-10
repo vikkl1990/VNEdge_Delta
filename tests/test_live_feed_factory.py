@@ -162,6 +162,86 @@ def test_rest_polling_latest_closed_row_uses_only_closed_candles():
     assert RestPollingMarketFeed._latest_closed_row(rows, now_ms, step_ms) == rows[1]
 
 
+@pytest.mark.network
+async def test_live_feed_uses_one_book_update_for_quote_metrics_and_health():
+    feed = LiveMarketFeed("binanceusdm", symbol="BTC/USDT:USDT")
+    try:
+        assert feed._apply_order_book({
+            "bids": [[100.0, 2.0], [99.5, 3.0]],
+            "asks": [[100.5, 2.5], [101.0, 4.0]],
+        }) is True
+        assert feed.quote == (100.0, 100.5)
+        assert feed.book_metrics is not None
+        assert feed.book_metrics["spread_bps"] > 0
+        assert feed.healthy is True
+        assert feed.last_event_at is not None
+    finally:
+        await feed.stop()
+
+
+@pytest.mark.network
+async def test_live_feed_rejects_invalid_book_without_overwriting_quote():
+    feed = LiveMarketFeed("binanceusdm", symbol="BTC/USDT:USDT")
+    try:
+        feed.quote = (100.0, 100.5)
+        assert feed._apply_order_book({"bids": [], "asks": []}) is False
+        assert feed._apply_order_book({
+            "bids": [[101.0, 1.0]], "asks": [[100.0, 1.0]],
+        }) is False
+        assert feed.quote == (100.0, 100.5)
+    finally:
+        await feed.stop()
+
+
+class _WsFallbackExchange:
+    def __init__(self, rows, book):
+        self.rows = rows
+        self.book = book
+        self.ohlcv_calls = 0
+        self.book_calls = 0
+
+    async def fetch_ohlcv(self, *args, **kwargs):
+        self.ohlcv_calls += 1
+        return self.rows
+
+    async def fetch_order_book(self, *args, **kwargs):
+        self.book_calls += 1
+        return self.book
+
+    async def close(self):
+        pass
+
+
+@pytest.mark.network
+async def test_live_feed_rest_watchdog_recovers_quote_and_closed_candle():
+    feed = LiveMarketFeed("binanceusdm", symbol="BTC/USDT:USDT", timeframe="1m")
+    step_ms = 60_000
+    now_ms = int(datetime.now(UTC).timestamp() * 1000)
+    closed_ts = (now_ms // step_ms - 1) * step_ms
+    fake = _WsFallbackExchange(
+        [
+            [closed_ts, 100.0, 101.0, 99.0, 100.5, 10.0],
+            [closed_ts + step_ms, 100.5, 102.0, 100.0, 101.0, 2.0],
+        ],
+        {"bids": [[100.0, 2.0]], "asks": [[100.5, 3.0]]},
+    )
+    await feed._ex.close()
+    feed._ex = fake
+    try:
+        await feed._poll_rest_fallback_once()
+        emitted = feed.closed_candles.get_nowait()
+        assert emitted[0] == closed_ts
+        assert feed.quote == (100.0, 100.5)
+        assert feed.healthy is True
+        assert fake.ohlcv_calls == fake.book_calls == 1
+
+        # A repeat fallback poll cannot duplicate the same candle.
+        await feed._poll_rest_fallback_once()
+        assert feed.closed_candles.empty()
+    finally:
+        await feed.stop()
+
+
 class _HistExchange:
     """Fake ccxt exchange: settled funding history support."""
     has = {"fetchFundingRateHistory": True}

@@ -17,6 +17,7 @@ dependencies = [
     "scikit-learn>=1.5",
     "joblib>=1.4",
     "pyyaml>=6.0",
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
@@ -44,7 +45,14 @@ quant-research = [
 ]
 foundation-forecast = [
     "torch>=2.0",
+    "einops>=0.8.1",
     "huggingface_hub>=0.33",
+    "safetensors>=0.6.2",
+    "tqdm>=4.67",
+]
+event-recorder = [
+    "websockets>=13.0",
+    "zstandard>=0.23",
 ]
 
 [build-system]
