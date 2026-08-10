@@ -1,8 +1,10 @@
-"""Live Delta event recorder with a locked, research-only scanner observer.
+"""Live Delta event recorder with a locked, feature-only research observer.
 
 The recorder remains the source of truth and validates order-book sequencing
-before an envelope reaches the event engine.  The observer can journal and
-publish telemetry; it has no order, account, or risk-routing dependency.
+before an envelope reaches the event engine. The observer journals features
+and publishes telemetry, but live event hypotheses stay disabled until a
+deterministic replay proof exists. It has no order, account, or risk-routing
+dependency.
 """
 
 from __future__ import annotations
@@ -29,12 +31,14 @@ from vnedge.scalping.delta_engine.absorption import (
     AbsorptionDetectorConfig,
     AbsorptionInstrumentConfig,
 )
+from vnedge.scalping.delta_engine.absorption_research import (
+    AbsorptionResearchConfig,
+    AbsorptionResearchTracker,
+)
 from vnedge.scalping.delta_engine.event_trigger import (
-    AbsorptionReversalScanner,
     DeltaVerifiedEventBridge,
     EventDrivenTriggerLayer,
     EventTriggerConfig,
-    SustainedFlowImbalanceScanner,
 )
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
 from vnedge.scalping.delta_engine.signal_generator import SignalGateConfig
@@ -51,7 +55,7 @@ def _atomic_json(path: Path, payload: Mapping[str, object]) -> None:
 
 
 class DeltaLiveEventResearchObserver:
-    """Verified-envelope consumer that can only produce research evidence."""
+    """Verified-envelope consumer that can only produce feature evidence."""
 
     def __init__(
         self,
@@ -71,22 +75,30 @@ class DeltaLiveEventResearchObserver:
         if publish_interval_seconds <= 0:
             raise ValueError("publish interval must be positive")
         native_symbols = tuple(symbol.upper() for symbol in symbols)
-        fee_model = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
         absorption = AbsorptionDetectorConfig(
             enabled=bool(instruments),
             instruments=instruments,
         )
+        journal = DecisionJournal(journal_path)
+        absorption_research = (
+            AbsorptionResearchTracker(
+                DeltaFeeModel(default_slippage_bps_per_leg=1.5),
+                instruments,
+                config=AbsorptionResearchConfig(),
+                journal=journal,
+            )
+            if instruments
+            else None
+        )
         self.trigger = EventDrivenTriggerLayer(
-            (
-                SustainedFlowImbalanceScanner(fee_model),
-                AbsorptionReversalScanner(fee_model),
-            ),
+            (),
             config=EventTriggerConfig(
                 enabled_symbols=native_symbols,
                 absorption=absorption,
             ),
             gates=SignalGateConfig(allowed_symbols=native_symbols),
-            journal=DecisionJournal(journal_path),
+            journal=journal,
+            absorption_research=absorption_research,
         )
         self.bridge = DeltaVerifiedEventBridge(self.trigger)
         self.symbols = native_symbols
@@ -110,7 +122,7 @@ class DeltaLiveEventResearchObserver:
     async def publish(self, *, now_ns: int | None = None) -> None:
         now_ns = now_ns if now_ns is not None else time.monotonic_ns()
         telemetry = {
-            **self.trigger.telemetry(),
+            **self.trigger.telemetry(now_ns=now_ns),
             "state": "OBSERVING",
             "pid": os.getpid(),
             "updated_at": datetime.now(UTC).isoformat(),
@@ -118,6 +130,9 @@ class DeltaLiveEventResearchObserver:
             "events_observed": self.events_observed,
             "market_metadata_errors": list(self.metadata_errors),
             "observer_source": "verified_delta_recorder_envelopes",
+            "scanner_policy": "disabled_pending_causal_replay_proof",
+            "enabled_scanners": [],
+            "validated_edge": False,
         }
         absorption = self.trigger.absorption_dashboard(
             self.primary_absorption_symbol,

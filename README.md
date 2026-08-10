@@ -1,94 +1,136 @@
-# VNEDGE — Crypto F&O / Perpetuals Trading Assistant
+# VNEdge_Delta — Local Delta India Research Laboratory
 
-An explainable, risk-controlled crypto derivatives trading assistant. Not a grid
-bot, not a leverage casino, not a profit machine.
+VNEdge_Delta is a local, causal, research-only laboratory for Delta Exchange
+India market data, focused on `BTCUSD` and `ETHUSD`.
 
-> **This is not financial advice. Crypto futures and perpetuals are high-risk
-> instruments. Every strategy in this system must be backtested, paper traded,
-> and deployed with small capital first. Total loss of trading capital is a
-> realistic outcome.**
+> **Current truth:** there is no validated after-cost trading edge. Paper and
+> live trading are locked, every retired primary candle scanner is disabled,
+> and the Delta research runtimes construct no broker or order route.
 
-## Project charter (decided 2026-07-02)
+This repository is not a live trading bot and it is not financial advice.
+Crypto derivatives can lose the entire amount committed to them.
 
-| Decision            | Value                                                                 |
-|---------------------|-----------------------------------------------------------------------|
-| Exchanges           | Binance Futures, Bybit, Delta Exchange India (multi-exchange design)  |
-| Jurisdiction        | India (FIU-registered venues; consult a CA for VDA tax / TDS treatment) |
-| Instruments         | USDT-margined perpetuals; start BTC/ETH, expand via liquidity filters |
-| Framework           | Hybrid — Freqtrade/FreqAI for research, custom CCXT/asyncio for execution |
-| Capital design point| Micro: under $1,000                                                   |
-| Daily loss halt     | Fixed USD amount (default **$20/day**, configurable)                  |
-| Leverage            | Default 5x, >10x requires explicit acknowledgment, absolute cap 30x   |
-| Position sizing     | Risk-based (% of equity to stop), never leverage-based                |
-| Deployment          | Linux VPS + Docker (dev on macOS)                                     |
-| Live trading        | **Disabled by default.** Two independent flags must be set.           |
+## Safety state
 
-## Build order
+The Delta research boundary is fail-closed:
 
-1. **Foundation (this milestone)** — config layer, risk core, kill switch. Done first
-   because nothing else is allowed to exist without it.
-2. **Data layer** — candle/funding/OI ingestion via CCXT, Parquet historical store.
-3. **Backtester** — fee/slippage/funding-aware, walk-forward validation.
-4. **Strategies** — hybrid regime-filtered strategies; Freqtrade used for rapid research.
-5. **Paper trading** — live data, simulated broker, drift monitoring vs backtest.
-6. **Live execution** — only after the 10-point pre-live checklist passes; uses
-   production market data and a bounded mainnet drill, then smallest viable
-   capital on one venue. Testnet data is not accepted as scalper evidence.
-7. **Monitoring** — Streamlit dashboard, Telegram alerts, Prometheus optional.
-
-## Exchange sequencing
-
-- **Binance Futures** first: best documentation and deepest production
-  liquidity — the development and validation venue for real market-data
-  paper/shadow lanes. Testnet/sandbox liquidity is not used for edge proof.
-- **Delta Exchange India** second: India-domiciled, smaller contract sizes that
-  suit micro capital, candidate first live venue.
-- **Bybit** third, once the `BaseExchange` interface is proven by two implementations.
-
-## Micro-capital reality check
-
-With < $1,000: Binance BTCUSDT minimum order is 0.001 BTC (≈ $100+ notional), so
-risk-per-trade math must check minimum notional *before* signal generation, and
-some symbols will simply be untradeable at this size. Delta India's smaller
-contracts are friendlier here. Fees and funding dominate at this scale — every
-strategy is evaluated on after-cost expected value.
-
-## Layout
-
-```
-src/vnedge/
-  config/    settings, exchange config, risk config (pydantic, env-driven)
-  risk/      kill switch, pre-trade gateway, position sizer
-  exchange/  base interface + venue adapters        (next milestones)
-  data/      candle/funding/OI stores
-  strategy/  regime filter + hybrid strategies
-  backtest/  fee/slippage/funding-aware engine
-  paper/     simulated broker
-  live/      order manager, reconciliation (disabled by default)
-  monitoring/ logging, alerts, dashboard
-tests/
+```text
+research_only = true
+can_trade     = false
+can_promote   = false
+validated_edge = false
+order_route   = absent
+broker        = absent
 ```
 
-## Setup
+The repository contains generic paper, risk, and execution scaffolding from an
+older multi-venue architecture. Those modules are supporting or historical
+code; they are not connected to the Delta research sidecar. Their presence is
+not evidence that this project is paper-ready or live-ready.
+
+## What is active
+
+- Closed-candle causal research on Delta BTCUSD and ETHUSD.
+- Immutable multi-timeframe context from proven-closed candles.
+- Realistic Delta fee, GST, slippage, and next-bar outcome accounting.
+- Append-only research journaling, chronological validation, and sealed tails.
+- Public trade and L2 event recording with exchange and local timestamps.
+- Sequence/checksum gap detection and deterministic event replay tooling.
+- Read-only local dashboard with Delta research identity as the homepage.
+
+The active research direction is **event-time data integrity and deterministic
+replay**. Live event capture is feature/telemetry-only. No absorption,
+order-flow, queue, or forced-flow hypothesis is eligible for paper or live use
+until replay fidelity and after-cost edge are independently proven.
+
+## What is not working
+
+The engineering laboratory works; the tested alpha does not. The following
+primary hypotheses are retired as rejected research benchmarks:
+
+- Momentum Burst
+- Imbalance Fade
+- Hierarchical Pullback
+- BTC → ETH Lead-Lag
+- Range Compression Breakout
+- Session Liquidity Sweep
+- Continuous Multi-Timeframe Alignment v1/v2
+
+They must not be silently re-enabled in the continuously running Delta
+sidecar. Frozen historical contracts remain loadable only so old results can
+be reproduced.
+
+## Research correctness protocol
+
+Every new hypothesis must follow this order:
+
+1. Freeze a written preregistration before looking at results.
+2. Test gross edge on the selection window.
+3. Apply realistic Delta fees, GST, and slippage.
+4. Validate chronologically.
+5. Open one sealed untouched window only after earlier gates pass.
+6. Require positive after-cost expectancy, adequate profit factor, sample
+   size, data quality, and market consistency.
+
+Forbidden shortcuts include tuning after the first selection look, applying a
+meta-model to rescue a standalone losing scanner, lowering costs to force
+trades, or treating trade frequency as a target.
+
+## Time and data guarantees
+
+- A decision uses only information available at its decision timestamp.
+- Candle decisions occur after a proven close; default fills begin at the next
+  bar unless a preregistered contract states otherwise.
+- Higher-timeframe state must be available before lower-timeframe evaluation.
+- Funding is usable only after its settlement/publication timestamp.
+- Missing intervals and broken L2 sequences fail closed.
+- Live and replay share the same feature and decision components.
+- Performance is reported after costs unless explicitly labelled gross.
+
+## Local dashboard
+
+Start the read-only dashboard using the local helper:
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env      # then edit — never commit .env
-pytest
+scripts/start_delta_research_dashboard.sh
 ```
 
-Tests marked `network` construct real exchange clients (ccxt / ccxt.pro /
-native websockets). They run in the default suite; for a fully offline
-environment deselect them with `pytest -m "not network"`.
+Then open:
 
-## Non-negotiable safety rules
+```text
+http://127.0.0.1:8080/?token=vnedge-demo
+```
 
-- API keys are trade-only. Withdrawal permission is never enabled. IP whitelist on.
-- Secrets live in `.env` / a vault, never in code or git.
-- Every order passes the pre-trade risk gateway. No bypass path exists.
-- Kill switch (programmatic + `KILL` file) flattens and halts everything.
-- No martingale, no averaging down without invalidation, no stop-less strategies.
-- Live mode requires: backtest ✓, out-of-sample ✓, walk-forward ✓, paper ✓,
-  risk config review ✓, kill-switch test ✓, reconciliation test ✓, small-capital
-  approval ✓.
+The homepage is the Delta research view. The older generic multi-venue view is
+available only as the secondary **Research Lab** route.
+
+## Development setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env
+pytest -q
+```
+
+Never commit `.env`, credentials, event tapes, databases, Parquet outputs, or
+research journals. API credentials, if ever used in a separately reviewed
+future path, must be trade-only with withdrawals disabled.
+
+## Repository map
+
+```text
+configs/                         frozen runtime and research contracts
+docs/                            architecture, contracts, and results
+src/vnedge/scalping/delta_engine Delta causal context and research engines
+src/vnedge/exchange/             public recorder and isolated adapters
+src/vnedge/replay/               deterministic event-time replay
+src/vnedge/dashboard/            read-only dashboard and evidence endpoints
+src/vnedge/governance/           policy and proof primitives
+tests/                            causality, safety, replay, and UI contracts
+```
+
+Historical multi-venue/Freqtrade ambitions are retained only in dated design
+documents and generic research modules. They do not define the current
+VNEdge_Delta product identity.

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import heapq
 import json
-from collections import deque
+from collections import Counter, deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
@@ -512,6 +512,9 @@ class _SymbolState:
     last_book_monotonic_ns: int | None = None
     last_eval_monotonic_ns: int | None = None
     last_mid: float | None = None
+    last_trade_price: float | None = None
+    last_received_at: datetime | None = None
+    last_source_exchange_ts: datetime | None = None
     flow_anchor_mid: float | None = None
     funding_rate: float | None = None
     open_interest: float | None = None
@@ -577,7 +580,14 @@ class EventDrivenTriggerLayer:
             "not_confirmed": 0,
             "invalid_book": 0,
             "absorption_observations": 0,
+            "counterfactual_observations": 0,
+            "counterfactual_outcomes": 0,
+            "context_errors": 0,
+            "scanner_errors": 0,
+            "scanner_no_signal": 0,
+            "gate_rejected": 0,
         }
+        self._rejection_reasons: Counter[str] = Counter()
         self._feed_latency = _LatencyWindow(self.config.telemetry_window)
         self._decision_latency = _LatencyWindow(self.config.telemetry_window)
 
@@ -603,6 +613,8 @@ class EventDrivenTriggerLayer:
     def on_l2(self, event: L2Event) -> EventTriggerDecision | None:
         started = perf_counter_ns()
         state = self._state(event.symbol)
+        state.last_received_at = event.received_at
+        state.last_source_exchange_ts = event.exchange_ts
         self._counts["events"] += 1
         valid_sequence = event.is_snapshot or (
             state.last_book_sequence is not None
@@ -668,14 +680,18 @@ class EventDrivenTriggerLayer:
     def on_trade(self, event: TradeEvent) -> EventTriggerDecision | None:
         started = perf_counter_ns()
         state = self._state(event.symbol)
+        state.last_received_at = event.received_at
+        state.last_source_exchange_ts = event.exchange_ts
+        state.last_trade_price = event.price
         self._counts["events"] += 1
         if self.absorption_research is not None:
-            self.absorption_research.on_trade(
+            outcomes = self.absorption_research.on_trade(
                 event.symbol,
                 price=event.price,
                 received_at=event.received_at,
                 monotonic_ns=event.received_monotonic_ns,
             )
+            self._counts["counterfactual_outcomes"] += len(outcomes)
         notional = event.price * event.size
         signed = notional if event.side == "buy" else -notional
         state.trades.append((event.received_monotonic_ns, signed, event.price))
@@ -716,6 +732,8 @@ class EventDrivenTriggerLayer:
     def on_liquidation(self, event: LiquidationEvent) -> EventTriggerDecision | None:
         started = perf_counter_ns()
         state = self._state(event.symbol)
+        state.last_received_at = event.received_at
+        state.last_source_exchange_ts = event.exchange_ts
         self._counts["events"] += 1
         state.liquidation_price = event.price
         state.liquidation_side = event.side
@@ -741,6 +759,8 @@ class EventDrivenTriggerLayer:
     ) -> EventTriggerDecision | None:
         started = perf_counter_ns()
         state = self._state(event.symbol)
+        state.last_received_at = event.received_at
+        state.last_source_exchange_ts = event.exchange_ts
         self._counts["events"] += 1
         if event.funding_rate is not None:
             state.funding_rate = event.funding_rate
@@ -944,10 +964,11 @@ class EventDrivenTriggerLayer:
             confirmation_source = "absorption"
             state.last_absorption_evaluated_ns = absorption.detected_monotonic_ns
             if self.absorption_research is not None:
-                self.absorption_research.register(
+                registered = self.absorption_research.register(
                     absorption,
                     decision_ts=received_at,
                 )
+                self._counts["counterfactual_observations"] += int(registered)
         else:
             direction, samples, confirmation_age_ms = self._sustained_direction(state, now_ns)
             confirmation_source = "flow_imbalance"
@@ -971,6 +992,8 @@ class EventDrivenTriggerLayer:
                 confirmation_source=confirmation_source,
             )
         except ValueError as exc:
+            self._counts["context_errors"] += 1
+            self._rejection_reasons[f"context_error:{type(exc).__name__}"] += 1
             trace.append(PipelineStage("event_context", "error", self._elapsed(freeze_started), str(exc)))
             return self._journal(
                 EventTriggerDecision(
@@ -994,7 +1017,10 @@ class EventDrivenTriggerLayer:
             try:
                 candidate = scanner.evaluate(context)
             except Exception as exc:  # noqa: BLE001 - isolated plugin boundary
-                reasons.append(f"{scanner.scanner_id}:scanner_error:{type(exc).__name__}")
+                reason = f"{scanner.scanner_id}:scanner_error:{type(exc).__name__}"
+                reasons.append(reason)
+                self._counts["scanner_errors"] += 1
+                self._rejection_reasons[reason] += 1
                 trace.append(
                     PipelineStage(
                         f"scanner:{scanner.scanner_id}",
@@ -1006,6 +1032,8 @@ class EventDrivenTriggerLayer:
                 continue
             if candidate is not None:
                 candidates.append(candidate)
+            else:
+                self._counts["scanner_no_signal"] += 1
             trace.append(
                 PipelineStage(
                     f"scanner:{scanner.scanner_id}",
@@ -1018,7 +1046,10 @@ class EventDrivenTriggerLayer:
         for candidate in candidates:
             failed = candidate_gate_failures(candidate, self.gates)
             if failed:
-                reasons.extend(f"{candidate.scanner_id}:{reason}" for reason in failed)
+                detailed = [f"{candidate.scanner_id}:{reason}" for reason in failed]
+                reasons.extend(detailed)
+                self._counts["gate_rejected"] += 1
+                self._rejection_reasons.update(detailed)
             else:
                 accepted.append(candidate)
         trace.append(
@@ -1034,7 +1065,9 @@ class EventDrivenTriggerLayer:
         if selected is not None:
             duplicate = selected.dedup_key in self._seen
             if duplicate:
-                reasons.append(f"{selected.scanner_id}:duplicate_decision")
+                reason = f"{selected.scanner_id}:duplicate_decision"
+                reasons.append(reason)
+                self._rejection_reasons[reason] += 1
                 selected = None
             else:
                 cooldown_key = (selected.scanner_id, selected.symbol, selected.side.value)
@@ -1042,7 +1075,9 @@ class EventDrivenTriggerLayer:
                 if previous_ns is not None and (
                     now_ns - previous_ns < self.config.candidate_cooldown_ms * 1_000_000
                 ):
-                    reasons.append(f"{selected.scanner_id}:candidate_cooldown")
+                    reason = f"{selected.scanner_id}:candidate_cooldown"
+                    reasons.append(reason)
+                    self._rejection_reasons[reason] += 1
                     self._counts["cooldown_blocked"] += 1
                     selected = None
                 else:
@@ -1091,7 +1126,7 @@ class EventDrivenTriggerLayer:
             return None
         return int((_utc(received_at) - _utc(exchange_ts)).total_seconds() * 1_000_000)
 
-    def telemetry(self) -> dict[str, object]:
+    def telemetry(self, *, now_ns: int | None = None) -> dict[str, object]:
         """Read-only bounded telemetry for dashboard/report adapters."""
 
         return {
@@ -1099,12 +1134,99 @@ class EventDrivenTriggerLayer:
             "counts": dict(self._counts),
             "feed_delay": self._feed_latency.summary(),
             "receive_to_decision": self._decision_latency.summary(),
+            "rejection_reasons": dict(self._rejection_reasons.most_common()),
+            "funnel": {
+                "events": self._counts["events"],
+                "absorption_observations": self._counts["absorption_observations"],
+                "counterfactual_observations": self._counts[
+                    "counterfactual_observations"
+                ],
+                "evaluations": self._counts["evaluations"],
+                "raw_candidates": self._counts["raw_candidates"],
+                "gate_rejected": self._counts["gate_rejected"],
+                "selected": self._counts["selected"],
+                "counterfactual_outcomes": self._counts[
+                    "counterfactual_outcomes"
+                ],
+            },
+            "market_states": self.market_states(now_ns=now_ns),
+            "counterfactual_absorption": (
+                self.absorption_research.telemetry()
+                if self.absorption_research is not None
+                else {
+                    "status": "not_configured",
+                    "research_only": True,
+                    "can_trade": False,
+                }
+            ),
             "config": self.config.model_dump(mode="json"),
             "research_only": True,
             "can_trade": False,
             "can_promote": False,
             "order_route": "absent",
         }
+
+    def market_states(self, *, now_ns: int | None = None) -> dict[str, object]:
+        """Publish actual event-time state without inventing unavailable HTF data."""
+
+        rows: dict[str, object] = {}
+        for symbol in self.config.enabled_symbols:
+            state = self._states.get(symbol)
+            if state is None:
+                rows[symbol] = {"status": "unavailable", "book_healthy": False}
+                continue
+            if now_ns is None or state.last_book_monotonic_ns is None:
+                book_age_ms = None
+            else:
+                book_age_ms = max(
+                    0.0,
+                    (now_ns - state.last_book_monotonic_ns) / 1_000_000.0,
+                )
+            try:
+                bids, asks, mid, spread, imbalance = self._book_features(state)
+            except ValueError:
+                bids, asks, mid, spread, imbalance = (), (), None, None, None
+            total_flow = state.buy_usd + state.sell_usd
+            flow = (
+                (state.buy_usd - state.sell_usd) / total_flow
+                if total_flow
+                else 0.0
+            )
+            htf = state.htf
+            rows[symbol] = {
+                "status": "healthy" if state.book_healthy and mid is not None else "unavailable",
+                "available_at": (
+                    state.last_received_at.isoformat() if state.last_received_at else None
+                ),
+                "source_exchange_ts": (
+                    state.last_source_exchange_ts.isoformat()
+                    if state.last_source_exchange_ts
+                    else None
+                ),
+                "price": state.last_trade_price or mid,
+                "mid": mid,
+                "best_bid": bids[0].price if bids else None,
+                "best_ask": asks[0].price if asks else None,
+                "spread_bps": spread,
+                "book_imbalance": imbalance,
+                "flow_imbalance": flow,
+                "book_age_ms": book_age_ms,
+                "book_sequence": state.last_book_sequence,
+                "book_healthy": state.book_healthy,
+                "active_confirmation": state.confirmation_direction,
+                "confirmation_samples": state.confirmation_samples,
+                "htf": {
+                    "available": htf is not None,
+                    "available_at": htf.available_at.isoformat() if htf else None,
+                    "bias": htf.bias if htf else None,
+                    "regime": htf.regime if htf else "unavailable",
+                    "vwap_distance_bps": htf.vwap_distance_bps if htf else None,
+                    "cusum_state": htf.cusum_state if htf else "unavailable",
+                },
+                "research_only": True,
+                "can_trade": False,
+            }
+        return rows
 
     def absorption_dashboard(self, symbol: str, *, now_ns: int) -> dict[str, object]:
         """Read-only footprint/timeline payload; no controls or order hooks."""

@@ -162,6 +162,29 @@ class EventReplayEngine:
             )
             candidate_hash.update(b"\n")
         records = journal.read_all() if journal is not None else []
+        # Counterfactual observations/outcomes are deterministic research
+        # products even when safety gates select zero scanner candidates. Keep
+        # runtime latency fields out of the proof, but include the full causal
+        # observation and outcome payloads.
+        deterministic_research_records = [
+            record
+            for record in records
+            if record.get("kind")
+            in {
+                "delta_absorption_research_observation",
+                "delta_absorption_research_outcome",
+            }
+        ]
+        for record in deterministic_research_records:
+            candidate_hash.update(
+                json.dumps(
+                    {"kind": record.get("kind"), "payload": record.get("payload")},
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    allow_nan=False,
+                ).encode("utf-8")
+            )
+            candidate_hash.update(b"\n")
         summary = replay_economic_summary(
             records,
             decisions=decisions,
@@ -177,6 +200,14 @@ class EventReplayEngine:
                 "event layer's internal receive-to-decision runtime"
             ),
         }
+        summary["deterministic_research_records"] = len(
+            deterministic_research_records
+        )
+        summary["deterministic_hash_scope"] = (
+            "selected candidates plus counterfactual absorption observations/outcomes; "
+            "wall-runtime telemetry excluded"
+        )
+        summary["l2_warmup_events"] = max(0, validation.events - events)
         result_path = self._result_path(config)
         result = ReplayResult(
             config=config,
@@ -204,6 +235,10 @@ class EventReplayEngine:
         bridge = DeltaVerifiedEventBridge(trigger)
         previous_receive_ns: int | None = None
         for event in self.store.iter_events(config):
+            if event.envelope.get("replay_warmup") is True:
+                if config.enable_feature_engine:
+                    bridge.consume(dict(event.envelope), integrity_verified=True)
+                continue
             forward.on_event(event)
             if (
                 config.speed_multiplier > 0

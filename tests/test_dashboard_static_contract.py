@@ -7,6 +7,8 @@ ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "src/vnedge/dashboard/static/index.html"
 QUANTIFIED = ROOT / "src/vnedge/dashboard/static/quantified_strategy_lab.html"
 APP = ROOT / "src/vnedge/dashboard/app.py"
+README = ROOT / "README.md"
+DELTA_LAUNCHER = ROOT / "scripts/start_delta_research_dashboard.sh"
 
 
 def _index() -> str:
@@ -15,6 +17,24 @@ def _index() -> str:
 
 def _quantified() -> str:
     return QUANTIFIED.read_text()
+
+
+def test_root_readme_states_current_delta_research_identity():
+    text = README.read_text()
+    assert "Local Delta India Research Laboratory" in text
+    assert "there is no validated after-cost trading edge" in text
+    assert "can_trade     = false" in text
+    assert "order_route   = absent" in text
+    assert "active research direction is **event-time data integrity" in text
+    assert "Binance Futures, Bybit, Delta Exchange India (multi-exchange design)" not in text
+
+
+def test_delta_dashboard_launcher_is_read_only_and_does_not_start_paper_runtime():
+    text = DELTA_LAUNCHER.read_text()
+    assert "vnedge.dashboard.scanner_live" in text
+    assert "vnedge.runtime.multi_lane_shadow" not in text
+    assert "MULTI_LANE_MODES" not in text
+    assert DELTA_LAUNCHER.stat().st_mode & 0o111
 
 
 def test_promote_view_has_joined_operator_lifecycle_console():

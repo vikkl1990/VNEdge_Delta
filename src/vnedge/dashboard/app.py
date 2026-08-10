@@ -61,6 +61,7 @@ from vnedge.dashboard.auth import (
 from vnedge.dashboard.scanner_bridge import dashboard_scanner_payload
 from vnedge.dashboard.session import SessionIssuer
 from vnedge.dashboard.session_regime import build_session_regime
+from vnedge.dashboard.sse_health import health_event_generator
 from vnedge.dashboard.trade_journal import build_trade_journal
 from vnedge.research.external_repo_synthesis import build_external_repo_synthesis
 from vnedge.research.pine_script_research import load_pine_research_payload
@@ -163,6 +164,7 @@ def event_research_infrastructure_payload(
     forced_flow_dir: Path | None = None,
     tv_rule_adapter_path: Path | None = None,
     htf_structure_path: Path | None = None,
+    htf_structure_v2_path: Path | None = None,
 ) -> dict[str, object]:
     """Truthful, read-only inventory of the new event-research stack.
 
@@ -217,6 +219,17 @@ def event_research_infrastructure_payload(
     trigger = _read_json_dict(event_trigger_telemetry_path)
     trigger_counts = trigger.get("counts") if isinstance(trigger.get("counts"), dict) else {}
     trigger_status = "OBSERVING" if trigger else "IMPLEMENTED_NOT_RUNNING"
+    trigger_funnel = trigger.get("funnel") if isinstance(trigger.get("funnel"), dict) else {}
+    trigger_rejections = (
+        trigger.get("rejection_reasons")
+        if isinstance(trigger.get("rejection_reasons"), dict)
+        else {}
+    )
+    counterfactual = (
+        trigger.get("counterfactual_absorption")
+        if isinstance(trigger.get("counterfactual_absorption"), dict)
+        else {}
+    )
 
     absorption = _read_json_dict(absorption_dashboard_path)
     absorption_timeline = (
@@ -294,6 +307,22 @@ def event_research_infrastructure_payload(
         if isinstance(htf_selection.get("gate"), dict)
         else {}
     )
+    htf_structure_v2 = _read_json_dict(htf_structure_v2_path)
+    htf_v2_selection = (
+        htf_structure_v2.get("selection")
+        if isinstance(htf_structure_v2.get("selection"), dict)
+        else {}
+    )
+    htf_v2_metrics = (
+        htf_v2_selection.get("metrics")
+        if isinstance(htf_v2_selection.get("metrics"), dict)
+        else {}
+    )
+    htf_v2_gate = (
+        htf_v2_selection.get("gate")
+        if isinstance(htf_v2_selection.get("gate"), dict)
+        else {}
+    )
 
     return {
         "schema_version": "vnedge.event_research_infrastructure.v1",
@@ -315,6 +344,17 @@ def event_research_infrastructure_payload(
             "runtime": recorder_runtime,
             "unreadable_manifests": unreadable_manifests,
             "integrity_note": "inventory only; full sequence/checksum validation runs before replay",
+            "connection": recorder_runtime.get("connection") or {
+                "connected": None,
+                "attempts": int(recorder_runtime.get("connections") or 0),
+                "reconnects": None,
+                "disconnects": None,
+            },
+            "feed_delay_by_channel": recorder_runtime.get("feed_delay_by_channel") or {},
+            "feed_delay_corrected_by_channel": (
+                recorder_runtime.get("feed_delay_corrected_by_channel") or {}
+            ),
+            "timestamp_quality": recorder_runtime.get("feed_timestamp_quality") or {},
         },
         "event_trigger": {
             "implementation": "available",
@@ -323,6 +363,10 @@ def event_research_infrastructure_payload(
             "counts": trigger_counts,
             "feed_delay": trigger.get("feed_delay") if trigger else None,
             "receive_to_decision": trigger.get("receive_to_decision") if trigger else None,
+            "funnel": trigger_funnel,
+            "rejection_reasons": trigger_rejections,
+            "market_states": trigger.get("market_states") or {},
+            "counterfactual_absorption": counterfactual,
         },
         "absorption": {
             "implementation": "available",
@@ -330,7 +374,15 @@ def event_research_infrastructure_payload(
             "telemetry_present": bool(absorption),
             "symbol": absorption.get("symbol") if absorption else None,
             "strength_gauge": absorption.get("strength_gauge") if absorption else None,
-            "observations": len(absorption_timeline),
+            "observations": int(
+                trigger_counts.get("absorption_observations") or len(absorption_timeline)
+            ),
+            "counterfactual_observations": int(
+                trigger_counts.get("counterfactual_observations") or 0
+            ),
+            "counterfactual_outcomes": int(
+                trigger_counts.get("counterfactual_outcomes") or 0
+            ),
             "latest": absorption.get("latest") if absorption else None,
             "liquidation_strength_applied_to_signal": False,
         },
@@ -344,6 +396,11 @@ def event_research_infrastructure_payload(
             "deterministic_hash": replay.get("deterministic_hash") if replay else None,
             "validation": validation,
             "summary_metrics": replay.get("summary_metrics") if replay else {},
+            "deterministic_hash_scope": (
+                replay.get("summary_metrics", {}).get("deterministic_hash_scope")
+                if isinstance(replay.get("summary_metrics"), dict)
+                else None
+            ),
         },
         "research_modules": {
             "htf_structure_break": {
@@ -360,6 +417,33 @@ def event_research_infrastructure_payload(
                 "profit_factor": float(htf_metrics.get("profit_factor") or 0.0),
                 "scanner_funnel": htf_metrics.get("scanner_funnel") or {},
                 "untouched": htf_structure.get("untouched") or {},
+                "can_trade": False,
+                "can_promote": False,
+            },
+            "htf_structure_break_v2": {
+                "implementation": "available",
+                "status": (
+                    "SELECTION_PASS_TAIL_SEALED"
+                    if htf_v2_gate.get("passed") is True
+                    else "SELECTION_REJECTED"
+                    if htf_structure_v2
+                    else "READY_NO_ARTIFACT"
+                ),
+                "selection_trades": int(htf_v2_metrics.get("trades") or 0),
+                "selection_net_bps": float(htf_v2_metrics.get("net_bps") or 0.0),
+                "average_gross_bps": float(
+                    htf_v2_metrics.get("average_gross_bps") or 0.0
+                ),
+                "average_cost_bps": float(
+                    htf_v2_metrics.get("average_total_cost_bps") or 0.0
+                ),
+                "average_net_bps": float(
+                    htf_v2_metrics.get("average_net_bps") or 0.0
+                ),
+                "profit_factor": float(htf_v2_metrics.get("profit_factor") or 0.0),
+                "markets": htf_v2_metrics.get("markets") or {},
+                "untouched": htf_structure_v2.get("untouched") or {},
+                "funding_used": htf_v2_metrics.get("funding_used") is True,
                 "can_trade": False,
                 "can_promote": False,
             },
@@ -755,6 +839,7 @@ def create_app(
     promotion_review_runbook_path: Path | None = None,
     realtime_scanner_path: Path | None = None,
     delta_scalper_path: Path | None = None,
+    delta_active_cost_evidence_path: Path | None = None,
     scanner_forward_evidence_path: Path | None = None,
     lane_firing_causality_path: Path | None = None,
     paper_lane_activation_path: Path | None = None,
@@ -798,6 +883,7 @@ def create_app(
     kronos_confirmation_path: Path | None = None,
     forced_flow_dir: Path | None = None,
     htf_structure_path: Path | None = None,
+    htf_structure_v2_path: Path | None = None,
     token_store: TokenStore | None = None,
     agent_token_store: AgentTokenStore | None = None,
     agent_audit_path: Path | None = None,
@@ -1035,6 +1121,7 @@ def create_app(
         or realtime_scanner_path
         or Path("research/live_research/delta_scalper_engine_latest.json")
     )
+    delta_active_cost_evidence_file = delta_active_cost_evidence_path
     delta_event_root_dir = delta_event_root or Path("data/delta_events")
     event_trigger_telemetry_file = event_trigger_telemetry_path or Path(
         "research/live_research/delta_event_trigger_telemetry_latest.json"
@@ -1054,6 +1141,9 @@ def create_app(
     )
     htf_structure_file = htf_structure_path or Path(
         "research/live_research/htf_structure_break_v1_latest.json"
+    )
+    htf_structure_v2_file = htf_structure_v2_path or Path(
+        "research/live_research/htf_structure_break_v2_latest.json"
     )
     paper_lane_activation_file = (
         paper_lane_activation_path
@@ -1139,6 +1229,15 @@ def create_app(
 
         return FileResponse(
             _STATIC_DIR / "index.html",
+            headers={"Cache-Control": "no-store, must-revalidate"},
+        )
+
+    @app.get("/delta-research")
+    async def delta_research_page() -> FileResponse:
+        """Delta-only evidence, integrity, scanner, and latency detail."""
+
+        return FileResponse(
+            _STATIC_DIR / "delta_research.html",
             headers={"Cache-Control": "no-store, must-revalidate"},
         )
 
@@ -2417,6 +2516,41 @@ def create_app(
         else:
             embedded_panels = dict(embedded_panels)
 
+        active_cost_evidence = embedded_panels.get("active_cost_evidence")
+        if (
+            not isinstance(active_cost_evidence, dict)
+            and delta_active_cost_evidence_file is not None
+        ):
+            active_cost_evidence = _read_json_payload(
+                delta_active_cost_evidence_file, {}
+            )
+        active_cost_metrics = (
+            active_cost_evidence.get("metrics")
+            if isinstance(active_cost_evidence, dict)
+            else None
+        )
+        if isinstance(active_cost_metrics, dict):
+            source_backtest = embedded_panels.get("backtest_summary")
+            if not isinstance(source_backtest, dict):
+                source_backtest = {}
+            active_backtest = dict(source_backtest)
+            active_backtest.update(active_cost_metrics)
+            active_backtest["positive_markets"] = active_cost_evidence.get(
+                "positive_markets", 0
+            )
+            active_backtest["markets"] = active_cost_evidence.get("markets", {})
+            active_backtest["profit_factor_note"] = (
+                "recomputed from per-trade gross returns under the active fee model"
+            )
+            active_backtest["active_cost_scenario"] = active_cost_evidence.get(
+                "fee_model", {}
+            )
+            active_backtest["source_data_quality_pass"] = bool(
+                source_backtest.get("data_quality_pass")
+            )
+            embedded_panels["source_backtest_summary"] = source_backtest
+            embedded_panels["backtest_summary"] = active_backtest
+
         # The archived headline backtest was produced with the scalper fee
         # discount, while the current local config is not opted in. Present the
         # matching fixed-trade-set scenario as the active-cost headline and do
@@ -2425,7 +2559,8 @@ def create_app(
         fee_rows = embedded_panels.get("fee_effectiveness")
         backtest_view = embedded_panels.get("backtest_summary")
         if (
-            isinstance(fee_model_view, dict)
+            not isinstance(active_cost_metrics, dict)
+            and isinstance(fee_model_view, dict)
             and isinstance(fee_rows, list)
             and isinstance(backtest_view, dict)
         ):
@@ -2611,17 +2746,100 @@ def create_app(
             ],
         }
 
+        latest_eval_times = [
+            str(lane["last_eval_ts"])
+            for lane in lanes
+            if lane.get("last_eval_ts")
+        ]
+        latest_eval_ts = max(latest_eval_times, default=None)
+        journal_states = [
+            row.get("latest_eval", {}).get("journal_write_success")
+            for row in rows
+            if isinstance(row.get("latest_eval"), dict)
+        ]
+        if journal_states and all(value is True for value in journal_states):
+            journal_status = "healthy"
+        elif any(value is False for value in journal_states):
+            journal_status = "attention"
+        else:
+            journal_status = "unavailable"
+
+        # The current candle snapshot intentionally does not publish prices or
+        # the mechanical MultiTFState object. Expose that absence explicitly so
+        # the dashboard cannot substitute placeholders that look like live
+        # structure. These fields become populated only when the publisher
+        # gains a point-in-time state contract.
+        multi_tf_state = {
+            str(row.get("symbol") or "unknown"): {
+                "available": False,
+                "snapshot_ts": row.get("latest_eval_ts"),
+                "timeframes": {
+                    timeframe: {"status": "not_published"}
+                    for timeframe in ("4h", "1h", "15m", "5m", "1m")
+                },
+                "stack_aligned": None,
+                "reason": (
+                    "The live sidecar publishes closed-candle regime context, "
+                    "not a mechanical MultiTFState snapshot."
+                ),
+            }
+            for row in rows
+        }
+        recent_decisions = [
+            {
+                "timestamp": lane.get("last_eval_ts"),
+                "symbol": lane.get("symbol"),
+                "decision": "MONITOR_ONLY" if scanner_count == 0 else "NO_SELECTION",
+                "candidates": lane.get("latest_candidates", 0),
+                "accepted": lane.get("latest_accepted", 0),
+                "journal_status": journal_status,
+                "reason": lane.get("why_no_signal"),
+            }
+            for lane in lanes
+        ]
+        observations = {
+            "active": [],
+            "pending": [],
+            "count": 0,
+            "status": "none",
+            "reason": (
+                "No scanner is enabled, so no research observation can be opened."
+                if scanner_count == 0
+                else "No active or pending observation is present in the snapshot."
+            ),
+        }
+        system_health = {
+            "snapshot_available": bool(payload.get("generated_at") and rows),
+            "snapshot_generated_at": payload.get("generated_at"),
+            "connected_symbols": len(rows),
+            "expected_symbols": ["BTCUSD", "ETHUSD"],
+            "l2_fresh": sum(lane.get("l2_status") == "fresh" for lane in lanes),
+            "l2_total": len(lanes),
+            "l2_age_ms": None,
+            "feed_lag_ms": {timeframe: None for timeframe in ("1m", "5m", "1h")},
+            "feed_lag_note": "per-timeframe exchange-to-receive lag is not published",
+            "gap_guard": "not_published_in_candle_snapshot",
+            "journal": journal_status,
+            "last_evaluation_ts": latest_eval_ts,
+        }
+
         return JSONResponse(
             {
                 "generated_at": payload.get("generated_at"),
                 "rows": rows,
                 "lanes": lanes,
                 "signal_funnel": signal_funnel,
+                "system_health": system_health,
+                "multi_tf_state": multi_tf_state,
+                "observations": observations,
+                "recent_decisions": recent_decisions,
                 "panels": embedded_panels,
                 "identity": {
-                    "product": "VNEDGE Delta India Scalper",
+                    "product": "VNEDGE Delta India Research Laboratory",
                     "runtime": payload.get("mode") or "delta_scalper_research_shadow",
                     "primary_symbols": ["BTCUSD", "ETHUSD"],
+                    "validated_after_cost_edge": False,
+                    "active_research_direction": "event_time_data_integrity_and_replay",
                 },
                 "scanner_status": {
                     "enabled": enabled_scanners,
@@ -2631,6 +2849,11 @@ def create_app(
                 "policy": {
                     "research_only": True,
                     "l2_is_confirmation_only": True,
+                    "paper_trading": False,
+                    "live_trading": False,
+                    "validated_edge": False,
+                    "order_route": "absent",
+                    "broker": "absent",
                     "can_trade": False,
                     "can_promote": False,
                 },
@@ -2656,8 +2879,35 @@ def create_app(
                 forced_flow_dir=forced_flow_output_dir,
                 tv_rule_adapter_path=tv_rule_spec_file,
                 htf_structure_path=htf_structure_file,
+                htf_structure_v2_path=htf_structure_v2_file,
             ),
             headers=_identity(user),
+        )
+
+    @app.get("/api/delta/health/stream")
+    async def delta_health_stream(request: Request) -> StreamingResponse:
+        """Compact, authenticated SSE projection of Delta research health."""
+
+        user = _authorized(request)
+
+        def snapshot_supplier() -> tuple[
+            dict[str, object], dict[str, object], dict[str, object]
+        ]:
+            return (
+                _read_json_payload(delta_scalper_file, {}),
+                _read_json_payload(delta_event_root_dir / "_recorder_status.json", {}),
+                _read_json_payload(event_trigger_telemetry_file, {}),
+            )
+
+        return StreamingResponse(
+            health_event_generator(request, snapshot_supplier),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache, no-store",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+                **_identity(user),
+            },
         )
 
     @app.get("/delta-5m-event-clock")

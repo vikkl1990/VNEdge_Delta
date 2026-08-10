@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from statistics import fmean, median
@@ -186,6 +187,12 @@ class AbsorptionResearchTracker:
         self._pending: dict[str, list[_Pending]] = {}
         self._open: dict[str, list[_Open]] = {}
         self._event_volumes: dict[str, list[float]] = {}
+        self._counts: Counter[str] = Counter()
+        self._net_ticks = 0.0
+        self._gross_ticks = 0.0
+        self._cost_ticks = 0.0
+        self._gains = 0.0
+        self._losses = 0.0
 
     @staticmethod
     def key(observation: AbsorptionObservation) -> str:
@@ -197,6 +204,7 @@ class AbsorptionResearchTracker:
     def register(self, observation: AbsorptionObservation, *, decision_ts: datetime) -> bool:
         key = self.key(observation)
         if key in self._seen:
+            self._counts["duplicate_observations"] += 1
             return False
         instrument = self.instruments.get(observation.symbol)
         if instrument is None:
@@ -209,6 +217,21 @@ class AbsorptionResearchTracker:
         self._pending.setdefault(observation.symbol, []).append(
             _Pending(observation, _utc(decision_ts), percentile)
         )
+        self._counts["observations_registered"] += 1
+        if self.journal is not None:
+            self.journal.append(
+                "delta_absorption_research_observation",
+                {
+                    "key": key,
+                    "decision_ts": _utc(decision_ts).isoformat(),
+                    "symbol": observation.symbol,
+                    "volume_percentile": percentile,
+                    "event": observation.to_dict(),
+                    "research_only": True,
+                    "can_trade": False,
+                    "order_route": "absent",
+                },
+            )
         return True
 
     def on_trade(
@@ -261,9 +284,44 @@ class AbsorptionResearchTracker:
                 outcomes.append(outcome)
         self._open[native] = active
         for outcome in outcomes:
+            self._counts["outcomes"] += 1
+            self._counts[f"exit:{outcome.realized_exit_reason}"] += 1
+            if outcome.realized_exit_reason != "missed_entry":
+                self._counts["completed"] += 1
+                self._net_ticks += outcome.realized_net_ticks
+                self._gross_ticks += outcome.realized_gross_ticks
+                self._cost_ticks += outcome.cost_ticks
+                if outcome.realized_net_ticks > 0:
+                    self._gains += outcome.realized_net_ticks
+                elif outcome.realized_net_ticks < 0:
+                    self._losses += abs(outcome.realized_net_ticks)
             if self.journal is not None:
                 self.journal.append("delta_absorption_research_outcome", outcome.to_dict())
         return tuple(outcomes)
+
+    def telemetry(self) -> dict[str, object]:
+        """Bounded economic truth for the counterfactual research path."""
+
+        completed = self._counts["completed"]
+        return {
+            "counts": dict(self._counts),
+            "pending": sum(len(rows) for rows in self._pending.values()),
+            "open": sum(len(rows) for rows in self._open.values()),
+            "average_gross_ticks": self._gross_ticks / completed if completed else 0.0,
+            "average_cost_ticks": self._cost_ticks / completed if completed else 0.0,
+            "average_net_ticks": self._net_ticks / completed if completed else 0.0,
+            "profit_factor": (
+                self._gains / self._losses
+                if self._losses
+                else None
+                if self._gains
+                else 0.0
+            ),
+            "research_only": True,
+            "can_trade": False,
+            "can_promote": False,
+            "order_route": "absent",
+        }
 
     def _update_open(
         self,

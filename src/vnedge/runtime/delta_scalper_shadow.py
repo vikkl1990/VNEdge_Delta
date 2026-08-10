@@ -60,6 +60,7 @@ class DeltaScalperShadowService:
         config: DeltaScalperConfig | None = None,
     ) -> None:
         settings = config or DeltaScalperConfig()
+        settings.assert_runtime_safe()
         self.symbols = tuple(symbol.upper() for symbol in symbols)
         self.snapshot_path = Path(snapshot_path)
         self.backtest_path = Path(backtest_path)

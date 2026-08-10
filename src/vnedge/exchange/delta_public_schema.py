@@ -13,6 +13,9 @@ from typing import Literal
 
 AggressorSide = Literal["buy", "sell"]
 
+MIN_CREDIBLE_EPOCH_US = 946_684_800_000_000  # 2000-01-01
+MAX_CREDIBLE_EPOCH_US = 4_102_444_800_000_000  # 2100-01-01
+
 
 def _number(message: Mapping[str, object], *keys: str) -> float:
     for key in keys:
@@ -35,6 +38,78 @@ def _optional_number(message: Mapping[str, object], *keys: str) -> float | None:
 def _optional_int(message: Mapping[str, object], *keys: str) -> int | None:
     value = _optional_number(message, *keys)
     return int(value) if value is not None else None
+
+
+@dataclass(frozen=True)
+class DeltaTimestamp:
+    """A normalized epoch timestamp with its original wire semantics."""
+
+    value_us: int | None
+    raw_value: int | None
+    source_key: str | None
+    source_unit: str | None
+
+
+def normalize_epoch_timestamp_us(value: object) -> tuple[int | None, str | None]:
+    """Normalize seconds/milliseconds/microseconds/nanoseconds to epoch µs.
+
+    Delta channels are not uniform about timestamp units.  Magnitude-based
+    normalization is deterministic and rejects values outside 2000..2100
+    rather than turning non-time counters into latency evidence.
+    """
+
+    try:
+        raw = int(value)
+    except (TypeError, ValueError):
+        return None, None
+    absolute = abs(raw)
+    if absolute >= 100_000_000_000_000_000:
+        normalized, unit = raw // 1_000, "ns"
+    elif absolute >= 100_000_000_000_000:
+        normalized, unit = raw, "us"
+    elif absolute >= 100_000_000_000:
+        normalized, unit = raw * 1_000, "ms"
+    elif absolute >= 100_000_000:
+        normalized, unit = raw * 1_000_000, "s"
+    else:
+        return None, "unknown"
+    if not MIN_CREDIBLE_EPOCH_US <= normalized <= MAX_CREDIBLE_EPOCH_US:
+        return None, unit
+    return normalized, unit
+
+
+def delta_message_timestamp(
+    message: Mapping[str, object],
+    *,
+    channel: str,
+    publish: bool = False,
+) -> DeltaTimestamp:
+    """Return the channel-aware event or publish timestamp.
+
+    Trades expose both trade time ``t`` and publish time ``ts``. Order-book
+    updates use ``ts``/``t`` depending on the feed revision. Other channels
+    are deliberately conservative so unrelated fields cannot masquerade as
+    exchange time.
+    """
+
+    if publish:
+        keys = ("ts", "publish_timestamp")
+    elif channel == "trades":
+        keys = ("t", "timestamp")
+    elif channel in {"ob_updates", "ob_l2"}:
+        keys = ("t", "lts", "ts", "timestamp")
+    else:
+        keys = ("timestamp", "t", "ts")
+    for key in keys:
+        if message.get(key) is None:
+            continue
+        try:
+            raw = int(message[key])
+        except (TypeError, ValueError):
+            return DeltaTimestamp(None, None, key, "invalid")
+        value_us, unit = normalize_epoch_timestamp_us(raw)
+        return DeltaTimestamp(value_us, raw, key, unit)
+    return DeltaTimestamp(None, None, None, None)
 
 
 @dataclass(frozen=True)

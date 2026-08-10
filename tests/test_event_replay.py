@@ -241,6 +241,26 @@ def test_symbol_window_validation_convenience_api(tmp_path: Path) -> None:
     assert report.events == 6
 
 
+def test_arbitrary_window_warms_book_from_latest_prior_snapshot(tmp_path: Path) -> None:
+    event_root = tmp_path / "events"
+    write_fixture(event_root)
+    config = replay_config(
+        start_ts_us=BASE_US + 250_000,
+        end_ts_us=BASE_US + 1_000_000,
+        enable_scanner=False,
+        journal_mode="none",
+    )
+
+    stored = list(DeltaShardEventStore(event_root).iter_events(config))
+    result = engine(event_root, tmp_path / "outputs").replay(config)
+
+    assert stored[0].envelope["replay_warmup"] is True
+    assert stored[0].raw_message["action"] == "snapshot"
+    assert result.validation.passed is True
+    assert result.events_processed == 4
+    assert result.summary_metrics["l2_warmup_events"] == 1
+
+
 def test_shard_manifest_tampering_is_rejected(tmp_path: Path) -> None:
     event_root = tmp_path / "events"
     write_fixture(event_root)

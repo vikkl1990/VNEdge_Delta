@@ -6,7 +6,11 @@ engine:
   min_confidence: 0.60
   min_expectancy_bps: 8.0
   live_orders_enabled: false
+  can_trade: false
   can_promote: false
+  order_route: absent
+  broker: absent
+  validated_edge: false
 
 fee_model:
   deto_enabled: false

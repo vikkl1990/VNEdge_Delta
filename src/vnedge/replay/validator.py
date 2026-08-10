@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 
 from vnedge.exchange.delta_event_recorder import BookIntegrityError, DeltaBookIntegrityValidator
@@ -32,22 +33,33 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
     local_regressions = 0
     missing_exchange_timestamps = 0
     delays: list[int] = []
+    delays_by_channel: dict[str, list[int]] = defaultdict(list)
+    channel_regressions: Counter[str] = Counter()
     issues: list[str] = []
+    issue_count = 0
+    issue_limit = 100
+
+    def add_issue(issue: str) -> None:
+        nonlocal issue_count
+        issue_count += 1
+        if len(issues) < issue_limit:
+            issues.append(issue)
     previous_order: tuple[int, int, int, str] | None = None
     previous_exchange_us: int | None = None
+    previous_exchange_by_channel: dict[tuple[str, str], int] = {}
     previous_local_ns: int | None = None
 
     for event in events:
         events_count += 1
         if event.event_id in seen:
             duplicate_ids += 1
-            issues.append(f"duplicate_event_id:{event.event_id}")
+            add_issue(f"duplicate_event_id:{event.event_id}")
         seen.add(event.event_id)
         if event.exchange_timestamp_us < 0:
             missing_exchange_timestamps += 1
         if previous_order is not None and event.order_key < previous_order:
             local_regressions += 1
-            issues.append(f"receive_order_regression:{event.event_id}")
+            add_issue(f"receive_order_regression:{event.event_id}")
         if (
             previous_exchange_us is not None
             and event.exchange_timestamp_us < previous_exchange_us
@@ -55,6 +67,14 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
             # Expected across independently published symbols/channels. Report
             # it, but never reorder causally available messages to hide it.
             timestamp_regressions += 1
+        channel_key = (event.symbol, event.channel)
+        previous_channel_exchange = previous_exchange_by_channel.get(channel_key)
+        if (
+            previous_channel_exchange is not None
+            and event.exchange_timestamp_us < previous_channel_exchange
+        ):
+            channel_regressions[f"{event.symbol}:{event.channel}"] += 1
+        previous_exchange_by_channel[channel_key] = event.exchange_timestamp_us
         if previous_local_ns is not None and event.local_monotonic_ns < previous_local_ns:
             local_regressions += 1
             # Expected when canonical exchange-time ordering differs from wire arrival.
@@ -62,7 +82,12 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
         previous_order = event.order_key
         previous_exchange_us = event.exchange_timestamp_us
         previous_local_ns = event.local_monotonic_ns
-        delays.append((event.local_recv_ns - event.exchange_timestamp_us * 1_000) // 1_000)
+        latency_exchange_us = event.envelope.get("publish_timestamp_us")
+        if not isinstance(latency_exchange_us, int):
+            latency_exchange_us = event.exchange_timestamp_us
+        delay = (event.local_recv_ns - latency_exchange_us * 1_000) // 1_000
+        delays.append(delay)
+        delays_by_channel[event.channel].append(delay)
         if event.channel != "ob_updates":
             continue
         book_events += 1
@@ -75,10 +100,12 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
                 checksum_failures += 1
             else:
                 sequence_gaps += 1
-            issues.append(f"{event.event_id}:{exc.marker}")
+            add_issue(f"{event.event_id}:{exc.marker}")
 
     if events_count == 0:
-        issues.append("empty_replay_window")
+        add_issue("empty_replay_window")
+    if issue_count > issue_limit:
+        issues.append(f"additional_issues_omitted:{issue_count - issue_limit}")
     passed = not issues
     return RecordingValidationReport(
         passed=passed,
@@ -91,5 +118,11 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
         local_clock_regressions=local_regressions,
         missing_exchange_timestamps=missing_exchange_timestamps,
         clock_delay_percentiles_us=_percentiles(delays),
+        negative_delay_samples=sum(value < 0 for value in delays),
+        channel_timestamp_regressions=dict(channel_regressions),
+        clock_delay_by_channel_us={
+            channel: _percentiles(values)
+            for channel, values in sorted(delays_by_channel.items())
+        },
         issues=tuple(issues),
     )

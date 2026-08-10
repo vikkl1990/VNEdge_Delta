@@ -32,7 +32,7 @@ import re
 import signal
 import time
 import zlib
-from collections import Counter
+from collections import Counter, deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -41,12 +41,16 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Literal
 
+from vnedge.exchange.delta_public_schema import delta_message_timestamp
+
 logger = logging.getLogger(__name__)
 
 DELTA_PUBLIC_WS_URL = "wss://public-socket.india.delta.exchange"
 EVENT_SCHEMA_VERSION = "vnedge.delta_public_event.v1"
 MANIFEST_SCHEMA_VERSION = "vnedge.delta_event_shard_manifest.v1"
 STATUS_SCHEMA_VERSION = "vnedge.delta_event_recorder_status.v1"
+LATENCY_WINDOW_SIZE = 10_000
+MAX_CREDIBLE_FEED_DELAY_US = 300_000_000
 
 PUBLIC_CHANNELS = (
     "trades",
@@ -79,6 +83,70 @@ class RecorderDependencyError(RuntimeError):
 
 class SubscriptionIntegrityError(RuntimeError):
     """Delta rejected part of the requested public market-data contract."""
+
+
+class _SignedLatencyWindow:
+    """Bounded wall-clock delay evidence, including clock-skew negatives."""
+
+    def __init__(self, size: int = LATENCY_WINDOW_SIZE) -> None:
+        self.values: deque[int] = deque(maxlen=size)
+
+    def add(self, value: int | None) -> None:
+        if value is not None:
+            self.values.append(value)
+
+    def summary(self) -> dict[str, int | None]:
+        if not self.values:
+            return {
+                "count": 0,
+                "p50_us": None,
+                "p95_us": None,
+                "p99_us": None,
+                "min_us": None,
+                "max_us": None,
+                "negative_samples": 0,
+            }
+        rows = sorted(self.values)
+
+        def percentile(value: float) -> int:
+            return rows[min(len(rows) - 1, int((len(rows) - 1) * value))]
+
+        return {
+            "count": len(rows),
+            "p50_us": percentile(0.50),
+            "p95_us": percentile(0.95),
+            "p99_us": percentile(0.99),
+            "min_us": rows[0],
+            "max_us": rows[-1],
+            "negative_samples": sum(value < 0 for value in rows),
+        }
+
+
+class _ClockOffsetWindow:
+    """Bounded, transparent lower-bound estimate of exchange clock skew.
+
+    Network transit time cannot be negative, so the first percentile of the
+    signed receive-minus-exchange sample is a conservative offset estimate.
+    It is telemetry only: raw event timestamps and replay ordering are never
+    rewritten with it.
+    """
+
+    def __init__(self, size: int = LATENCY_WINDOW_SIZE) -> None:
+        self.values: deque[int] = deque(maxlen=size)
+
+    def add(self, value: int) -> None:
+        self.values.append(value)
+
+    @property
+    def estimated_offset_us(self) -> int | None:
+        if not self.values:
+            return None
+        rows = sorted(self.values)
+        lower = rows[min(len(rows) - 1, int((len(rows) - 1) * 0.01))]
+        return min(0, lower)
+
+    def corrected(self, value: int) -> int:
+        return max(0, value - (self.estimated_offset_us or 0))
 
 
 @dataclass(frozen=True)
@@ -465,11 +533,29 @@ class DeltaEventRecorder:
         self._book = DeltaBookIntegrityValidator()
         self._stop = asyncio.Event()
         self.counts: Counter[str] = Counter()
+        self.control_markers: Counter[str] = Counter()
         self.connection_count = 0
         self.queue_high_water = 0
         self._event_index = 0
         self.started_at = datetime.now(UTC)
         self.last_wire_recv_ns: int | None = None
+        self.last_feed_delay_us: int | None = None
+        self.last_raw_feed_delay_us: int | None = None
+        self.feed_delay_us = _SignedLatencyWindow()
+        self.corrected_feed_delay_us = _SignedLatencyWindow()
+        self.feed_delay_by_channel: dict[str, _SignedLatencyWindow] = {}
+        self.corrected_feed_delay_by_channel: dict[str, _SignedLatencyWindow] = {}
+        self.clock_offset_by_channel: dict[str, _ClockOffsetWindow] = {}
+        self.feed_timestamp_outliers: Counter[str] = Counter()
+        self.feed_timestamp_missing: Counter[str] = Counter()
+        self.feed_timestamp_units: Counter[str] = Counter()
+        self.connected = False
+        self.active_connection_id: str | None = None
+        self.connected_since: str | None = None
+        self.disconnect_count = 0
+        self.reconnect_count = 0
+        self.disconnect_reasons: Counter[str] = Counter()
+        self.last_disconnect: dict[str, Any] | None = None
 
     def request_stop(self) -> None:
         self._stop.set()
@@ -500,6 +586,7 @@ class DeltaEventRecorder:
         *,
         connection_id: str,
     ) -> None:
+        self.control_markers[marker] += 1
         envelope = self._base_envelope(connection_id=connection_id)
         envelope.update(
             {
@@ -552,20 +639,66 @@ class DeltaEventRecorder:
             return
         channel = str(message.get("type") or "_unknown")
         symbol = _message_symbol(message)
+        event_timestamp = delta_message_timestamp(message, channel=channel)
+        publish_timestamp = delta_message_timestamp(message, channel=channel, publish=True)
         envelope = received
         envelope.update(
             {
                 "record_kind": "exchange",
                 "channel": channel,
                 "symbol": symbol,
-                "exchange_timestamp_us": _exchange_timestamp_us(message),
-                "publish_timestamp_us": _publish_timestamp_us(message),
+                "exchange_timestamp_us": event_timestamp.value_us,
+                "publish_timestamp_us": publish_timestamp.value_us,
+                "exchange_timestamp_raw": event_timestamp.raw_value,
+                "exchange_timestamp_source": event_timestamp.source_key,
+                "exchange_timestamp_unit": event_timestamp.source_unit,
+                "publish_timestamp_raw": publish_timestamp.raw_value,
+                "publish_timestamp_source": publish_timestamp.source_key,
+                "publish_timestamp_unit": publish_timestamp.source_unit,
                 "action": message.get("action"),
                 "sequence": message.get("seq"),
                 "checksum": message.get("cs"),
                 "raw_text": raw_text,
             }
         )
+        latency_timestamp_us = envelope["publish_timestamp_us"] or envelope[
+            "exchange_timestamp_us"
+        ]
+        latency_reference = (
+            "publish_timestamp" if envelope["publish_timestamp_us"] is not None else "event_timestamp"
+        )
+        envelope["latency_timestamp_source"] = latency_reference
+        if event_timestamp.source_unit:
+            self.feed_timestamp_units[f"{channel}:{event_timestamp.source_unit}"] += 1
+        if latency_timestamp_us is not None:
+            raw_feed_delay_us = (
+                int(envelope["local_recv_ns"]) // 1_000 - int(latency_timestamp_us)
+            )
+            envelope["raw_feed_delay_us"] = raw_feed_delay_us
+            self.last_raw_feed_delay_us = raw_feed_delay_us
+            if abs(raw_feed_delay_us) <= MAX_CREDIBLE_FEED_DELAY_US:
+                self.last_feed_delay_us = raw_feed_delay_us
+                self.feed_delay_us.add(raw_feed_delay_us)
+                raw_window = self.feed_delay_by_channel.setdefault(
+                    channel, _SignedLatencyWindow()
+                )
+                raw_window.add(raw_feed_delay_us)
+                offset = self.clock_offset_by_channel.setdefault(
+                    channel, _ClockOffsetWindow()
+                )
+                offset.add(raw_feed_delay_us)
+                corrected = offset.corrected(raw_feed_delay_us)
+                envelope["clock_offset_estimate_us"] = offset.estimated_offset_us
+                envelope["corrected_feed_delay_us"] = corrected
+                self.corrected_feed_delay_us.add(corrected)
+                self.corrected_feed_delay_by_channel.setdefault(
+                    channel, _SignedLatencyWindow()
+                ).add(corrected)
+            else:
+                self.feed_timestamp_outliers[channel] += 1
+                envelope["feed_timestamp_outlier"] = True
+        else:
+            self.feed_timestamp_missing[channel] += 1
         # Archive the exact wire message before testing integrity. A bad delta
         # is evidence too, but it is never applied beyond this point.
         await self._put(channel, envelope)
@@ -643,6 +776,9 @@ class DeltaEventRecorder:
                 {"url": self.config.url, "subscriptions": self.config.subscriptions()},
                 connection_id=connection_id,
             )
+            self.connected = True
+            self.active_connection_id = connection_id
+            self.connected_since = datetime.now(UTC).isoformat()
             while not self._stop.is_set():
                 receive_task = asyncio.create_task(websocket.recv())
                 stop_task = asyncio.create_task(self._stop.wait())
@@ -676,6 +812,8 @@ class DeltaEventRecorder:
         backoff = 1.0
         while not self._stop.is_set():
             self.connection_count += 1
+            if self.connection_count > 1:
+                self.reconnect_count += 1
             connection_id = f"conn_{self.connection_count:06d}"
             started = time.monotonic()
             try:
@@ -683,15 +821,35 @@ class DeltaEventRecorder:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - every transport fault is evidence
+                reason = type(exc).__name__
+                self.disconnect_count += 1
+                self.disconnect_reasons[reason] += 1
+                self.last_disconnect = {
+                    "connection_id": connection_id,
+                    "error_type": reason,
+                    "error": str(exc)[:1_000],
+                    "at": datetime.now(UTC).isoformat(),
+                }
                 await self._control(
                     "__disconnected__",
                     {"error_type": type(exc).__name__, "error": str(exc)[:1_000]},
                     connection_id=connection_id,
                 )
             else:
+                reason = "clean"
+                self.disconnect_count += 1
+                self.disconnect_reasons[reason] += 1
+                self.last_disconnect = {
+                    "connection_id": connection_id,
+                    "error_type": reason,
+                    "at": datetime.now(UTC).isoformat(),
+                }
                 await self._control(
                     "__disconnected__", {"error_type": "clean"}, connection_id=connection_id
                 )
+            self.connected = False
+            self.active_connection_id = None
+            self.connected_since = None
             if self._stop.is_set():
                 break
             healthy_duration = time.monotonic() - started
@@ -760,8 +918,59 @@ class DeltaEventRecorder:
             "counts": dict(self.counts),
             "events": sum(self.counts.values()),
             "connections": self.connection_count,
+            "connection": {
+                "connected": self.connected,
+                "active_connection_id": self.active_connection_id,
+                "connected_since": self.connected_since,
+                "attempts": self.connection_count,
+                "reconnects": self.reconnect_count,
+                "disconnects": self.disconnect_count,
+                "disconnect_reasons": dict(self.disconnect_reasons),
+                "last_disconnect": self.last_disconnect,
+            },
             "queue_depth": self._queue.qsize(),
             "queue_high_water": self.queue_high_water,
+            "feed_delay_us": self.feed_delay_us.summary(),
+            "feed_delay_corrected_us": self.corrected_feed_delay_us.summary(),
+            "feed_delay_by_channel": {
+                channel: window.summary()
+                for channel, window in sorted(self.feed_delay_by_channel.items())
+            },
+            "feed_delay_corrected_by_channel": {
+                channel: window.summary()
+                for channel, window in sorted(
+                    self.corrected_feed_delay_by_channel.items()
+                )
+            },
+            "last_feed_delay_us": self.last_feed_delay_us,
+            "feed_timestamp_quality": {
+                "maximum_credible_absolute_delay_us": MAX_CREDIBLE_FEED_DELAY_US,
+                "outlier_samples": sum(self.feed_timestamp_outliers.values()),
+                "outliers_by_channel": dict(self.feed_timestamp_outliers),
+                "missing_by_channel": dict(self.feed_timestamp_missing),
+                "units_by_channel": dict(self.feed_timestamp_units),
+                "estimated_clock_offset_us_by_channel": {
+                    channel: window.estimated_offset_us
+                    for channel, window in sorted(self.clock_offset_by_channel.items())
+                },
+                "latency_reference": "publish timestamp when present, otherwise event timestamp",
+                "raw_timestamps_preserved": True,
+                "clock_offset_applied_to_replay_order": False,
+                "last_raw_delay_us": self.last_raw_feed_delay_us,
+                "negative_samples": self.feed_delay_us.summary()["negative_samples"],
+            },
+            "gap_guard": {
+                "integrity_faults": sum(
+                    count
+                    for marker, count in self.control_markers.items()
+                    if marker in _INTEGRITY_FAULT_MARKERS
+                ),
+                "markers": dict(self.control_markers),
+                "healthy": not any(
+                    marker in _INTEGRITY_FAULT_MARKERS
+                    for marker in self.control_markers
+                ),
+            },
             "research_only": True,
             "can_trade": False,
             "can_promote": False,

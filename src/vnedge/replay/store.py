@@ -48,7 +48,7 @@ class DeltaShardEventStore:
         shards = self.shard_paths(config)
         if not shards:
             return
-        iterators: list[Iterator[RecordedEvent]] = []
+        verified_shards: list[Path] = []
         for path in shards:
             verification = verify_event_shard(path)
             if not verification.passed:
@@ -56,7 +56,15 @@ class DeltaShardEventStore:
                     f"event shard failed manifest verification: {path}: "
                     + "; ".join(verification.issues)
                 )
-            iterators.append(self._iter_shard(path, config))
+            verified_shards.append(path)
+        warmup_receive_ns = self._book_warmup_receive_ns(
+            tuple(verified_shards), config
+        )
+        iterators: list[Iterator[RecordedEvent]] = []
+        for path in verified_shards:
+            iterators.append(
+                self._iter_shard(path, config, warmup_receive_ns=warmup_receive_ns)
+            )
 
         heap: list[tuple[tuple[int, int, int, str], int, RecordedEvent]] = []
         for index, iterator in enumerate(iterators):
@@ -74,7 +82,13 @@ class DeltaShardEventStore:
                 continue
             heapq.heappush(heap, (following.order_key, index, following))
 
-    def _iter_shard(self, path: Path, config: ReplayConfig) -> Iterator[RecordedEvent]:
+    def _iter_shard(
+        self,
+        path: Path,
+        config: ReplayConfig,
+        *,
+        warmup_receive_ns: dict[str, int],
+    ) -> Iterator[RecordedEvent]:
         previous_key: tuple[int, int, int, str] | None = None
         with self._reader(path) as reader:
             for line_number, line in enumerate(reader, 1):
@@ -89,8 +103,16 @@ class DeltaShardEventStore:
                 if exchange_ts is None or symbol not in config.symbols:
                     continue
                 ts_us = int(exchange_ts)
-                if not config.start_ts_us <= ts_us < config.end_ts_us:
+                local_recv_ns = int(envelope.get("local_recv_ns") or 0)
+                warmup = (
+                    channel == "ob_updates"
+                    and ts_us < config.start_ts_us
+                    and local_recv_ns >= warmup_receive_ns.get(symbol, 2**63 - 1)
+                )
+                if not warmup and not config.start_ts_us <= ts_us < config.end_ts_us:
                     continue
+                if warmup:
+                    envelope = {**envelope, "replay_warmup": True}
                 event = RecordedEvent.from_envelope(envelope)
                 if previous_key is not None and event.order_key < previous_key:
                     raise ValueError(
@@ -98,6 +120,50 @@ class DeltaShardEventStore:
                     )
                 previous_key = event.order_key
                 yield event
+
+    def _book_warmup_receive_ns(
+        self, shards: tuple[Path, ...], config: ReplayConfig
+    ) -> dict[str, int]:
+        """Locate the latest full L2 snapshot before the requested window.
+
+        Arbitrary research windows commonly begin between snapshots. Replaying
+        deltas without the preceding snapshot creates an invalid synthetic
+        book, so the store supplies the smallest available L2-only warm-up
+        prefix. Warm-up events are tagged and never counted as research-window
+        events or forwarded into outcome tracking.
+        """
+
+        if "ob_updates" not in config.channels:
+            return {}
+        latest: dict[str, tuple[int, int]] = {}
+        for path in shards:
+            if path.parent.name != "ob_updates":
+                continue
+            with self._reader(path) as reader:
+                for line in reader:
+                    envelope = json.loads(line)
+                    if envelope.get("record_kind") != "exchange":
+                        continue
+                    symbol = str(envelope.get("symbol") or "").split(":", 1)[-1].upper()
+                    if symbol not in config.symbols:
+                        continue
+                    exchange_ts = envelope.get("exchange_timestamp_us")
+                    if exchange_ts is None or int(exchange_ts) >= config.start_ts_us:
+                        continue
+                    raw_text = envelope.get("raw_text")
+                    if not isinstance(raw_text, str):
+                        continue
+                    try:
+                        message = json.loads(raw_text)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(message, dict) or message.get("action") != "snapshot":
+                        continue
+                    local_recv_ns = int(envelope.get("local_recv_ns") or 0)
+                    previous = latest.get(symbol)
+                    if previous is None or local_recv_ns > previous[0]:
+                        latest[symbol] = (local_recv_ns, int(exchange_ts))
+        return {symbol: receive_ns for symbol, (receive_ns, _) in latest.items()}
 
     @staticmethod
     def _reader(path: Path):

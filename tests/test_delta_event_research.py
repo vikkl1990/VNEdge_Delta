@@ -61,5 +61,10 @@ async def test_live_observer_publishes_running_locked_telemetry(tmp_path: Path) 
     assert payload["research_only"] is True
     assert payload["can_trade"] is False
     assert payload["order_route"] == "absent"
+    assert payload["scanner_policy"] == "disabled_pending_causal_replay_proof"
+    assert payload["enabled_scanners"] == []
+    assert payload["validated_edge"] is False
+    assert payload["counts"]["raw_candidates"] == 0
+    assert payload["counts"]["selected"] == 0
     absorption_payload = json.loads(absorption.read_text())
     assert absorption_payload["status"] == "not_configured"

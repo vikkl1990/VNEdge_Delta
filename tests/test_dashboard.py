@@ -211,6 +211,8 @@ def test_dashboard_home_is_delta_research_sidecar(client):
     assert 'value !== null && value !== undefined && value !== ""' in html
     assert "Paper &amp; Live Trading Locked" in html
     assert "All primary scanners disabled" in html
+    assert "No validated after-cost edge" in html
+    assert "Event hypotheses remain feature-only until deterministic causal replay is proven" in html
     assert "No active scanners. No research candidates. System is monitoring only." in html
     assert 'fetch("/delta-scalper"' in html
     assert 'fetch("/event-research-infrastructure"' in html
@@ -221,6 +223,12 @@ def test_dashboard_home_is_delta_research_sidecar(client):
     assert "Delta Research Lanes" in html
     assert "Signal Funnel" in html
     assert "Live Market Context" in html
+    assert "System Health" in html
+    assert "Multi-TF Coherence" in html
+    assert "Observations &amp; Latest Decisions" in html
+    assert "/api/delta/health/stream" in html
+    assert "new EventSource" in html
+    assert 'href="/delta-research#evidence"' in html
     assert 'id="laneGrid"' in html
     assert 'id="signalFunnel"' in html
     assert 'data-funnel-stage=' in html
@@ -236,6 +244,50 @@ def test_dashboard_home_is_delta_research_sidecar(client):
         "TradingView Rule Adapter",
     ):
         assert capability in html
+
+
+def test_delta_research_detail_is_secondary_read_only_view(client):
+    response = client.get("/delta-research")
+    assert response.status_code == 200
+    html = response.text
+    assert "Delta Research Detail" in html
+    assert "Evidence &amp; Backtests" in html
+    assert "Data Integrity" in html
+    assert "Config &amp; Scanners" in html
+    assert "Latency &amp; Feeds" in html
+    assert "can_trade=false" in html
+    assert 'fetch("/delta-scalper"' in html
+    assert 'fetch("/event-research-infrastructure"' in html
+
+
+def test_delta_endpoint_reports_locked_identity_and_unproven_edge(tmp_path):
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    app = create_app(
+        provider,
+        token="t3st-token",
+        delta_scalper_path=tmp_path / "missing-delta-snapshot.json",
+    )
+    payload = TestClient(app).get("/delta-scalper?token=t3st-token").json()
+
+    assert payload["identity"] == {
+        "product": "VNEDGE Delta India Research Laboratory",
+        "runtime": "delta_scalper_research_shadow",
+        "primary_symbols": ["BTCUSD", "ETHUSD"],
+        "validated_after_cost_edge": False,
+        "active_research_direction": "event_time_data_integrity_and_replay",
+    }
+    assert payload["policy"] == {
+        "research_only": True,
+        "l2_is_confirmation_only": True,
+        "paper_trading": False,
+        "live_trading": False,
+        "validated_edge": False,
+        "order_route": "absent",
+        "broker": "absent",
+        "can_trade": False,
+        "can_promote": False,
+    }
 
 
 def test_multi_venue_perps_desk_is_secondary_research_lab(client):

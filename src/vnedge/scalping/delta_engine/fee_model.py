@@ -9,6 +9,8 @@ DETO discount, and the opt-in Scalper Offer's zero eligible closing fee.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
+from typing import Iterable, Literal
 
 from vnedge.exchange.delta_ws import delta_native_symbol
 
@@ -18,6 +20,8 @@ class FeeBreakdown:
     entry_fee_bps: float
     exit_fee_bps: float
     slippage_bps: float
+    funding_bps: float | None
+    funding_included: bool
     total_bps: float
     scalper_eligible: bool
     scalper_window_seconds: int | None
@@ -80,6 +84,7 @@ class DeltaFeeModel:
         exit_is_maker: bool = False,
         slippage_bps_per_leg: float | None = None,
         scalper_opted_in: bool | None = None,
+        funding_bps: float | None = None,
     ) -> FeeBreakdown:
         if hold_seconds < 0:
             raise ValueError("hold_seconds cannot be negative")
@@ -90,17 +95,22 @@ class DeltaFeeModel:
         )
         if slippage < 0:
             raise ValueError("slippage cannot be negative")
+        if funding_bps is not None and not isfinite(funding_bps):
+            raise ValueError("funding_bps must be finite")
         opted_in = self.scalper_opted_in if scalper_opted_in is None else scalper_opted_in
         window = self.scalper_window_seconds(symbol)
         eligible = bool(opted_in and window is not None and hold_seconds <= window)
         entry = self.maker_bps if entry_is_maker else self.taker_bps
         exit_fee = 0.0 if eligible else (self.maker_bps if exit_is_maker else self.taker_bps)
         slip_total = 2.0 * slippage
+        effective_funding_bps = funding_bps if funding_bps is not None else 0.0
         return FeeBreakdown(
             entry_fee_bps=entry,
             exit_fee_bps=exit_fee,
             slippage_bps=slip_total,
-            total_bps=entry + exit_fee + slip_total,
+            funding_bps=funding_bps,
+            funding_included=funding_bps is not None,
+            total_bps=entry + exit_fee + slip_total + effective_funding_bps,
             scalper_eligible=eligible,
             scalper_window_seconds=window,
             deto_enabled=self.deto_enabled,
@@ -115,6 +125,7 @@ class DeltaFeeModel:
         *,
         exit_is_maker: bool = False,
         slippage_bps_per_leg: float | None = None,
+        funding_bps: float | None = None,
     ) -> float:
         """Return the full modeled round-trip cost as a fraction of notional."""
         return self.breakdown(
@@ -124,6 +135,7 @@ class DeltaFeeModel:
             hold_seconds=hold_seconds,
             slippage_bps_per_leg=slippage_bps_per_leg,
             scalper_opted_in=scalper_opted_in,
+            funding_bps=funding_bps,
         ).total_bps / 10_000.0
 
     def min_edge_bps(
@@ -134,6 +146,7 @@ class DeltaFeeModel:
         *,
         hold_seconds: float = 28 * 60,
         exit_is_maker: bool = False,
+        funding_bps: float | None = None,
     ) -> float:
         if buffer < 0:
             raise ValueError("buffer cannot be negative")
@@ -142,4 +155,26 @@ class DeltaFeeModel:
             entry_is_maker=entry_is_maker,
             exit_is_maker=exit_is_maker,
             hold_seconds=hold_seconds,
+            funding_bps=funding_bps,
         ).total_bps + buffer
+
+    @staticmethod
+    def settled_funding_bps(
+        position_side: Literal["long", "short"],
+        settled_rates: Iterable[float],
+    ) -> float:
+        """Return signed funding cost from causally settled fractional rates.
+
+        A positive funding rate is a cost to a long and a credit to a short.
+        The caller must pass only settlements crossed while the position was
+        open; this method deliberately does not infer settlements from hold
+        duration or forward-fill an indicative rate.
+        """
+
+        if position_side not in {"long", "short"}:
+            raise ValueError("position_side must be long or short")
+        rates = tuple(float(rate) for rate in settled_rates)
+        if any(not isfinite(rate) for rate in rates):
+            raise ValueError("settled funding rates must be finite")
+        direction = 1.0 if position_side == "long" else -1.0
+        return direction * sum(rates) * 10_000.0

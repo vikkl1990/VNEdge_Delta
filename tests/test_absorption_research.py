@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import pytest
 
@@ -17,6 +18,7 @@ from vnedge.scalping.delta_engine.absorption_research import (
     summarize_absorption_outcomes,
 )
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
+from vnedge.execution.journal import DecisionJournal
 
 NOW = datetime(2026, 8, 9, 8, 0, tzinfo=UTC)
 BASE_NS = 2_000_000_000
@@ -217,3 +219,59 @@ def test_weekly_summary_separates_stacked_and_liquidation_cohorts() -> None:
     assert summary.no_liquidation_win_rate == pytest.approx(0.0)
     assert summary.false_absorption_rate == pytest.approx(0.5)
     assert summary.median_time_to_mfe_ms == pytest.approx(250.0)
+
+
+def test_tracker_journals_counterfactual_lifecycle_and_economic_telemetry(
+    tmp_path: Path,
+) -> None:
+    instrument = AbsorptionInstrumentConfig(
+        symbol="BTCUSD", tick_size=0.5, minimum_aggressive_notional_usd=500.0
+    )
+    journal = DecisionJournal(tmp_path / "absorption.jsonl")
+    engine = AbsorptionResearchTracker(
+        DeltaFeeModel(
+            maker_fee_bps_pre_tax=0,
+            taker_fee_bps_pre_tax=0,
+            default_slippage_bps_per_leg=0,
+        ),
+        (instrument,),
+        config=AbsorptionResearchConfig(
+            target_1_ticks=2,
+            target_2_ticks=4,
+            stop_ticks=2,
+            horizon_ms=1_000,
+            entry_timeout_ms=500,
+        ),
+        journal=journal,
+    )
+    assert engine.register(observation(), decision_ts=NOW)
+    engine.on_trade(
+        "BTCUSD",
+        price=100.0,
+        received_at=NOW + timedelta(milliseconds=100),
+        monotonic_ns=BASE_NS + 100_000_000,
+    )
+    engine.on_trade(
+        "BTCUSD",
+        price=101.0,
+        received_at=NOW + timedelta(milliseconds=200),
+        monotonic_ns=BASE_NS + 200_000_000,
+    )
+    engine.on_trade(
+        "BTCUSD",
+        price=101.0,
+        received_at=NOW + timedelta(milliseconds=1_100),
+        monotonic_ns=BASE_NS + 1_100_000_000,
+    )
+
+    rows = journal.read_all()
+    assert [row["kind"] for row in rows] == [
+        "delta_absorption_research_observation",
+        "delta_absorption_research_outcome",
+    ]
+    telemetry = engine.telemetry()
+    assert telemetry["counts"]["observations_registered"] == 1
+    assert telemetry["counts"]["completed"] == 1
+    assert telemetry["average_net_ticks"] == pytest.approx(2.0)
+    assert telemetry["profit_factor"] is None
+    assert telemetry["can_trade"] is False

@@ -55,4 +55,3 @@ The process is still paper-only even when an entry fires:
 - fills occur inside `SimulatedExchange`;
 - every intent still passes `PreTradeRiskGateway`;
 - journals and account state are persisted per lane.
-

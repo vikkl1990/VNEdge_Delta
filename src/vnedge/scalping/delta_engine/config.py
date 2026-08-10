@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -22,11 +23,23 @@ class EngineSettings(_StrictModel):
     min_confidence: float = Field(default=0.60, ge=0, le=1)
     min_expectancy_bps: float = Field(default=8.0, ge=0)
     live_orders_enabled: bool = False
+    can_trade: Literal[False] = False
     can_promote: bool = False
+    order_route: Literal["absent"] = "absent"
+    broker: Literal["absent"] = "absent"
+    validated_edge: Literal[False] = False
 
     @model_validator(mode="after")
     def enforce_research_lock(self) -> EngineSettings:
-        if self.mode != "research" or self.live_orders_enabled or self.can_promote:
+        if (
+            self.mode != "research"
+            or self.live_orders_enabled
+            or self.can_trade
+            or self.can_promote
+            or self.order_route != "absent"
+            or self.broker != "absent"
+            or self.validated_edge
+        ):
             raise ValueError("delta scalper v1 configuration must remain research-only")
         if not self.symbols or any(not symbol.strip() for symbol in self.symbols):
             raise ValueError("at least one non-empty symbol is required")
@@ -176,6 +189,30 @@ class DeltaScalperConfig(_StrictModel):
     features: FeatureSettings = FeatureSettings()
     scanners: ScannerSettings = ScannerSettings()
     promotion: PromotionSettings = PromotionSettings()
+
+    def assert_runtime_safe(self) -> None:
+        """Refuse retired benchmark scanners in the continuously running sidecar.
+
+        Historical replay may still load a frozen benchmark contract so old
+        results remain reproducible. The local live-data sidecar is stricter:
+        it is monitoring-only until a new hypothesis passes the declared
+        chronological and sealed-tail protocol.
+        """
+
+        enabled = [
+            name
+            for name, settings in (
+                ("hierarchical_pullback", self.scanners.hierarchical_pullback),
+                ("momentum_burst", self.scanners.momentum_burst),
+                ("imbalance_fade", self.scanners.imbalance_fade),
+            )
+            if settings.enabled
+        ]
+        if enabled:
+            raise ValueError(
+                "retired primary scanners cannot run in the live Delta research sidecar: "
+                + ", ".join(enabled)
+            )
 
 
 def load_delta_scalper_config(

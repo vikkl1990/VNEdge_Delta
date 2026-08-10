@@ -207,3 +207,45 @@ def test_dashboard_surfaces_rejected_htf_selection_without_opening_tail(tmp_path
     assert htf["scanner_funnel"]["target_below_5x_cost"] == 8
     assert htf["untouched"] == {"status": "sealed", "loaded": False}
     assert htf["can_trade"] is False
+
+
+def test_dashboard_surfaces_htf_v2_economics_with_tail_sealed(tmp_path: Path) -> None:
+    artifact = tmp_path / "htf_v2.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "selection": {
+                    "metrics": {
+                        "trades": 100,
+                        "net_bps": -1049.96,
+                        "average_gross_bps": 4.51,
+                        "average_total_cost_bps": 15.01,
+                        "average_net_bps": -10.50,
+                        "profit_factor": 0.843,
+                        "funding_used": True,
+                        "markets": {"BTCUSD": {"trades": 27}, "ETHUSD": {"trades": 73}},
+                    },
+                    "gate": {"passed": False},
+                },
+                "untouched": {"status": "sealed", "loaded": False},
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(create_app(provider, token="token", htf_structure_v2_path=artifact))
+
+    htf = client.get("/event-research-infrastructure?token=token").json()[
+        "research_modules"
+    ]["htf_structure_break_v2"]
+
+    assert htf["status"] == "SELECTION_REJECTED"
+    assert htf["selection_trades"] == 100
+    assert htf["average_gross_bps"] == 4.51
+    assert htf["average_cost_bps"] == 15.01
+    assert htf["average_net_bps"] == -10.50
+    assert htf["untouched"] == {"status": "sealed", "loaded": False}
+    assert htf["can_trade"] is False
+    assert htf["can_promote"] is False

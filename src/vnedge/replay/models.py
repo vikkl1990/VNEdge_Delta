@@ -170,6 +170,9 @@ class RecordingValidationReport:
     local_clock_regressions: int
     missing_exchange_timestamps: int
     clock_delay_percentiles_us: Mapping[str, int | None]
+    negative_delay_samples: int
+    channel_timestamp_regressions: Mapping[str, int]
+    clock_delay_by_channel_us: Mapping[str, Mapping[str, int | None]]
     issues: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -178,12 +181,34 @@ class RecordingValidationReport:
             "clock_delay_percentiles_us",
             MappingProxyType(dict(self.clock_delay_percentiles_us)),
         )
+        object.__setattr__(
+            self,
+            "channel_timestamp_regressions",
+            MappingProxyType(dict(self.channel_timestamp_regressions)),
+        )
+        object.__setattr__(
+            self,
+            "clock_delay_by_channel_us",
+            MappingProxyType(
+                {
+                    channel: MappingProxyType(dict(summary))
+                    for channel, summary in self.clock_delay_by_channel_us.items()
+                }
+            ),
+        )
         object.__setattr__(self, "issues", tuple(self.issues))
 
     def to_dict(self) -> dict[str, object]:
         return {
             **self.__dict__,
             "clock_delay_percentiles_us": dict(self.clock_delay_percentiles_us),
+            "channel_timestamp_regressions": dict(
+                self.channel_timestamp_regressions
+            ),
+            "clock_delay_by_channel_us": {
+                channel: dict(summary)
+                for channel, summary in self.clock_delay_by_channel_us.items()
+            },
             "issues": list(self.issues),
         }
 

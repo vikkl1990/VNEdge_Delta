@@ -231,6 +231,15 @@ def test_telemetry_exposes_bounded_latency_percentiles() -> None:
     assert telemetry["receive_to_decision"]["count"] == 1
     assert telemetry["research_only"] is True
     assert telemetry["order_route"] == "absent"
+    assert telemetry["funnel"]["events"] == 4
+    assert telemetry["rejection_reasons"][
+        "event_sustained_flow_imbalance_v1:probability_below_gate"
+    ] == 1
+    market = telemetry["market_states"]["BTCUSD"]
+    assert market["price"] == pytest.approx(100.5)
+    assert market["best_bid"] == pytest.approx(100.0)
+    assert market["best_ask"] == pytest.approx(101.0)
+    assert market["htf"]["available"] is False
 
 
 def test_verified_recorder_bridge_parses_book_and_aggressor_trade() -> None:

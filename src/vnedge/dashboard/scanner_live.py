@@ -104,6 +104,12 @@ DELTA_SCALPER_LIGHTGBM_SHAP_PATH = Path(
         "research/live_research/delta_scalper_lightgbm_shap_latest.json",
     )
 )
+DELTA_ACTIVE_COST_EVIDENCE_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_DELTA_ACTIVE_COST_EVIDENCE_PATH",
+        "research/live_research/delta_active_cost_evidence_latest.json",
+    )
+)
 COMBINED_SCANNER_PATH = Path(
     os.environ.get(
         "DASHBOARD_COMBINED_SCANNER_PATH",
@@ -125,6 +131,12 @@ ABSORPTION_DASHBOARD_PATH = Path(
 )
 EVENT_REPLAY_DIR = Path(
     os.environ.get("DASHBOARD_EVENT_REPLAY_DIR", "research/event_replay")
+)
+HTF_STRUCTURE_V2_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_HTF_STRUCTURE_V2_PATH",
+        "research/live_research/htf_structure_break_v2_latest.json",
+    )
 )
 KRONOS_MATRIX_PATH = Path(
     os.environ.get(
@@ -167,6 +179,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     categorical_encoding = _read_payload(DELTA_SCALPER_CATEGORICAL_ENCODING_PATH)
     cusum_interactions = _read_payload(DELTA_SCALPER_CUSUM_INTERACTIONS_PATH)
     lightgbm_shap = _read_payload(DELTA_SCALPER_LIGHTGBM_SHAP_PATH)
+    active_cost_evidence = _read_payload(DELTA_ACTIVE_COST_EVIDENCE_PATH)
     if not primary and not scalper:
         return {
             "generated_at": None,
@@ -214,6 +227,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "categorical_encoding": categorical_encoding or None,
             "cusum_interactions": cusum_interactions or None,
             "lightgbm_shap": lightgbm_shap or None,
+            "active_cost_evidence": active_cost_evidence or None,
         }
         if scalper
         else None,
@@ -367,6 +381,7 @@ async def main() -> None:
         kronos_matrix_path=KRONOS_MATRIX_PATH,
         kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
         forced_flow_dir=FORCED_FLOW_DIR,
+        htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
     )
     provider.publish(build_scanner_snapshot(initial, research_infrastructure=infrastructure))
     app = create_app(
@@ -375,6 +390,7 @@ async def main() -> None:
         snapshot_hz=2.0,
         realtime_scanner_path=COMBINED_SCANNER_PATH,
         delta_scalper_path=DELTA_SCALPER_PATH,
+        delta_active_cost_evidence_path=DELTA_ACTIVE_COST_EVIDENCE_PATH,
         scanner_forward_evidence_path=SCANNER_EVIDENCE_PATH,
         delta_event_root=DELTA_EVENT_ROOT,
         event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
@@ -383,6 +399,7 @@ async def main() -> None:
         kronos_matrix_path=KRONOS_MATRIX_PATH,
         kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
         forced_flow_dir=FORCED_FLOW_DIR,
+        htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
     )
     server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT, log_level="warning"))
 
@@ -398,6 +415,7 @@ async def main() -> None:
                 kronos_matrix_path=KRONOS_MATRIX_PATH,
                 kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
                 forced_flow_dir=FORCED_FLOW_DIR,
+                htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
             )
             provider.publish(
                 build_scanner_snapshot(payload, research_infrastructure=infrastructure)

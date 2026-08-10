@@ -107,6 +107,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--sealed-holdout", action="store_true")
     parser.add_argument("--no-journal", action="store_true")
     parser.add_argument("--output-dir", type=Path, default=Path("research/event_replay"))
+    parser.add_argument(
+        "--verify-determinism",
+        action="store_true",
+        help="run the same replay twice and fail unless deterministic hashes match",
+    )
     return parser
 
 
@@ -187,7 +192,21 @@ def main() -> int:
         current_code_version=code_version,
     )
     result = engine.replay(config)
-    print(json.dumps(result.to_dict(), indent=2, sort_keys=True, allow_nan=False))
+    payload = result.to_dict()
+    if args.verify_determinism:
+        repeated = engine.replay(config)
+        matched = result.deterministic_hash == repeated.deterministic_hash
+        payload["determinism_verification"] = {
+            "matched": matched,
+            "first_hash": result.deterministic_hash,
+            "second_hash": repeated.deterministic_hash,
+            "events_match": result.events_processed == repeated.events_processed,
+            "research_only": True,
+            "can_trade": False,
+        }
+        if not matched:
+            raise RuntimeError("deterministic replay hash mismatch")
+    print(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False))
     return 0
 
 

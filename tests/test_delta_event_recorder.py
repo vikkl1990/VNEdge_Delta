@@ -323,6 +323,7 @@ async def test_recorder_archives_exact_wire_and_stops_without_read_timeout(
     recorder = DeltaEventRecorder(
         config,
         connect=lambda _url: websocket,
+        wall_clock_ns=lambda: BASE_NS + 50_000_000,
         session_id="end_to_end",
     )
     task = asyncio.create_task(recorder.run())
@@ -344,6 +345,56 @@ async def test_recorder_archives_exact_wire_and_stops_without_read_timeout(
     assert status["events"] >= 2
     assert status["symbols"] == ["BTCUSD"]
     assert status["can_trade"] is False
+    assert status["feed_delay_us"]["count"] == 2
+    assert status["feed_delay_us"]["p95_us"] is not None
+    assert status["last_feed_delay_us"] is not None
+    assert status["feed_timestamp_quality"]["outlier_samples"] == 0
+    assert status["connection"]["connected"] is False
+    assert status["connection"]["reconnects"] == 0
+    assert status["feed_delay_by_channel"]["trades"]["count"] == 1
+    assert status["feed_timestamp_quality"]["units_by_channel"] == {
+        "ob_updates:us": 1,
+        "trades:us": 1,
+    }
+    assert status["feed_timestamp_quality"]["raw_timestamps_preserved"] is True
+    assert (
+        status["feed_timestamp_quality"]["clock_offset_applied_to_replay_order"]
+        is False
+    )
+    assert status["gap_guard"]["healthy"] is True
+    assert status["gap_guard"]["integrity_faults"] == 0
+
+
+async def test_recorder_excludes_non_event_timestamp_outliers_from_latency(
+    tmp_path: Path,
+) -> None:
+    recorder = DeltaEventRecorder(
+        DeltaEventRecorderConfig(
+            symbols=("BTCUSD",),
+            channels=("funding_rate",),
+            output_dir=tmp_path,
+            compression="gzip",
+        ),
+        wall_clock_ns=lambda: BASE_NS + 10_000_000_000_000,
+        session_id="timestamp_semantics",
+    )
+    await recorder._handle_wire(
+        json.dumps(
+            {
+                "type": "funding_rate",
+                "symbol": "BTCUSD",
+                "timestamp": BASE_NS // 1_000,
+            }
+        ),
+        connection_id="conn_000001",
+    )
+
+    status = recorder._status_payload("RECORDING")
+    assert status["feed_delay_us"]["count"] == 0
+    assert status["feed_timestamp_quality"]["outlier_samples"] == 1
+    assert status["feed_timestamp_quality"]["outliers_by_channel"] == {
+        "funding_rate": 1
+    }
 
 
 async def test_recorder_observer_receives_only_parsed_and_verified_events(
@@ -381,6 +432,7 @@ async def test_recorder_observer_receives_only_parsed_and_verified_events(
 
     assert [row["channel"] for row in observed] == ["ob_updates", "trades"]
     assert all(row["record_kind"] == "exchange" for row in observed)
+    assert recorder.counts["_research_observer_error"] == 0
 
     trade_shard = next(tmp_path.rglob("trades_*.jsonl.gz"))
     assert verify_event_shard(trade_shard).passed is True
@@ -493,3 +545,7 @@ async def test_book_integrity_failure_forces_reconnect_and_fresh_snapshot(
     markers = [event["marker"] for event in control_events]
     assert "__ob_sequence_gap__" in markers
     assert markers.count("__ob_snapshot_valid__") >= 2
+    status = json.loads((tmp_path / "_recorder_status.json").read_text())
+    assert status["gap_guard"]["healthy"] is False
+    assert status["gap_guard"]["integrity_faults"] >= 1
+    assert status["gap_guard"]["markers"]["__ob_sequence_gap__"] >= 1

@@ -5,119 +5,69 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>VNEDGE · Delta India Research Sidecar</title>
   <style>
-    :root{
-      color-scheme:dark;
-      --bg:#070b11;--panel:#0d141d;--panel2:#111b27;--line:#223044;
-      --text:#edf4fb;--muted:#8798aa;--faint:#596878;--amber:#f5a623;
-      --green:#32d69a;--red:#ff6172;--blue:#63a9ff;--yellow:#ffd166;
-      --mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
-      --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    }
-    *{box-sizing:border-box}
-    html,body{margin:0;min-height:100%;max-width:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}
-    body{background-image:linear-gradient(rgba(99,169,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(99,169,255,.025) 1px,transparent 1px);background-size:48px 48px}
-    a{color:inherit}.shell{max-width:1440px;margin:0 auto;padding:18px 22px 44px}
-    .topbar{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:4px 0 16px}
-    .brand{display:flex;gap:12px;align-items:center;min-width:0}.mark{width:40px;height:40px;border-radius:10px;border:1px solid rgba(245,166,35,.45);background:rgba(245,166,35,.08);display:grid;place-items:center;color:var(--amber);font:700 17px var(--mono);flex:none}
-    .brand b{display:block;letter-spacing:.16em;font:700 13px var(--mono)}.brand span{display:block;margin-top:3px;color:var(--muted);font-size:11px}
-    .actions{display:flex;gap:9px;align-items:center}.link{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 12px;text-decoration:none;font:600 11px var(--mono);letter-spacing:.05em}.link:hover{border-color:var(--amber)}
-    .source{color:var(--muted);font:11px var(--mono)}
-    .banner{border:1px solid rgba(255,97,114,.48);background:linear-gradient(90deg,rgba(255,97,114,.14),rgba(255,97,114,.04));border-radius:12px;padding:15px 17px;display:flex;gap:14px;align-items:center;min-width:0}.banner>div:last-child{min-width:0}.banner strong,.banner p{overflow-wrap:anywhere}
-    .lock{width:33px;height:33px;flex:none;border-radius:8px;background:rgba(255,97,114,.16);display:grid;place-items:center;color:var(--red);font-size:17px}
-    .banner strong{display:block;font-size:14px}.banner p{margin:3px 0 0;color:var(--muted);font-size:12px}
-    .summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:14px 0}
-    .metric,.panel{border:1px solid var(--line);background:rgba(13,20,29,.95);border-radius:11px;min-width:0}
-    .metric{padding:13px 14px;min-width:0}.label{color:var(--faint);font:700 9px var(--mono);letter-spacing:.14em;text-transform:uppercase}.value{margin-top:6px;font:700 21px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail{margin-top:3px;color:var(--muted);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--yellow)}.blue{color:var(--blue)}
-    .grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(300px,.8fr);gap:12px}.panel{overflow:hidden}.head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:13px 15px;border-bottom:1px solid var(--line);min-width:0}.head h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0}.head span{color:var(--muted);font:10px var(--mono);overflow-wrap:anywhere}
-    .markets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}.market{border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:13px}.market-top{display:flex;justify-content:space-between;gap:10px}.symbol{font:700 18px var(--mono)}.state{font:700 9px var(--mono);letter-spacing:.1em;padding:4px 7px;border-radius:5px;height:max-content;background:rgba(255,209,102,.12);color:var(--yellow)}
-    .context{margin:4px 0 12px;color:var(--muted);font-size:11px}.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.fact{background:var(--bg);border:1px solid rgba(255,255,255,.045);border-radius:7px;padding:8px}.fact span{display:block;color:var(--faint);font:700 8px var(--mono);text-transform:uppercase;letter-spacing:.1em}.fact b{display:block;margin-top:3px;font:600 11px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .reason{margin-top:10px;padding-top:9px;border-top:1px solid var(--line);color:var(--muted);font-size:11px}.reason b{color:var(--text)}
-    .rows{padding:2px 0}.row{display:grid;grid-template-columns:1fr auto;gap:14px;padding:12px 15px;border-bottom:1px solid var(--line)}.row:last-child{border-bottom:0}.row b{font-size:12px}.row small{display:block;margin-top:3px;color:var(--muted);font-size:10.5px}.chip{font:700 9px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:5px;background:rgba(99,169,255,.12);color:var(--blue);height:max-content}.chip.locked{background:rgba(255,97,114,.12);color:var(--red)}
-    .empty{margin:12px;border:1px dashed var(--line);border-radius:9px;padding:22px;text-align:center}.empty b{display:block;font-size:13px}.empty p{margin:6px 0 0;color:var(--muted);font-size:11px}
-    .evidence{margin-top:12px}.egrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;padding:12px}.ebox{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:11px}.ebox .n{margin-top:5px;font:700 17px var(--mono)}
-    .operations{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:12px;margin:0 0 12px}.lanegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:12px}.lane{border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:12px;min-width:0}.lanetop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.laneid{color:var(--faint);font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;overflow-wrap:anywhere}.lanesymbol{margin-top:4px;font:700 17px var(--mono)}.lanemeta{margin-top:4px;color:var(--muted);font-size:10px;line-height:1.35;overflow-wrap:anywhere}.lanevalues{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}.lanevalue{border:1px solid rgba(255,255,255,.05);background:var(--bg);border-radius:7px;padding:7px;min-width:0}.lanevalue span{display:block;color:var(--faint);font:700 7.5px var(--mono);letter-spacing:.08em;text-transform:uppercase}.lanevalue b{display:block;margin-top:3px;font:700 11px var(--mono);white-space:normal;overflow-wrap:anywhere}.lanereason{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:10.5px;line-height:1.4}.lanereason b{color:var(--text)}
-    .funnel{padding:12px}.funnelstage{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px;border:1px solid var(--line);background:var(--panel2);border-radius:8px;margin-bottom:8px;min-width:0}.funnelstage:not(:last-child)::after{content:"↓";position:absolute;left:18px;bottom:-12px;color:var(--faint);font:700 11px var(--mono);z-index:2}.stageindex{width:27px;height:27px;border-radius:7px;display:grid;place-items:center;background:rgba(99,169,255,.11);color:var(--blue);font:700 10px var(--mono)}.stagename{font-size:11px;font-weight:700}.stagescope{margin-top:2px;color:var(--faint);font:9px var(--mono)}.stagecount{font:700 17px var(--mono);text-align:right}.stagestate{display:block;margin-top:2px;color:var(--muted);font:700 7.5px var(--mono);letter-spacing:.08em;text-transform:uppercase}.funnelstage.blocked{border-color:rgba(255,97,114,.38)}.funnelstage.blocked .stageindex,.funnelstage.not-reached .stageindex{background:rgba(255,97,114,.11);color:var(--red)}.funnelblocker{border:1px solid rgba(255,97,114,.38);background:rgba(255,97,114,.08);border-radius:8px;padding:10px;color:var(--muted);font-size:10.5px;line-height:1.4}.funnelblocker b{display:block;color:var(--red);margin-bottom:3px;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
-    .stack{margin-top:12px}.stack-note{padding:10px 15px;border-bottom:1px solid var(--line);color:var(--muted);font-size:11px}.stackgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;padding:12px}.stackcard{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:12px;min-width:0}.stacktop{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.stackname{font-size:12px;font-weight:700}.stackstatus{font:700 8px var(--mono);letter-spacing:.07em;text-transform:uppercase;padding:4px 6px;border-radius:5px;background:rgba(255,209,102,.11);color:var(--yellow);max-width:54%;text-align:right;overflow-wrap:anywhere}.stackstatus.live{background:rgba(50,214,154,.12);color:var(--green)}.stackstatus.locked{background:rgba(99,169,255,.12);color:var(--blue)}.stackdetail{margin-top:8px;color:var(--muted);font-size:10.5px;line-height:1.4}.stackimpl{margin-top:9px;color:var(--faint);font:9px var(--mono);letter-spacing:.08em;text-transform:uppercase}
-    footer{display:flex;justify-content:space-between;gap:12px;margin-top:14px;color:var(--faint);font:10px var(--mono)}
-    @media(max-width:900px){.summary{grid-template-columns:repeat(3,minmax(0,1fr))}.grid,.operations{grid-template-columns:minmax(0,1fr)}.markets{grid-template-columns:minmax(0,1fr)}.stackgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:560px){
-      .shell{padding:10px 10px 28px}.topbar{align-items:flex-start;flex-direction:column}.actions{width:100%;align-items:stretch;flex-direction:column}.actions .link{text-align:center}.source{white-space:normal;overflow-wrap:anywhere}
-      .brand b{font-size:11px;overflow-wrap:anywhere}.brand span{font-size:10px;overflow-wrap:anywhere}.banner{align-items:flex-start;padding:12px;gap:10px}.lock{width:28px;height:28px}.banner strong{font-size:12px}.banner p{font-size:10.5px}
-      .summary{grid-template-columns:minmax(0,1fr);gap:8px}.metric{padding:11px 12px}.value{font-size:19px;white-space:normal;overflow:visible}.detail{white-space:normal;overflow:visible;overflow-wrap:anywhere}
-      .head{align-items:flex-start;flex-direction:column;padding:11px 12px}.markets,.lanegrid,.funnel{padding:8px}.market,.lane{padding:11px}.market-top{align-items:flex-start}.context{overflow-wrap:anywhere}.facts,.lanegrid,.lanevalues{grid-template-columns:minmax(0,1fr)}.fact b{white-space:normal;overflow:visible;overflow-wrap:anywhere}.funnelstage{grid-template-columns:28px minmax(0,1fr) auto;padding:8px}.stagecount{font-size:15px}
-      .row{grid-template-columns:minmax(0,1fr) auto;padding:10px 12px}.empty{margin:8px;padding:16px 12px}.egrid,.stackgrid{grid-template-columns:minmax(0,1fr);padding:8px}.stacktop{flex-direction:column}.stackstatus{max-width:100%;text-align:left}.stack-note{padding:9px 12px}
-      footer{align-items:flex-start;flex-direction:column}.symbol{font-size:16px}
-    }
+    :root{color-scheme:dark;--bg:#060a10;--panel:#0c131c;--panel2:#111a25;--line:#223043;--text:#eef4fb;--muted:#8a9aac;--faint:#5d6c7c;--amber:#f5a623;--green:#32d69a;--red:#ff6172;--blue:#63a9ff;--yellow:#ffd166;--mono:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;--sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;max-width:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}body{background-image:linear-gradient(rgba(99,169,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(99,169,255,.025) 1px,transparent 1px);background-size:48px 48px}a{color:inherit}.shell{max-width:1480px;margin:0 auto;padding:16px 22px 42px}
+    .topbar{display:flex;justify-content:space-between;gap:18px;align-items:center;padding:3px 0 13px}.brand{display:flex;gap:11px;align-items:center;min-width:0}.mark{width:39px;height:39px;border-radius:10px;border:1px solid rgba(245,166,35,.45);background:rgba(245,166,35,.08);display:grid;place-items:center;color:var(--amber);font:700 17px var(--mono);flex:none}.brand b{display:block;letter-spacing:.15em;font:700 13px var(--mono)}.brand span{display:block;margin-top:3px;color:var(--muted);font-size:11px}.nav{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.nav a{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:8px 10px;text-decoration:none;font:600 10px var(--mono);letter-spacing:.04em}.nav a:hover{border-color:var(--amber)}
+    .banner{border:1px solid rgba(255,97,114,.5);background:linear-gradient(90deg,rgba(255,97,114,.14),rgba(245,166,35,.045));border-radius:11px;padding:14px 16px;display:flex;gap:13px;align-items:center}.lock{width:32px;height:32px;flex:none;border-radius:8px;background:rgba(255,97,114,.16);display:grid;place-items:center;color:var(--red)}.banner strong{display:block;font-size:14px}.banner p{margin:3px 0 0;color:var(--muted);font-size:11.5px}
+    .panel,.metric{border:1px solid var(--line);background:rgba(12,19,28,.96);border-radius:10px;min-width:0;overflow:hidden}.summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px;margin:11px 0}.metric{padding:11px 12px}.label{color:var(--faint);font:700 8.5px var(--mono);letter-spacing:.13em;text-transform:uppercase}.value{margin-top:5px;font:700 19px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.detail{margin-top:3px;color:var(--muted);font-size:9.5px;line-height:1.35}.good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--yellow)}.blue{color:var(--blue)}
+    .head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}.head h2{font-size:11px;letter-spacing:.13em;text-transform:uppercase;margin:0}.head span{color:var(--muted);font:9.5px var(--mono);text-align:right}.health{margin-bottom:11px}.healthgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--line)}.healthcell{background:var(--panel);padding:11px 12px;min-width:0}.healthvalue{margin-top:5px;font:700 13px var(--mono);overflow-wrap:anywhere}.healthnote{margin-top:3px;color:var(--muted);font-size:9px;line-height:1.35;overflow-wrap:anywhere}
+    .grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(360px,.9fr);gap:11px;margin-bottom:11px}.markets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:11px}.market,.lane,.tfcard{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:11px;min-width:0}.market-top,.lane-top,.tf-top{display:flex;justify-content:space-between;gap:9px;align-items:flex-start}.symbol{font:700 18px var(--mono)}.price{font:700 17px var(--mono);text-align:right}.muted{color:var(--muted)}.state,.chip{font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:4px 6px;border-radius:5px;background:rgba(255,209,102,.12);color:var(--yellow);height:max-content}.state.locked,.chip.locked{background:rgba(255,97,114,.12);color:var(--red)}.state.good,.chip.good{background:rgba(50,214,154,.12);color:var(--green)}.context{margin:4px 0 10px;color:var(--muted);font-size:10px}.facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.fact{background:var(--bg);border:1px solid rgba(255,255,255,.045);border-radius:6px;padding:7px}.fact span{display:block;color:var(--faint);font:700 7.5px var(--mono);letter-spacing:.09em;text-transform:uppercase}.fact b{display:block;margin-top:3px;font:600 10.5px var(--mono);overflow-wrap:anywhere}.reason{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:10px;line-height:1.4}.reason b{color:var(--text)}
+    .tfwrap{padding:11px}.tfcard+.tfcard{margin-top:8px}.tfgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin-top:9px}.tfstep{border:1px solid rgba(255,255,255,.05);background:var(--bg);border-radius:6px;padding:7px;text-align:center}.tfstep b{display:block;font:700 9px var(--mono)}.tfstep span{display:block;margin-top:3px;color:var(--faint);font-size:8px}.tfwhy{margin-top:8px;color:var(--muted);font-size:9.5px;line-height:1.4}
+    .empty{margin:11px;border:1px dashed var(--line);border-radius:8px;padding:19px;text-align:center}.empty b{display:block;font-size:12px}.empty p{margin:6px auto 0;max-width:650px;color:var(--muted);font-size:10.5px;line-height:1.45}.decision-list,.rows{padding:1px 0}.decision,.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:10px 13px;border-bottom:1px solid var(--line)}.decision:last-child,.row:last-child{border-bottom:0}.decision b,.row b{font-size:11px}.decision small,.row small{display:block;margin-top:3px;color:var(--muted);font-size:9.5px;line-height:1.4}.decision time{color:var(--faint);font:9px var(--mono)}
+    .operations{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(340px,.8fr);gap:11px;margin-bottom:11px}.lanegrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:11px}.laneid{color:var(--faint);font:700 8px var(--mono);letter-spacing:.08em;text-transform:uppercase}.lanemeta{margin-top:4px;color:var(--muted);font-size:9.5px}.lanevalues{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin-top:9px}.lanevalue{background:var(--bg);border-radius:6px;padding:6px}.lanevalue span{display:block;color:var(--faint);font:700 7px var(--mono);text-transform:uppercase}.lanevalue b{display:block;margin-top:3px;font:700 10px var(--mono)}
+    .funnel{padding:11px}.funnelstage{position:relative;display:grid;grid-template-columns:25px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px;border:1px solid var(--line);background:var(--panel2);border-radius:7px;margin-bottom:7px}.funnelstage:not(:last-child)::after{content:"↓";position:absolute;left:16px;bottom:-11px;color:var(--faint);z-index:2}.stageindex{width:25px;height:25px;border-radius:6px;display:grid;place-items:center;background:rgba(99,169,255,.11);color:var(--blue);font:700 9px var(--mono)}.stagename{font-size:10.5px;font-weight:700}.stagescope{margin-top:2px;color:var(--faint);font:8px var(--mono)}.stagecount{font:700 15px var(--mono);text-align:right}.stagestate{display:block;color:var(--muted);font:700 7px var(--mono)}.funnelstage.blocked,.funnelstage.not-reached{border-color:rgba(255,97,114,.28)}.funnelblocker{border:1px solid rgba(255,97,114,.38);background:rgba(255,97,114,.08);border-radius:7px;padding:9px;color:var(--muted);font-size:9.5px;line-height:1.4}.funnelblocker b{display:block;color:var(--red);margin-bottom:3px}
+    .evidence{margin-top:0}.egrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:11px}.ebox{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:10px}.ebox .n{margin-top:5px;font:700 16px var(--mono)}.stack-note{padding:9px 13px;border-top:1px solid var(--line);color:var(--muted);font-size:10px;line-height:1.45}.capabilities{display:flex;gap:6px;flex-wrap:wrap;padding:11px}.capabilities span{border:1px solid var(--line);border-radius:999px;padding:5px 8px;color:var(--muted);font:8.5px var(--mono)}footer{display:flex;justify-content:space-between;gap:12px;margin-top:12px;color:var(--faint);font:9px var(--mono)}
+    @media(max-width:980px){.summary,.healthgrid{grid-template-columns:repeat(3,minmax(0,1fr))}.grid,.operations{grid-template-columns:minmax(0,1fr)}.markets{grid-template-columns:minmax(0,1fr)}}
+    @media(max-width:620px){.shell{padding:10px 10px 28px}.topbar{align-items:flex-start;flex-direction:column}.nav{justify-content:flex-start}.banner{align-items:flex-start}.summary,.healthgrid,.lanegrid,.egrid{grid-template-columns:minmax(0,1fr)}.markets,.lanegrid,.funnel,.tfwrap,.egrid{padding:8px}.tfgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.facts,.lanevalues{grid-template-columns:minmax(0,1fr)}.head{align-items:flex-start;flex-direction:column}.head span{text-align:left}.value{white-space:normal}.decision,.row{grid-template-columns:minmax(0,1fr)}footer{flex-direction:column}}
   </style>
 </head>
 <body>
-  <main class="shell">
+  <main class="shell" id="overview">
     <header class="topbar">
-      <div class="brand"><div class="mark">Δ</div><div><b>VNEDGE · DELTA INDIA</b><span>Local ETH/BTC research control room</span></div></div>
-      <div class="actions"><span class="source" id="sourceAge">connecting…</span><a class="link" id="labLink" href="/research-lab">Research Lab ↗</a></div>
+      <div class="brand"><div class="mark">Δ</div><div><b>VNEDGE · DELTA INDIA</b><span>BTCUSD / ETHUSD research operations</span></div></div>
+      <nav class="nav" aria-label="Dashboard sections">
+        <a href="/" data-token-link>Overview</a><a href="/delta-research#evidence" data-token-link>Evidence</a><a href="/delta-research#integrity" data-token-link>Data Integrity</a><a href="/delta-research#scanners" data-token-link>Scanners</a><a href="/delta-research#latency" data-token-link>Latency</a><a id="labLink" href="/research-lab" data-token-link>Research Lab ↗</a>
+      </nav>
     </header>
 
-    <section class="banner" aria-label="Permanent trading safety status">
-      <div class="lock">■</div>
-      <div><strong>Delta India Research Sidecar — Paper &amp; Live Trading Locked — All primary scanners disabled</strong><p>Monitoring and evidence collection only. No order manager or broker is connected.</p></div>
-    </section>
+    <section class="banner" aria-label="Permanent trading safety status"><div class="lock">■</div><div><strong>RESEARCH ONLY · Paper &amp; Live Trading Locked · All primary scanners disabled</strong><p>No validated after-cost edge. Monitoring and evidence collection only. No order manager, broker, or order route is connected.</p></div></section>
 
     <section class="summary" aria-label="Delta engine summary">
-      <div class="metric"><div class="label">Runtime</div><div class="value blue" id="runtime">—</div><div class="detail">dedicated local sidecar</div></div>
-      <div class="metric"><div class="label">Connected</div><div class="value" id="connected">—</div><div class="detail">BTCUSD · ETHUSD</div></div>
-      <div class="metric"><div class="label">Evaluations</div><div class="value" id="evaluations">—</div><div class="detail">closed-candle research</div></div>
+      <div class="metric"><div class="label">Mode</div><div class="value blue" id="runtime">RESEARCH</div><div class="detail">dedicated Delta sidecar</div></div>
+      <div class="metric"><div class="label">Markets</div><div class="value" id="connected">—</div><div class="detail">BTCUSD · ETHUSD expected</div></div>
+      <div class="metric"><div class="label">Evaluations</div><div class="value" id="evaluations">—</div><div class="detail">closed-candle context</div></div>
       <div class="metric"><div class="label">Scanners</div><div class="value bad" id="scanners">0</div><div class="detail">enabled primary scanners</div></div>
-      <div class="metric"><div class="label">Alerts</div><div class="value" id="alerts">0</div><div class="detail">research candidates</div></div>
+      <div class="metric"><div class="label">Candidates</div><div class="value" id="alerts">0</div><div class="detail">journaled research alerts</div></div>
       <div class="metric"><div class="label">Authority</div><div class="value bad">LOCKED</div><div class="detail">trade false · promote false</div></div>
     </section>
 
-    <div class="operations">
-      <section class="panel" aria-label="Delta research lanes">
-        <div class="head"><h2>Delta Research Lanes</h2><span id="laneMeta">lane status loading</span></div>
-        <div class="lanegrid" id="laneGrid"><div class="empty"><b>Loading operational lanes</b><p>Reading BTCUSD and ETHUSD from the dedicated Delta sidecar.</p></div></div>
-      </section>
+    <section class="panel health" aria-label="System health strip">
+      <div class="head"><h2>System Health</h2><span id="sourceAge">Delta snapshot connecting…</span></div>
+      <div class="healthgrid" id="healthGrid"><div class="healthcell"><div class="label">Status</div><div class="healthvalue warn">Loading</div><div class="healthnote">Waiting for authenticated local sources.</div></div></div>
+    </section>
 
-      <section class="panel" aria-label="Signal funnel">
-        <div class="head"><h2>Signal Funnel</h2><span>where candidates stop</span></div>
-        <div class="funnel" id="signalFunnel"><div class="empty"><b>Loading signal path</b><p>Evaluations → scanners → candidates → gates → journal → outcomes.</p></div></div>
-      </section>
+    <div class="grid">
+      <section class="panel"><div class="head"><h2>Live Market Context</h2><span id="lastEval">last evaluation —</span></div><div class="markets" id="markets"><div class="empty"><b>Loading Delta snapshot</b><p>Price and structure remain unavailable unless the dedicated publisher supplies them.</p></div></div></section>
+      <section class="panel"><div class="head"><h2>Multi-TF Coherence</h2><span>4h → 1h → 15m → 5m → 1m</span></div><div class="tfwrap" id="multiTf"><div class="empty"><b>Loading point-in-time state</b><p>No alignment is inferred from incomplete data.</p></div></div></section>
     </div>
 
     <div class="grid">
-      <section class="panel">
-        <div class="head"><h2>Live Market Context</h2><span id="lastEval">last evaluation —</span></div>
-        <div class="markets" id="markets"><div class="empty"><b>Loading Delta snapshot</b><p>Waiting for authenticated research status.</p></div></div>
-      </section>
-
-      <section class="panel">
-        <div class="head"><h2>Safety and Scanner State</h2><span>fail closed</span></div>
-        <div class="rows">
-          <div class="row"><div><b>Paper trading</b><small>No simulated execution from this engine</small></div><span class="chip locked">Blocked</span></div>
-          <div class="row"><div><b>Live trading</b><small>No order route is constructed</small></div><span class="chip locked">Locked</span></div>
-          <div class="row"><div><b>L2 order flow</b><small>Context and confirmation metadata only</small></div><span class="chip">Observe</span></div>
-          <div class="row"><div><b>Promotion</b><small>Historical evidence is below policy gates</small></div><span class="chip locked">Rejected</span></div>
-        </div>
-        <div class="empty" id="emptyState"><b>No active scanners. No research candidates. System is monitoring only.</b><p>Retired hypotheses remain disabled and are not used to populate this view.</p></div>
-      </section>
+      <section class="panel"><div class="head"><h2>Observations &amp; Latest Decisions</h2><span id="decisionMeta">journal status loading</span></div><div id="observations"><div class="empty"><b>Loading observation state</b></div></div><div class="decision-list" id="decisions"></div></section>
+      <section class="panel"><div class="head"><h2>Promotion &amp; Safety</h2><span>fail closed</span></div><div class="rows" id="safetyRows"></div><div class="empty" id="emptyState"><b>No active scanners. No research candidates. System is monitoring only.</b><p>All primary hypotheses have been retired after failing after-cost evaluation. Event hypotheses remain feature-only until deterministic causal replay is proven. New scanners appear only after preregistered selection and sealed untouched gates.</p></div></section>
     </div>
 
-    <section class="panel stack">
-      <div class="head"><h2>Local Event, AI and Safety Build</h2><span id="stackMeta">inventory loading</span></div>
-      <div class="stack-note">Installed code and runtime evidence are shown separately. “Implemented” never means running, validated, promotable, or trade-enabled.</div>
-      <div class="stackgrid" id="buildStack"><div class="empty"><b>Loading local build inventory</b><p>Checking recorder, event engine, replay, AI research and governance evidence.</p></div></div>
-    </section>
+    <div class="operations">
+      <section class="panel" aria-label="Delta research lanes"><div class="head"><h2>Delta Research Lanes</h2><span id="laneMeta">lane status loading</span></div><div class="lanegrid" id="laneGrid"><div class="empty"><b>Loading BTCUSD and ETHUSD lanes</b></div></div></section>
+      <section class="panel" aria-label="Signal funnel"><div class="head"><h2>Signal Funnel</h2><span>where candidates stop</span></div><div class="funnel" id="signalFunnel"><div class="empty"><b>Loading signal path</b><p>Evaluations → scanners → candidates → gates → journal → outcomes.</p></div></div></section>
+    </div>
 
     <section class="panel evidence">
-      <div class="head"><h2>Locked Research Evidence</h2><span>after modeled Delta costs</span></div>
-      <div class="egrid">
-        <div class="ebox"><div class="label">Historical trades</div><div class="n" id="histTrades">—</div></div>
-        <div class="ebox"><div class="label">Active-cost average</div><div class="n bad" id="avgNet">—</div></div>
-        <div class="ebox"><div class="label">Active-cost PF</div><div class="n bad" id="profitFactor">—</div></div>
-        <div class="ebox"><div class="label">Positive markets</div><div class="n bad" id="positiveMarkets">—</div></div>
-      </div>
-      <div class="stack-note" id="evidenceNote">Loading active cost and data-quality evidence.</div>
+      <div class="head"><h2>Locked Research Evidence</h2><span><a href="/delta-research#evidence" data-token-link>open detailed evidence ↗</a></span></div>
+      <div class="egrid"><div class="ebox"><div class="label">Historical trades</div><div class="n" id="histTrades">—</div></div><div class="ebox"><div class="label">Active-cost average</div><div class="n bad" id="avgNet">—</div></div><div class="ebox"><div class="label">Active-cost PF</div><div class="n bad" id="profitFactor">—</div></div><div class="ebox"><div class="label">Positive markets</div><div class="n bad" id="positiveMarkets">—</div></div></div>
+      <div class="stack-note" id="evidenceNote">Loading cost and data-quality evidence.</div>
     </section>
+
+    <section class="panel" style="margin-top:11px"><div class="head"><h2>Local Event, AI and Safety Build</h2><span><a href="/delta-research" data-token-link>full implementation inventory ↗</a></span></div><div class="capabilities"><span>Delta Event Recorder</span><span>Incremental Event Trigger</span><span>Absorption Detector</span><span>Deterministic Event Replay</span><span>Kronos AI Research</span><span>Forced-Flow Panel</span><span>Governance Proof Chain</span><span>Delta Execution Safety</span><span>TradingView Rule Adapter</span></div><div class="stack-note" id="stackMeta">Installed code is not execution authority.</div></section>
 
     <footer><span>Local read-only dashboard · Delta India primary identity</span><span id="refreshStatus">snapshot unavailable</span></footer>
   </main>
@@ -125,179 +75,88 @@
   <script>
     const params = new URLSearchParams(location.search);
     const token = params.get("token") || "";
-    const labLink = document.getElementById("labLink");
-    if (token) labLink.href = "/research-lab?token=" + encodeURIComponent(token);
+    document.querySelectorAll("[data-token-link]").forEach(link => { if(token){ const url = new URL(link.href, location.origin); url.searchParams.set("token",token); link.href = url.pathname + url.search + url.hash; } });
     const el = id => document.getElementById(id);
     const esc = value => String(value ?? "—").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
     const numeric = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
     const num = value => numeric(value) ? Number(value).toLocaleString() : "—";
-    const fixed = (value, digits=2) => numeric(value) ? Number(value).toFixed(digits) : "—";
-    const read = (obj, path, fallback=null) => path.split(".").reduce((v,k) => v && v[k] !== undefined ? v[k] : null, obj) ?? fallback;
+    const fixed = (value,digits=2) => numeric(value) ? Number(value).toFixed(digits) : "—";
+    const read = (obj,path,fallback=null) => path.split(".").reduce((v,k)=>v && v[k] !== undefined ? v[k] : null,obj) ?? fallback;
+    const tone = state => { const s=String(state||"").toLowerCase(); return (s.includes("healthy")||s.includes("fresh")||s.includes("recording")||s==="ok")?"good":(s.includes("locked")||s.includes("blocked")||s.includes("attention")||s.includes("failed"))?"bad":"warn"; };
+    const localTime = value => value ? new Date(value).toLocaleString() : "unavailable";
+    const ms = value => numeric(value) ? `${Number(value).toFixed(Number(value)>=100?0:1)} ms` : "not instrumented";
+    const lagDuration = value => !numeric(value) ? "not instrumented" : Number(value)>=1000 ? `${(Number(value)/1000).toFixed(1)} s` : ms(value);
 
-    function marketCard(row){
-      const ev = row.latest_eval || {};
-      const l2 = ev.l2_confirmation || {};
-      const state = row.state || "WAITING";
-      const feed = l2.status || "unavailable";
-      const reason = "All primary scanner hypotheses are rejected and disabled. Monitoring context only.";
-      return `<article class="market">
-        <div class="market-top"><div><div class="symbol">${esc(row.symbol)}</div><div class="context">${esc(row.timeframe)} · ${esc(ev.active_regime || "context warming")}</div></div><span class="state">${esc(state)}</span></div>
-        <div class="facts">
-          <div class="fact"><span>Feed / L2</span><b class="${feed === "fresh" ? "good" : "warn"}">${esc(feed)}</b></div>
-          <div class="fact"><span>Evaluations</span><b>${num(row.evaluations)}</b></div>
-          <div class="fact"><span>Book imbalance</span><b>${fixed(l2.imbalance,3)}</b></div>
-          <div class="fact"><span>Pipeline</span><b>${num(ev.pipeline_duration_us)} µs</b></div>
-          <div class="fact"><span>Alerts</span><b>${num(row.alerts || 0)}</b></div>
-          <div class="fact"><span>Forward outcomes</span><b>${num(read(row,"forward_evidence.completed_alerts",0))}</b></div>
-        </div>
-        <div class="reason"><b>Why no signal:</b> ${esc(reason)}</div>
-      </article>`;
+    function healthCell(label,value,note,state){ return `<div class="healthcell"><div class="label">${esc(label)}</div><div class="healthvalue ${tone(state||value)}">${esc(value)}</div><div class="healthnote">${esc(note)}</div></div>`; }
+    function renderHealth(payload,infrastructure){
+      const health=payload.system_health||{}, recorder=infrastructure.recorder||{}, runtime=recorder.runtime||{}, lag=runtime.feed_delay_us||{}, gap=runtime.gap_guard||{}, connection=recorder.connection||runtime.connection||{};
+      const l2=`${num(health.l2_fresh)} / ${num(health.l2_total)} fresh`;
+      const feed=recorder.status||"unavailable";
+      const gapText=gap.healthy===true?"HEALTHY":gap.healthy===false?"FAULT":"NOT PUBLISHED";
+      const journal=String(health.journal||"unavailable").toUpperCase();
+      el("healthGrid").innerHTML=[
+        healthCell("Delta event WS",connection.connected===true?"CONNECTED":feed,`${num(connection.reconnects)} reconnects · ${num(recorder.live_events)} events`,connection.connected===true?"healthy":feed),
+        healthCell("L2 confirmation",l2,"Age is not published by the candle snapshot",health.l2_fresh===health.l2_total&&health.l2_total?"fresh":"attention"),
+        healthCell("Feed lag p95",lagDuration(numeric(lag.p95_us)?Number(lag.p95_us)/1000:null),numeric(lag.max_us)?`max ${lagDuration(Number(lag.max_us)/1000)} · event tape`:health.feed_lag_note,"warning"),
+        healthCell("Gap guard",gapText,`${num(gap.integrity_faults)} integrity faults`,gapText),
+        healthCell("Journal writes",journal,"Latest Delta context evaluations",journal),
+        healthCell("Last evaluation",health.last_evaluation_ts?new Date(health.last_evaluation_ts).toLocaleTimeString():"unavailable",health.last_evaluation_ts?localTime(health.last_evaluation_ts):"No timestamp",health.last_evaluation_ts?"ok":"warning")
+      ].join("");
     }
 
-    function laneCard(lane){
-      const l2 = lane.l2_status || "unavailable";
-      return `<article class="lane" data-lane="${esc(lane.lane_id)}">
-        <div class="lanetop"><div><div class="laneid">${esc(lane.lane_id)}</div><div class="lanesymbol">${esc(lane.symbol)}</div></div><span class="state">${esc(lane.state || "WAITING")}</span></div>
-        <div class="lanemeta">${esc(lane.exchange)} · ${esc(lane.timeframe || "timeframe unavailable")} · last ${esc(lane.last_eval_ts ? new Date(lane.last_eval_ts).toLocaleTimeString() : "unavailable")}</div>
-        <div class="lanevalues">
-          <div class="lanevalue"><span>Regime</span><b>${esc(lane.active_regime || "warming")}</b></div>
-          <div class="lanevalue"><span>L2 status</span><b class="${l2 === "fresh" ? "good" : "warn"}">${esc(l2)}</b></div>
-          <div class="lanevalue"><span>Evaluations</span><b>${num(lane.evaluations)}</b></div>
-          <div class="lanevalue"><span>Latest candidates</span><b>${num(lane.latest_candidates)}</b></div>
-          <div class="lanevalue"><span>Gate accepted</span><b>${num(lane.latest_accepted)}</b></div>
-          <div class="lanevalue"><span>Pipeline</span><b>${num(lane.pipeline_duration_us)} µs</b></div>
-        </div>
-        <div class="lanereason"><b>Why no signal:</b> ${esc(lane.why_no_signal)}</div>
-      </article>`;
+    function marketCard(row,scannersDisabled){
+      const ev=row.latest_eval||{}, l2=ev.l2_confirmation||{}, signal=ev.signal||null;
+      const reason=scannersDisabled?"All primary scanner hypotheses are rejected and disabled; event observations remain counterfactual only.":row.why||"No candidate cleared the scanner and gate evaluation.";
+      return `<article class="market"><div class="market-top"><div><div class="symbol">${esc(row.symbol)}</div><div class="context">${esc(row.timeframe)} · regime ${esc(ev.active_regime||"unavailable")}</div></div><div><div class="price" data-market-price="${esc(row.symbol)}">Price —</div><div class="context" style="text-align:right">event tape when available</div></div></div><div class="facts"><div class="fact"><span>HTF context</span><b class="warn" data-market-htf="${esc(row.symbol)}">Not published</b></div><div class="fact"><span>L2 imbalance</span><b data-market-l2="${esc(row.symbol)}">${fixed(l2.imbalance,3)} · ${esc(l2.status||"unavailable")}</b></div><div class="fact"><span>L2 age</span><b data-market-l2-age="${esc(row.symbol)}">Not instrumented</b></div><div class="fact"><span>Active observation</span><b data-market-observation="${esc(row.symbol)}">None</b></div><div class="fact"><span>Last signal</span><b>${signal?esc(signal):"None"}</b></div><div class="fact"><span>Pipeline</span><b>${num(ev.pipeline_duration_us)} µs</b></div></div><div class="reason"><b>Why no signal:</b> ${esc(reason)}</div></article>`;
     }
 
-    function renderLanes(lanes){
-      el("laneGrid").innerHTML = lanes.length ? lanes.map(laneCard).join("") : `<div class="empty"><b>No Delta lanes published</b><p>The trading lock remains active. Check the dedicated sidecar publisher.</p></div>`;
-      el("laneMeta").textContent = lanes.length + " lanes · " + lanes.filter(l=>String(l.l2_status).toLowerCase()==="fresh").length + " feeds fresh";
+    function renderMultiTf(payload){
+      const states=payload.multi_tf_state||{}, symbols=["BTCUSD","ETHUSD"];
+      el("multiTf").innerHTML=symbols.map(symbol=>{const state=states[symbol]||{}, tfs=state.timeframes||{};return `<article class="tfcard"><div class="tf-top"><div><b>${symbol}</b><div class="context">Point-in-time coherence state</div></div><span class="state locked">${state.available?"AVAILABLE":"NOT PUBLISHED"}</span></div><div class="tfgrid">${["4h","1h","15m","5m","1m"].map(tf=>`<div class="tfstep"><b>${tf.toUpperCase()}</b><span>${esc(read(tfs,`${tf}.status`,"unavailable").replaceAll("_"," "))}</span></div>`).join("")}</div><div class="tfwhy">Stack aligned: ${state.stack_aligned===true?"yes":state.stack_aligned===false?"no":"not evaluated"}. ${esc(state.reason||"No MultiTFState contract in the snapshot.")}</div></article>`}).join("");
     }
 
-    function renderFunnel(funnel){
-      const stages = Array.isArray(funnel.stages) ? funnel.stages : [];
-      const cards = stages.map((stage,index)=>{
-        const state = String(stage.state || "WAITING");
-        const tone = state.toLowerCase().replaceAll("_","-");
-        const scope = ["candidates","gates"].includes(stage.id) ? "latest evaluation" : "cumulative";
-        return `<div class="funnelstage ${esc(tone)}" data-funnel-stage="${esc(stage.id)}"><div class="stageindex">${index+1}</div><div><div class="stagename">${esc(stage.label)}</div><div class="stagescope">${scope}</div></div><div class="stagecount">${num(stage.count)}<span class="stagestate">${esc(state.replaceAll("_"," "))}</span></div></div>`;
-      }).join("");
-      const blocker = `<div class="funnelblocker" id="funnelBlocker"><b>Current blocker</b>${esc(funnel.blocker || "Signal path status unavailable.")}</div>`;
-      el("signalFunnel").innerHTML = cards ? cards + blocker : `<div class="empty"><b>Signal funnel unavailable</b><p>The engine remains locked.</p></div>`;
+    function renderObservations(payload,infrastructure){
+      const observations=payload.observations||{}, decisions=Array.isArray(payload.recent_decisions)?payload.recent_decisions:[],counter=read(infrastructure,"event_trigger.counterfactual_absorption",{}),open=Number(counter.open||0),pending=Number(counter.pending||0),outcomes=Number(read(infrastructure,"event_trigger.funnel.counterfactual_outcomes",0));
+      el("observations").innerHTML=open+pending>0?`<div class="empty"><b>${num(open+pending)} counterfactual absorption observations</b><p>${num(open)} open · ${num(pending)} awaiting next-trade entry · ${num(outcomes)} resolved · average net ${fixed(counter.average_net_ticks,2)} ticks · PF ${fixed(counter.profit_factor,3)}. Research only; no order route.</p></div>`:Number(observations.count||0)===0?`<div class="empty"><b>No active or pending observations</b><p>${esc(observations.reason||"No observation state published.")}</p></div>`:`<div class="empty"><b>${num(observations.count)} observations</b></div>`;
+      el("decisions").innerHTML=decisions.length?decisions.slice(0,10).map(d=>`<div class="decision"><div><b>${esc(d.symbol)} · ${esc(d.decision.replaceAll("_"," "))}</b><small>${esc(d.reason)} · candidates ${num(d.candidates)} · accepted ${num(d.accepted)}</small></div><time>${d.timestamp?new Date(d.timestamp).toLocaleTimeString():"—"}</time></div>`).join(""):`<div class="empty"><b>No research decisions published</b></div>`;
+      el("decisionMeta").textContent=`${decisions.length} latest candle evaluations · ${num(outcomes)} event outcomes · not a fabricated trade tape`;
     }
 
-    function render(payload){
-      const rows = Array.isArray(payload.rows) ? payload.rows : [];
-      const lanes = Array.isArray(payload.lanes) ? payload.lanes : [];
-      const panels = payload.panels || {};
-      const summary = panels.summary || {};
-      const backtest = panels.backtest_summary || {};
-      const scanner = payload.scanner_status || {};
-      el("runtime").textContent = String(read(payload,"identity.runtime","research")).replace("delta_scalper_","").replaceAll("_"," ");
-      el("connected").textContent = num(summary.connected_symbols ?? rows.length);
-      el("evaluations").textContent = num(summary.evaluations ?? rows.reduce((n,r)=>n+(Number(r.evaluations)||0),0));
-      el("scanners").textContent = num(scanner.enabled_count ?? 0);
-      el("alerts").textContent = num(summary.alerts ?? rows.reduce((n,r)=>n+(Number(r.alerts)||0),0));
-      el("histTrades").textContent = num(backtest.trades ?? backtest.completed_trades);
-      const tradeCount = Number(backtest.trades ?? backtest.completed_trades);
-      const totalNet = Number(backtest.net_bps);
-      const derivedAverage = Number.isFinite(totalNet) && tradeCount > 0 ? totalNet / tradeCount : null;
-      const avg = backtest.average_net_bps ?? backtest.avg_net_bps ?? derivedAverage;
-      el("avgNet").textContent = fixed(avg,2) + (avg == null ? "" : " bps");
-      el("profitFactor").textContent = fixed(backtest.profit_factor,3);
-      el("positiveMarkets").textContent = num(backtest.positive_markets) + (backtest.markets ? " / " + num(backtest.markets) : "");
-      const scenario = backtest.active_cost_scenario || {};
-      const costLabel = `DETO ${scenario.deto_enabled ? "on" : "off"}, scalper fee ${scenario.scalper_opted_in ? "opted in" : "not opted in"}`;
-      const qualityLabel = backtest.source_data_quality_pass === true ? "source data-quality gate passed" : "source data-quality gate failed";
-      const pfLabel = backtest.profit_factor_note || "profit factor status unavailable";
-      el("evidenceNote").textContent = `Headline uses current local costs (${costLabel}); ${qualityLabel}; ${pfLabel}.`;
-      el("markets").innerHTML = rows.length ? rows.map(marketCard).join("") : `<div class="empty"><b>Delta snapshot has no market rows</b><p>The engine remains locked. Check the local sidecar publisher.</p></div>`;
-      renderLanes(lanes);
-      renderFunnel(payload.signal_funnel || {});
-      const latest = rows.map(r=>r.latest_eval_ts).filter(Boolean).sort().at(-1) || payload.generated_at;
-      el("lastEval").textContent = latest ? "last evaluation " + new Date(latest).toLocaleString() : "last evaluation unavailable";
-      el("sourceAge").textContent = rows.length + " Delta markets · local";
-      el("refreshStatus").textContent = "snapshot " + (payload.generated_at ? new Date(payload.generated_at).toLocaleTimeString() : "unavailable");
-      el("emptyState").style.display = (scanner.enabled_count || summary.alerts) ? "none" : "block";
-    }
+    function laneCard(lane){ return `<article class="lane" data-lane="${esc(lane.lane_id)}"><div class="lane-top"><div><div class="laneid">${esc(lane.lane_id)}</div><div class="symbol">${esc(lane.symbol)}</div></div><span class="state">${esc(lane.state||"WAITING")}</span></div><div class="lanemeta">${esc(lane.exchange)} · last ${lane.last_eval_ts?new Date(lane.last_eval_ts).toLocaleTimeString():"unavailable"}</div><div class="lanevalues"><div class="lanevalue"><span>Regime</span><b>${esc(lane.active_regime||"—")}</b></div><div class="lanevalue"><span>L2</span><b>${esc(lane.l2_status||"—")}</b></div><div class="lanevalue"><span>Evals</span><b>${num(lane.evaluations)}</b></div><div class="lanevalue"><span>Candidates</span><b>${num(lane.latest_candidates)}</b></div><div class="lanevalue"><span>Accepted</span><b>${num(lane.latest_accepted)}</b></div><div class="lanevalue"><span>Pipeline</span><b>${num(lane.pipeline_duration_us)} µs</b></div></div><div class="reason"><b>Blocker:</b> ${esc(lane.why_no_signal)}</div></article>`; }
+    function renderLanes(lanes){ el("laneGrid").innerHTML=lanes.length?lanes.map(laneCard).join(""):`<div class="empty"><b>No Delta lanes published</b><p>Snapshot unavailable; trading remains locked.</p></div>`;el("laneMeta").textContent=`${lanes.length} lanes · ${lanes.filter(l=>l.l2_status==="fresh").length} L2 fresh`; }
+    function renderFunnel(funnel,infrastructure){const stages=Array.isArray(funnel.stages)?funnel.stages:[],eventFunnel=read(infrastructure,"event_trigger.funnel",{}),rejections=read(infrastructure,"event_trigger.rejection_reasons",{}),cards=stages.map((stage,index)=>{const state=String(stage.state||"WAITING"),css=state.toLowerCase().replaceAll("_","-");return `<div class="funnelstage ${esc(css)}" data-funnel-stage="${esc(stage.id)}"><div class="stageindex">${index+1}</div><div><div class="stagename">${esc(stage.label)}</div><div class="stagescope">candle path · ${["candidates","gates"].includes(stage.id)?"latest":"cumulative"}</div></div><div class="stagecount">${num(stage.count)}<span class="stagestate">${esc(state.replaceAll("_"," "))}</span></div></div>`}).join(""),eventStages=[["Absorption seen","absorption_observations"],["Research observations","counterfactual_observations"],["Event evaluations","evaluations"],["Raw candidates","raw_candidates"],["Research outcomes","counterfactual_outcomes"]].map((row,index)=>`<div class="funnelstage" data-event-funnel-stage="${esc(row[1])}"><div class="stageindex">E${index+1}</div><div><div class="stagename">${esc(row[0])}</div><div class="stagescope">event research · never an order</div></div><div class="stagecount">${num(eventFunnel[row[1]])}</div></div>`).join(""),topReject=Object.entries(rejections).sort((a,b)=>Number(b[1])-Number(a[1])).slice(0,3).map(([reason,count])=>`${reason} (${num(count)})`).join(" · ");el("signalFunnel").innerHTML=cards+eventStages+`<div class="funnelblocker"><b>Current blocker</b>${esc(funnel.blocker||"Signal path unavailable; execution remains locked.")}${topReject?`<br><br>Event rejects: ${esc(topReject)}`:""}</div>`;}
 
-    function stackTone(status){
-      const value = String(status || "").toUpperCase();
-      if(value.includes("RECORDING") || value.includes("RECORDED") || value.includes("OBSERVING") || value.includes("VALIDATED") || value.includes("ARTIFACT_PRESENT") || value.includes("PANEL_READY")) return "live";
-      if(value.includes("NOT_CONNECTED") || value.includes("LOCKED")) return "locked";
-      return "";
-    }
+    function renderSafety(payload,infrastructure){const policy=payload.policy||{}, htf=read(infrastructure,"research_modules.htf_structure_break",{}), untouched=htf.untouched||{};const rows=[['can_trade',String(Boolean(policy.can_trade)).toUpperCase(),'No trading authority'],['can_promote',String(Boolean(policy.can_promote)).toUpperCase(),'No validated after-cost edge'],['Order route',String(policy.order_route||'absent').toUpperCase(),'No broker or order manager'],['Enabled scanners',`[${(read(payload,'scanner_status.enabled',[])||[]).join(', ')}]`,'All retired hypotheses remain disabled'],['Sealed tail',String(untouched.status||'not published').toUpperCase(),untouched.loaded===false?'Untouched data not loaded':'See detailed evidence'],['Paper trading',String(Boolean(policy.paper_trading)).toUpperCase(),'Blocked by policy']];el("safetyRows").innerHTML=rows.map(r=>`<div class="row"><div><b>${esc(r[0])}</b><small>${esc(r[2])}</small></div><span class="chip locked">${esc(r[1])}</span></div>`).join("");}
 
-    function stackCard(name,status,detail){
-      return `<article class="stackcard"><div class="stacktop"><div class="stackname">${esc(name)}</div><span class="stackstatus ${stackTone(status)}">${esc(String(status || "unknown").replaceAll("_"," "))}</span></div><div class="stackdetail">${esc(detail)}</div><div class="stackimpl">Implementation available locally</div></article>`;
-    }
+    function renderEvidence(payload){const backtest=read(payload,"panels.backtest_summary",{}),tradeCount=Number(backtest.trades??backtest.completed_trades),totalNet=Number(backtest.net_bps),derived=Number.isFinite(totalNet)&&tradeCount>0?totalNet/tradeCount:null,avg=backtest.average_net_bps??backtest.avg_net_bps??derived,marketCount=backtest.markets&&typeof backtest.markets==="object"?Object.keys(backtest.markets).length:Number(backtest.markets||0);el("histTrades").textContent=num(tradeCount);el("avgNet").textContent=numeric(avg)?`${fixed(avg,2)} bps`:"—";el("profitFactor").textContent=fixed(backtest.profit_factor,3);el("positiveMarkets").textContent=`${num(backtest.positive_markets)} / ${num(marketCount)}`;const scenario=backtest.active_cost_scenario||{};el("evidenceNote").textContent=`Current-cost view: DETO ${scenario.deto_enabled?'on':'off'}, scalper fee ${scenario.scalper_opted_in?'opted in':'not opted in'} · source data-quality gate ${backtest.source_data_quality_pass===true?'passed':'failed'} · ${backtest.profit_factor_note||'PF status unavailable'}.`;}
 
-    function renderInfrastructure(payload){
-      const recorder = payload.recorder || {};
-      const trigger = payload.event_trigger || {};
-      const absorption = payload.absorption || {};
-      const replay = payload.replay || {};
-      const modules = payload.research_modules || {};
-      const kronos = modules.kronos || {};
-      const forced = modules.forced_flow_panel || {};
-      const governance = modules.governance || {};
-      const execution = modules.delta_execution_safety || {};
-      const tv = modules.tv_rule_adapter || {};
-      const htf = modules.htf_structure_break || {};
-      const htfFunnel = htf.scanner_funnel || {};
-      const cards = [
-        stackCard("Delta Event Recorder",recorder.status,`${num(recorder.status === "RECORDING" ? recorder.live_events : recorder.recorded_events_from_manifests || 0)} ${recorder.status === "RECORDING" ? "live" : "finalized"} events · ${num(recorder.finalized_shards || 0)} finalized shards · ${num(recorder.partial_files || 0)} active partials · sequence validation before replay`),
-        stackCard("HTF Structure Break v1",htf.status,`${num(htf.selection_trades || 0)} selection trades · ${num(htfFunnel.event_bos || 0)} BOS + ${num(htfFunnel.event_choch || 0)} CHOCH observed · ${num(htfFunnel.target_below_5x_cost || 0)} below 5× cost · untouched sealed`),
-        stackCard("Incremental Event Trigger",trigger.status,trigger.telemetry_present ? `${num(read(trigger,"counts.events",0))} events · ${num(read(trigger,"counts.selected",0))} selected` : "Trade, L2 and liquidation handlers built; no event telemetry publisher is running"),
-        stackCard("Absorption Detector",absorption.status,`${num(absorption.observations || 0)} observations · event-level tape required · never used as a live execution claim`),
-        stackCard("Deterministic Event Replay",replay.status,`${num(replay.events_processed || 0)} events replayed · ${num(replay.candidates_emitted || 0)} candidates · sealed holdout guard available`),
-        stackCard("Kronos AI Research",kronos.status,`${num(kronos.base_runs || 0)} base runs · ${num(kronos.permutations || 0)} permutations · ${num(kronos.eligible_selection_candidates || 0)} exploratory candidates · holdback sealed`),
-        stackCard("Forced-Flow Panel",forced.status,`${(forced.symbols || []).join(", ") || "no symbols"} · ${num(forced.manifests || 0)} manifests · OHLCV/OI proxy only, not actual liquidations`),
-        stackCard("Governance Proof Chain",governance.status,"SHA-256 proof chain and Ed25519 primitives implemented · signed paper-manifest enforcement still pending"),
-        stackCard("Delta Execution Safety",execution.status,"Deadman interlock and server-side protection implemented · deliberately disconnected from this research dashboard"),
-        stackCard("TradingView Rule Adapter",tv.status,"Causal rule normalization implemented for research · no direct Pine execution or trading authority")
-      ];
-      el("buildStack").innerHTML = cards.join("");
-      el("stackMeta").textContent = "10 local capability groups · trade authority false";
-    }
-
-    async function refresh(){
-      if(location.protocol === "file:"){
-        el("sourceAge").textContent = "Open through http://127.0.0.1:8080";
-        el("refreshStatus").textContent = "direct file view cannot read authenticated runtime data";
-        el("markets").innerHTML = `<div class="empty"><b>This is a static file preview</b><p>Open http://127.0.0.1:8080/?token=vnedge-demo to load BTCUSD, ETHUSD and live local research status.</p></div>`;
-        el("laneGrid").innerHTML = `<div class="empty"><b>Operational lanes unavailable in file view</b><p>Open the served dashboard to load the Delta lane contract.</p></div>`;
-        el("signalFunnel").innerHTML = `<div class="empty"><b>Signal funnel unavailable in file view</b><p>Open the served dashboard to see the live drop-off chain.</p></div>`;
-        el("buildStack").innerHTML = `<div class="empty"><b>Runtime inventory unavailable in file view</b><p>The served dashboard is required for recorder, replay, Kronos, forced-flow and governance evidence.</p></div>`;
-        el("stackMeta").textContent = "static preview only";
-        return;
+    function renderStreamHealth(data){
+      if(data.error){el("healthGrid").innerHTML=healthCell("Delta health stream","SNAPSHOT UNAVAILABLE","Fail closed · trade false · promote false","attention");return;}
+      const markets=data.markets||{}, marketRows=Object.values(markets), fresh=marketRows.filter(m=>m&&m.l2_fresh).length, gap=data.gap_guard||{}, recorder=data.recorder||{}, quality=data.timestamp_quality||{};
+      el("healthGrid").innerHTML=[
+        healthCell("Delta event WS",recorder.connected===true?"CONNECTED":recorder.state||"unavailable",`${num(recorder.reconnects)} reconnects · ${num(recorder.events)} events`,recorder.connected===true?"healthy":recorder.state),
+        healthCell("L2 confirmation",`${fresh} / ${marketRows.length} fresh`,`${marketRows.some(m=>numeric(m&&m.l2_age_ms))?'event age instrumented':'age unavailable'} · per-TF candle lag unavailable`,fresh===marketRows.length&&marketRows.length?"fresh":"attention"),
+        healthCell("Feed lag p95",lagDuration(data.p95_feed_lag_ms),`${num(quality.negative_samples)} negative samples · ${data.feed_lag_scope||'unknown scope'}`,"warning"),
+        healthCell("Gap guard",gap.healthy===true?"HEALTHY":gap.healthy===false?"FAULT":"UNAVAILABLE",`${num(gap.integrity_faults)} integrity faults`,gap.healthy===true?"healthy":"attention"),
+        healthCell("Journal writes",data.journal_ok===true?"HEALTHY":data.journal_ok===false?"FAILED":"UNAVAILABLE","Latest Delta context evaluations",data.journal_ok===true?"healthy":"attention"),
+        healthCell("Last evaluation",data.last_eval_ts?new Date(data.last_eval_ts).toLocaleTimeString():"unavailable",data.stream_ts?`SSE ${new Date(data.stream_ts).toLocaleTimeString()}`:"SSE update",data.last_eval_ts?"ok":"warning")
+      ].join("");
+      for(const [symbol,market] of Object.entries(markets)){
+        const l2Node=document.querySelector(`[data-market-l2="${symbol}"]`);if(l2Node)l2Node.textContent=`${fixed(market.l2_imbalance,3)} · ${market.l2_status||'unavailable'}`;
+        const priceNode=document.querySelector(`[data-market-price="${symbol}"]`);if(priceNode)priceNode.textContent=numeric(market.price)?Number(market.price).toLocaleString():"Price —";
+        const observationNode=document.querySelector(`[data-market-observation="${symbol}"]`);if(observationNode)observationNode.textContent=market.active_observation||"None";
+        const ageNode=document.querySelector(`[data-market-l2-age="${symbol}"]`);if(ageNode)ageNode.textContent=ms(market.l2_age_ms);
+        const htfNode=document.querySelector(`[data-market-htf="${symbol}"]`);if(htfNode)htfNode.textContent=market.mtf_status==="available"?`Bias ${market.bias_4h??"—"}`:"Not published";
       }
-      try{
-        const suffix = token ? "?token=" + encodeURIComponent(token) : "";
-        const response = await fetch("/delta-scalper" + suffix,{cache:"no-store"});
-        if(!response.ok) throw new Error("HTTP " + response.status);
-        render(await response.json());
-      }catch(error){
-        el("sourceAge").textContent = "Delta snapshot unavailable";
-        el("refreshStatus").textContent = String(error.message || error);
-      }
+      el("sourceAge").textContent=`Delta SSE · ${data.mode||'RESEARCH'} · ${data.snapshot_generated_at?localTime(data.snapshot_generated_at):'snapshot unavailable'}`;
     }
-    async function refreshInfrastructure(){
-      if(location.protocol === "file:") return;
-      try{
-        const suffix = token ? "?token=" + encodeURIComponent(token) : "";
-        const response = await fetch("/event-research-infrastructure" + suffix,{cache:"no-store"});
-        if(!response.ok) throw new Error("HTTP " + response.status);
-        renderInfrastructure(await response.json());
-      }catch(error){
-        el("stackMeta").textContent = "inventory unavailable · " + String(error.message || error);
-      }
-    }
-    refresh();
-    refreshInfrastructure();
-    if(!matchMedia("(prefers-reduced-motion: reduce)").matches){setInterval(refresh,3000);setInterval(refreshInfrastructure,10000)}
+
+    function render(payload,infrastructure){const rows=Array.isArray(payload.rows)?payload.rows:[],lanes=Array.isArray(payload.lanes)?payload.lanes:[],summary=read(payload,"panels.summary",{}),scanner=payload.scanner_status||{},scannersDisabled=Number(scanner.enabled_count||0)===0;el("runtime").textContent="RESEARCH";el("connected").textContent=num(summary.connected_symbols??rows.length);el("evaluations").textContent=num(summary.evaluations??rows.reduce((n,r)=>n+(Number(r.evaluations)||0),0));el("scanners").textContent=num(scanner.enabled_count??0);el("alerts").textContent=num(summary.alerts??0);el("markets").innerHTML=rows.length?rows.map(row=>marketCard(row,scannersDisabled)).join(""):`<div class="empty"><b>Snapshot unavailable</b><p>No fallback to the generic runtime is permitted. Trading remains locked.</p></div>`;if(!healthStream||healthStream.readyState!==EventSource.OPEN)renderHealth(payload,infrastructure);renderMultiTf(payload);renderObservations(payload,infrastructure);renderLanes(lanes);renderFunnel(payload.signal_funnel||{},infrastructure);renderSafety(payload,infrastructure);renderEvidence(payload);const latest=read(payload,"system_health.last_evaluation_ts",payload.generated_at);el("lastEval").textContent=latest?`last evaluation ${localTime(latest)}`:"last evaluation unavailable";if(!healthStream||healthStream.readyState!==EventSource.OPEN)el("sourceAge").textContent=`Delta snapshot · ${rows.length} markets · ${payload.generated_at?localTime(payload.generated_at):'unavailable'}`;el("refreshStatus").textContent=`snapshot ${payload.generated_at?new Date(payload.generated_at).toLocaleTimeString():'unavailable'}`;el("emptyState").style.display=(scanner.enabled_count||summary.alerts)?"none":"block";const recorder=infrastructure.recorder||{},trigger=infrastructure.event_trigger||{};el("stackMeta").textContent=`Recorder ${recorder.status||'unavailable'} · ${num(recorder.live_events)} events · absorption observations ${num(read(trigger,'funnel.counterfactual_observations',0))} · outcomes ${num(read(trigger,'funnel.counterfactual_outcomes',0))} · trade authority false`;}
+
+    async function refresh(){if(location.protocol==="file:"){el("sourceAge").textContent="Open through http://127.0.0.1:8080";el("refreshStatus").textContent="Static preview cannot read authenticated data";return;}const suffix=token?"?token="+encodeURIComponent(token):"";try{const deltaResponse=await fetch("/delta-scalper"+suffix,{cache:"no-store"});if(!deltaResponse.ok)throw new Error("Delta snapshot HTTP "+deltaResponse.status);const payload=await deltaResponse.json();let infrastructure={};try{const infrastructureResponse=await fetch("/event-research-infrastructure"+suffix,{cache:"no-store"});if(infrastructureResponse.ok)infrastructure=await infrastructureResponse.json();}catch(_error){}render(payload,infrastructure);}catch(error){el("sourceAge").textContent="Delta snapshot unavailable";el("refreshStatus").textContent=String(error.message||error);el("markets").innerHTML=`<div class="empty"><b>Snapshot unavailable</b><p>The homepage will not fall back to generic runtime data. Trading and promotion remain locked.</p></div>`;el("healthGrid").innerHTML=healthCell("Delta snapshot","UNAVAILABLE","No authenticated Delta payload","attention");}}
+    let healthStream=null,healthRetryMs=2000,healthRetryTimer=null;
+    function startHealthStream(){if(location.protocol==="file:"||typeof EventSource==="undefined")return;if(healthStream)healthStream.close();const suffix=token?"?token="+encodeURIComponent(token):"";healthStream=new EventSource("/api/delta/health/stream"+suffix);healthStream.addEventListener("health",event=>{healthRetryMs=2000;try{renderStreamHealth(JSON.parse(event.data));}catch(_error){}});healthStream.addEventListener("ping",event=>{try{const ping=JSON.parse(event.data);el("refreshStatus").textContent=`health ping ${new Date(ping.ts).toLocaleTimeString()}`;}catch(_error){}});healthStream.onerror=()=>{healthStream.close();el("sourceAge").textContent="Delta SSE reconnecting · snapshot polling remains active";clearTimeout(healthRetryTimer);healthRetryTimer=setTimeout(startHealthStream,healthRetryMs);healthRetryMs=Math.min(30000,healthRetryMs*2);};}
+    refresh().finally(startHealthStream);if(!matchMedia("(prefers-reduced-motion: reduce)").matches)setInterval(refresh,10000);
   </script>
 </body>
 </html>

@@ -181,6 +181,7 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     categorical_encoding = tmp_path / "categorical-encoding.json"
     cusum_interactions = tmp_path / "cusum-interactions.json"
     lightgbm_shap = tmp_path / "lightgbm-shap.json"
+    active_cost = tmp_path / "active-cost.json"
     primary.write_text(json.dumps(mtf_payload(now)))
     scalper.write_text(
         json.dumps(
@@ -288,6 +289,20 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
         "DELTA_SCALPER_LIGHTGBM_SHAP_PATH",
         lightgbm_shap,
     )
+    active_cost.write_text(
+        json.dumps(
+            {
+                "schema_version": "vnedge.delta_active_cost_evidence.v1",
+                "metrics": {"profit_factor": 0.15},
+                "can_trade": False,
+            }
+        )
+    )
+    monkeypatch.setattr(
+        scanner_live,
+        "DELTA_ACTIVE_COST_EVIDENCE_PATH",
+        active_cost,
+    )
 
     combined = scanner_live.read_scanner_payload(primary)
 
@@ -320,6 +335,9 @@ def test_dashboard_merges_existing_and_delta_scalper_rows(tmp_path, monkeypatch)
     assert combined["delta_scalper"]["lightgbm_shap"]["report_id"] == (
         "delta_scalper_lightgbm_shap_v1"
     )
+    assert combined["delta_scalper"]["active_cost_evidence"]["metrics"][
+        "profit_factor"
+    ] == 0.15
     assert combined["policy"]["order_route_present"] is False
     assert combined["can_trade"] is False
 
@@ -366,9 +384,75 @@ def test_delta_scalper_endpoint_exposes_research_panels_only(tmp_path):
         "count": 0,
         "state": "BLOCKED",
     }
+    assert payload["system_health"]["snapshot_available"] is True
+    assert payload["system_health"]["journal"] == "unavailable"
+    assert payload["multi_tf_state"]["BTCUSD"]["available"] is False
+    assert payload["multi_tf_state"]["BTCUSD"]["stack_aligned"] is None
+    assert payload["observations"]["count"] == 0
+    assert payload["recent_decisions"][0]["decision"] == "MONITOR_ONLY"
     assert payload["panels"]["backtest_summary"]["profit_factor"] == 0.4
     assert payload["can_trade"] is False
     assert payload["can_promote"] is False
+
+
+def test_delta_scalper_endpoint_uses_recomputed_active_cost_pf(tmp_path):
+    path = tmp_path / "combined-active-cost.json"
+    active_cost_path = tmp_path / "active-cost-evidence.json"
+    active_cost = {
+        "metrics": {
+            "trades": 10,
+            "net_bps": -120.0,
+            "average_net_bps": -12.0,
+            "profit_factor": 0.15,
+        },
+        "markets": {"BTCUSD": {"profit_factor": 0.15}},
+        "positive_markets": 0,
+        "fee_model": {"scalper_opted_in": False},
+    }
+    active_cost_path.write_text(json.dumps(active_cost))
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now(UTC).isoformat(),
+                "rows": [
+                    {
+                        "strategy_id": "delta_scalper_engine_v1",
+                        "symbol": "BTCUSD",
+                        "state": "WAITING",
+                    }
+                ],
+                "delta_scalper": {
+                    "backtest_summary": {
+                        "trades": 10,
+                        "profit_factor": 0.4,
+                        "data_quality_pass": False,
+                    },
+                    "fee_effectiveness": [],
+                },
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="token",
+            delta_scalper_path=path,
+            delta_active_cost_evidence_path=active_cost_path,
+        )
+    )
+
+    payload = client.get("/delta-scalper?token=token").json()
+    active = payload["panels"]["backtest_summary"]
+
+    assert active["profit_factor"] == 0.15
+    assert active["average_net_bps"] == -12.0
+    assert active["markets"]["BTCUSD"]["profit_factor"] == 0.15
+    assert "recomputed from per-trade" in active["profit_factor_note"]
+    assert payload["can_trade"] is False
 
 
 def test_delta_scalper_endpoint_reads_dedicated_snapshot_directly(tmp_path):
@@ -440,7 +524,11 @@ def test_delta_scalper_endpoint_reads_dedicated_snapshot_directly(tmp_path):
 
     payload = client.get("/delta-scalper?token=token").json()
     assert [row["symbol"] for row in payload["rows"]] == ["BTCUSD", "ETHUSD"]
-    assert payload["identity"]["product"] == "VNEDGE Delta India Scalper"
+    assert payload["identity"]["product"] == "VNEDGE Delta India Research Laboratory"
+    assert payload["identity"]["validated_after_cost_edge"] is False
+    assert payload["policy"]["validated_edge"] is False
+    assert payload["policy"]["order_route"] == "absent"
+    assert payload["policy"]["broker"] == "absent"
     assert payload["scanner_status"]["enabled_count"] == 0
     assert [lane["symbol"] for lane in payload["lanes"]] == ["BTCUSD", "ETHUSD"]
     assert payload["lanes"][0]["latest_candidates"] == 0
