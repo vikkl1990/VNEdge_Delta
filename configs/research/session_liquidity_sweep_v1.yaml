@@ -1,0 +1,87 @@
+contract_id: session_liquidity_sweep_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  symbols: [BTCUSD, ETHUSD]
+  timeframe: 1m
+  start: "2025-01-01T00:00:00+00:00"
+  end: "2026-07-25T00:00:00+00:00"
+  require_closed_candles: true
+  require_zero_missing_minutes: true
+
+sessions:
+  asian_first_close_utc: "00:01"
+  asian_last_close_utc: "08:00"
+  asian_expected_bars: 480
+  london_first_close_utc: "08:01"
+  london_last_close_utc: "08:30"
+  new_york_first_close_utc: "13:30"
+  new_york_last_close_utc: "15:00"
+  minimum_asian_range_bps: 8.0
+
+filters:
+  minimum_rejection_wick_ratio: 0.55
+  volume_sma_bars: 20
+  minimum_volume_ratio: 1.40
+  atr_window_bars: 20
+  atr_percentile_history_bars: 100
+  maximum_atr_percentile: 0.85
+  minimum_sweep_bps: 4.0
+  maximum_sweep_bps: 35.0
+
+exit:
+  structural_buffer_bps: 2.0
+  reward_risk: 1.0
+  minimum_target_cost_multiple: 3.50
+  expected_hold_seconds: 1200
+  time_stop_seconds: 2700
+
+structural_prior:
+  probability: 0.75
+  confidence: 0.65
+  calibrated: false
+  promotion_eligible: false
+
+costs:
+  prefer_maker: false
+  scalper_opted_in: false
+  deto_enabled: false
+  maker_fee_bps_pre_tax: 2.0
+  taker_fee_bps_pre_tax: 5.0
+  gst_rate: 0.18
+  slippage_bps_per_leg: 1.5
+
+validation:
+  selection_fraction: 0.80
+  untouched_fraction: 0.20
+  split_embargo_minutes: 45
+  minimum_selection_trades: 80
+  minimum_selection_profit_factor: 1.15
+  minimum_positive_markets: 1
+  maximum_false_signal_rate: 0.70
+  maximum_single_market_trade_fraction: 0.75
+  untouched_minimum_average_net_bps: 3.0
+  untouched_minimum_profit_factor: 1.30
+  open_untouched_only_after_selection_pass: true
+
+policy:
+  asian_range: close timestamps 00:01 through 08:00 UTC, exactly 480 bars
+  london_decision_window: close timestamps 08:01 through 08:30 UTC
+  new_york_decision_window: close timestamps 13:30 through 15:00 UTC
+  atr_percentile: current ATR20 including decision bar ranked against prior 100 ATR20 values
+  volume_ratio: decision volume divided by prior 20-bar SMA excluding decision
+  double_sweep: reject ambiguous candles sweeping both Asian extremes
+  entry: next 1m open, then recompute fixed-extreme stop and cost gate
+  same_bar_stop_and_target: stop_first
+  duplicate_policy: scanner symbol session_date session side
+  active_observation_policy: one pending or open observation per market
+  session_policy: one emitted setup per session per market, including entry rejections
+  missing_data_policy: reset state and fail data-quality gate
+  l2_role: unavailable_and_not_used
+  funding_role: unavailable_and_not_used
+  regime_role: unavailable_and_not_used
+  meta_model_role: unavailable_and_not_used
+  parameter_search: forbidden_on_this_window

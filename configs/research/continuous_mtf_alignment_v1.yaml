@@ -1,0 +1,117 @@
+contract_id: continuous_mtf_alignment_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  symbols: [BTCUSD, ETHUSD]
+  source_timeframe: 1m
+  derived_timeframes: [5m, 15m, 1h, 4h]
+  start: "2025-01-01T00:00:00+00:00"
+  end: "2026-07-25T00:00:00+00:00"
+  selection_boundary: "2026-04-02T00:01:00+00:00"
+  selection_decision_embargo_minutes: 240
+  require_closed_candles: true
+  require_zero_missing_minutes: true
+
+state:
+  required_bars:
+    1m: 24
+    5m: 24
+    15m: 24
+    1h: 30
+    4h: 55
+  bias_4h:
+    ema_fast: 20
+    ema_slow: 50
+    adx_window: 14
+    minimum_adx: 22.0
+    stable_closes: 2
+    range_adx_maximum: 18.0
+    confirmed_swing_left_bars: 2
+    confirmed_swing_right_bars: 2
+    key_level_lookback_bars: 30
+  structure_1h:
+    ema_window: 20
+    ema_slope_bars: 3
+    atr_window: 14
+    pullback_tolerance_atr: 0.50
+    bos_lookback_bars: 12
+    target_lookback_bars: 24
+  setup_15m:
+    allowed_types: [pullback, breakout]
+    ema_window: 20
+    atr_window: 14
+    pullback_tolerance_atr: 0.35
+    pullback_minimum_body_ratio: 0.35
+    breakout_lookback_bars: 16
+    breakout_minimum_body_ratio: 0.55
+    breakout_minimum_volume_z: 0.50
+    expiry_minutes: 90
+  confirmation_5m:
+    minimum_body_ratio: 0.50
+    minimum_volume_z: 0.0
+    expiry_minutes_after_setup: 45
+  trigger_1m:
+    break_lookback_bars: 3
+    minimum_body_ratio: 0.50
+    minimum_volume_z: 0.50
+    expiry_minutes_after_confirmation: 10
+
+geometry:
+  stop_buffer_bps: 2.0
+  minimum_reward_risk: 1.50
+  minimum_target_cost_multiple: 4.0
+  expected_hold_seconds: 7200
+  time_stop_seconds: 14400
+  prefer_maker: false
+  target_policy: nearest_preexisting_1h_or_confirmed_4h_level_in_bias_direction
+  target_floor_policy: reject_never_expand_a_structural_target
+
+costs:
+  deto_enabled: false
+  scalper_opted_in: false
+  maker_fee_bps_pre_tax: 2.0
+  taker_fee_bps_pre_tax: 5.0
+  gst_rate: 0.18
+  slippage_bps_per_leg: 1.5
+
+frequency:
+  one_active_observation_per_market: true
+  one_candidate_per_setup: true
+  cooldown_minutes_after_emission: 240
+
+validation:
+  minimum_selection_trades: 80
+  minimum_selection_profit_factor: 1.15
+  minimum_positive_markets: 1
+  maximum_false_signal_rate: 0.70
+  maximum_single_market_trade_fraction: 0.75
+  gross_expectancy_must_exceed_average_cost: true
+  net_expectancy_must_be_positive: true
+  untouched_minimum_average_net_bps: 3.0
+  untouched_minimum_profit_factor: 1.30
+  untouched_requires_both_markets_positive: true
+  open_untouched_only_after_selection_pass: true
+  automatic_untouched_open: false
+
+invalidation:
+  four_hour_bias_neutral_or_flip: cancel_all_lower_state
+  one_hour_opposition_or_choch: cancel_setup_confirmation_and_trigger
+  setup_zone_breached_against_bias: cancel_setup_confirmation_and_trigger
+  setup_expired: cancel_setup_confirmation_and_trigger
+  confirmation_expired: cancel_confirmation_and_trigger
+  source_gap: reset_entire_symbol_state
+
+policy:
+  update_order_on_shared_close: [1m, 5m, 15m, 1h, 4h]
+  evaluation_point: after_all_candles_sharing_the_close_timestamp_are_applied
+  entry: next_1m_open
+  same_bar_stop_and_target: stop_first
+  l2_role: journal_only_not_signal_not_execution
+  funding_role: unavailable_and_not_used
+  regime_overlay: forbidden_in_v1
+  meta_model: forbidden_in_v1
+  parameter_search: forbidden_on_this_window
+  old_hierarchical_scanner: retired_benchmark_only

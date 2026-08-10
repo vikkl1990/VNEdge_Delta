@@ -1,0 +1,1743 @@
+# ============================================================================
+# LEAN-BY-DEFAULT (2026-08-02). Running all 66 services drove this 8-core/24GB
+# box to load 18+ and starved sshd — it wedged repeatedly. Measured: the 12
+# profile-less "core" services (trading + dashboard) idle at load 0.5 / 2.7GB;
+# the other 54 (research/mining/diagnostics) are the entire cost and produced
+# zero promoted edge.
+#
+# So the 54 carry `profiles: ["research"]` and DO NOT start by default. Nothing
+# is deleted — every feature is one flag away:
+#   default          -> 12-core, lean, stable          (`docker compose up -d`)
+#   full research     -> all 66 (needs a bigger box)   (`COMPOSE_PROFILES=research docker compose up -d`)
+#   one service       -> `docker compose up -d <name>` (pulls its deps)
+# The dashboard stays fully up on the core; research-fed panels show STALE data
+# (frozen, not gone) until the research profile is run. deploy.sh recreates only
+# the ACTIVE profile, so deploys stay lean.
+# ============================================================================
+services:
+  multi-lane-shadow:
+    build:
+      context: .
+      args:
+        VNEDGE_BUILD_SHA: "${VNEDGE_BUILD_SHA:-dev}"
+    restart: unless-stopped
+    # Liveness probe on the in-container dashboard (:8080). The container has no
+    # curl, so we use python urllib. start_period covers lane warmup. This is
+    # what lets the TLS proxy + any dependent gate on `service_healthy` and is
+    # half of the fix for the --force-recreate race that took the fleet down.
+    # Timeouts sized for the REAL warmup: on recreate all 61 lanes fetch candles
+    # at once, saturating the single asyncio loop for minutes, so /health can be
+    # slow-but-alive. A 5s probe timeout falsely flipped the container to
+    # `unhealthy` mid-warmup (observed 2026-08-01) — which, now that dependents
+    # gate on `service_healthy`, would needlessly stall the public proxy. These
+    # values make `unhealthy` mean "genuinely not serving", not "still warming":
+    # a 15s probe (alive-but-slow passes), a 5-min grace, and 5 retries.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8080/health', timeout=15).status==200 else 1)"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 300s
+    mem_limit: 2500m
+    mem_reservation: 256m
+    # Multi-exchange lanes: Binance + Bybit, each in BOTH fill modes —
+    #   paper  = simulated fills on live data (live-$ venue comparison; the
+    #            governed funding-MR trials continue on their account files)
+    #   shadow = gateway-evaluated intents journaled, never a fill
+    # Both live data, $500 imaginary base, NO live orders. Read-only dashboard.
+    command: ["python", "-m", "vnedge.runtime.multi_lane_shadow"]
+    environment:
+      # VM host name for the dashboard /meta provenance panel (container's own
+      # hostname is just the container id otherwise).
+      VNEDGE_HOST: "${VNEDGE_HOST:-}"
+      # dashboard binds 0.0.0.0 INSIDE the container; the port mapping below
+      # exposes it only on the host's loopback — SSH-tunnel to reach it.
+      DASHBOARD_HOST: 0.0.0.0
+      DASHBOARD_TOKEN: ${DASHBOARD_TOKEN:?set DASHBOARD_TOKEN in .env}
+      # Optional per-user tokens: "name:token:role[:expiry_iso];..."
+      # (docs/DASHBOARD_AUTH.md). DASHBOARD_TOKEN keeps working unchanged.
+      DASHBOARD_USERS: ${DASHBOARD_USERS:-}
+      # Optional AI-agent gateway. Empty/off by default. Prefer token_sha256
+      # entries in production; raw token entries are hashed immediately at
+      # startup. See docs/AGENT_GATEWAY.md.
+      AGENT_GATEWAY_TOKENS_JSON: ${AGENT_GATEWAY_TOKENS_JSON:-}
+      AGENT_GATEWAY_AUDIT_PATH: ${AGENT_GATEWAY_AUDIT_PATH:-logs/agent_gateway/audit.jsonl}
+      AGENT_GATEWAY_JOBS_DIR: ${AGENT_GATEWAY_JOBS_DIR:-logs/agent_gateway/jobs}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      MULTI_LANE_EXCHANGES: "${MULTI_LANE_EXCHANGES:-binanceusdm,bybit,delta_india}"
+      MULTI_LANE_SYMBOLS: "${MULTI_LANE_SYMBOLS:-BTC/USDT:USDT}"
+      MULTI_LANE_MODES: "${MULTI_LANE_MODES:-paper,shadow}"
+      MULTI_LANE_TIMEFRAME: "${MULTI_LANE_TIMEFRAME:-1h}"
+      MULTI_LANE_PRIMARY_EXCHANGE: "${MULTI_LANE_PRIMARY_EXCHANGE:-binanceusdm}"
+      MULTI_LANE_PRIMARY_SYMBOL: "${MULTI_LANE_PRIMARY_SYMBOL:-BTC/USDT:USDT}"
+      MULTI_LANE_PRIMARY_MODE: "${MULTI_LANE_PRIMARY_MODE:-paper}"
+      # Promote research-approved, locked-parameter candidates into SHADOW
+      # observation lanes by default. These are never paper/live lanes and
+      # still require untouched judgment + human approval before capital.
+      MULTI_LANE_MANIFEST_ENABLED: "${MULTI_LANE_MANIFEST_ENABLED:-1}"
+      # Mirror shadow-only lanes into ISOLATED simulated-paper observation
+      # ledgers (<lane_id>_paper_observation). Simulated fills only — never a
+      # real order, never a promotion — and the human-approved funding-MR paper
+      # trials are left untouched, not duplicated. Code default is OFF; this
+      # deployment opts in. Set to 0 to disable, or drop just Delta with
+      # MULTI_LANE_DELTA_PAPER_OBSERVE=0.
+      MULTI_LANE_PAPER_OBSERVE_ALL: "${MULTI_LANE_PAPER_OBSERVE_ALL:-0}"
+      MULTI_LANE_DELTA_PAPER_OBSERVE: "${MULTI_LANE_DELTA_PAPER_OBSERVE:-1}"
+      # --- Evidence-aligned roster (second_eye_grid backtest) ---------------
+      # The independent position-aware grid backtest showed the edge lives at
+      # 4h/1h, not 5m: the 5m Delta scanner lanes below were zero-trade or
+      # net-negative at honest taker fees. So they default OFF here and are
+      # replaced by evidence_aligned_shadow_lanes() (the 4h/1h survivors,
+      # led by vnedge_algo_ml_pro ETH 4h). All reversible: set any flag to 1
+      # to restore a lane group. SHADOW-only; promotion still needs untouched
+      # judgment. See docs/EVIDENCE_ALIGNED_ROSTER.md.
+      MULTI_LANE_EVIDENCE_ALIGNED: "${MULTI_LANE_EVIDENCE_ALIGNED:-1}"
+      # Curated 5m Delta India SATS-style scalper observation lanes. Disabled by
+      # default (grid: SOL 5m PF 0.64, XRP 5m PF 0.41). Re-enable with =1.
+      MULTI_LANE_SATS_5M_DELTA: "${MULTI_LANE_SATS_5M_DELTA:-0}"
+      MULTI_LANE_SATS_5M_SYMBOLS: "${MULTI_LANE_SATS_5M_SYMBOLS:-ETH/USDT:USDT,BTC/USDT:USDT,SOL/USDT:USDT,XRP/USDT:USDT}"
+      # 5m Delta scanner lanes superseded by the evidence-aligned 4h/1h set
+      # (grid: zero-trade or net-negative at 5m). Re-enable any with =1.
+      MULTI_LANE_STEALTH_TRAIL_BBP_DELTA: "${MULTI_LANE_STEALTH_TRAIL_BBP_DELTA:-0}"
+      MULTI_LANE_FVG_LIQUIDITY_DELTA: "${MULTI_LANE_FVG_LIQUIDITY_DELTA:-0}"
+      MULTI_LANE_LUXARA_LIVE_PLAN_DELTA: "${MULTI_LANE_LUXARA_LIVE_PLAN_DELTA:-0}"
+      MULTI_LANE_LUXARA_BREAK_BOUNCE_DELTA: "${MULTI_LANE_LUXARA_BREAK_BOUNCE_DELTA:-0}"
+      # Human-approved live-data PAPER probes from fee_wall_forensics strict
+      # candidates. These are simulated fills only, isolated ledgers, and NOT
+      # live-capital promotion. The artifact must be fresh and still clear the
+      # configured floors before any probe lane is launched.
+      # VELOCITY cohort: a small, clearly-labelled set of fast 5m sats lanes
+      # whose ONLY job is ML meta-label velocity + a visibly active tape. NOT
+      # edge candidates (5m is fee-walled); SHADOW-only, never promoted. =0 off.
+      MULTI_LANE_VELOCITY: "${MULTI_LANE_VELOCITY:-1}"
+      MULTI_LANE_VELOCITY_SYMBOLS: "${MULTI_LANE_VELOCITY_SYMBOLS:-ETH/USDT:USDT,BTC/USDT:USDT,SOL/USDT:USDT}"
+      # Operator-requested aggressive PAPER sizing: fixed $50 isolated margin per
+      # trade at up to 30x (leverage auto-reduced per-trade so the stop always
+      # fires before liquidation => max loss <= margin), daily-loss halt OFF.
+      # PAPER/shadow only (multi-lane never trades live); the live path keeps
+      # risk-based sizing + the halt. Set MULTI_LANE_FIXED_MARGIN= empty to revert.
+      MULTI_LANE_FIXED_MARGIN: "${MULTI_LANE_FIXED_MARGIN:-50}"
+      MULTI_LANE_FIXED_MARGIN_LEVERAGE: "${MULTI_LANE_FIXED_MARGIN_LEVERAGE:-30}"
+      MULTI_LANE_DAILY_LOSS_HALT: "${MULTI_LANE_DAILY_LOSS_HALT:-0}"
+      MULTI_LANE_FEE_WALL_PAPER_PROBES: "${MULTI_LANE_FEE_WALL_PAPER_PROBES:-1}"
+      MULTI_LANE_FEE_WALL_PAPER_PROBES_PATH: "${MULTI_LANE_FEE_WALL_PAPER_PROBES_PATH:-research/live_research/fee_wall_paper_probes.json}"
+      MULTI_LANE_FEE_WALL_FORENSICS_PATH: "${MULTI_LANE_FEE_WALL_FORENSICS_PATH:-research/live_research/fee_wall_forensics_latest.json}"
+      MULTI_LANE_FEE_WALL_PROBE_MAX_AGE_HOURS: "${MULTI_LANE_FEE_WALL_PROBE_MAX_AGE_HOURS:-72}"
+      MULTI_LANE_FEE_WALL_PROBE_MIN_ROUTED: "${MULTI_LANE_FEE_WALL_PROBE_MIN_ROUTED:-10}"
+      MULTI_LANE_FEE_WALL_PROBE_MIN_AVG_NET_BPS: "${MULTI_LANE_FEE_WALL_PROBE_MIN_AVG_NET_BPS:-8}"
+      MULTI_LANE_FEE_WALL_PROBE_MIN_PROFIT_FACTOR: "${MULTI_LANE_FEE_WALL_PROBE_MIN_PROFIT_FACTOR:-1.15}"
+      # Paper exposure is bounded by the paper-lane governor. Research/shadow
+      # lanes can keep exploring, but PAPER mode should only run the current
+      # proposed roster; stale probes remain as historical evidence.
+      MULTI_LANE_GOVERNOR_PAPER_ROSTER_ONLY: "${MULTI_LANE_GOVERNOR_PAPER_ROSTER_ONLY:-1}"
+      MULTI_LANE_PAPER_GOVERNOR_PATH: "${MULTI_LANE_PAPER_GOVERNOR_PATH:-research/live_research/paper_lane_governor_latest.json}"
+      # Runtime control-plane guard: if research/live_research/shadow_lanes.json
+      # changes after startup, exit deliberately so Docker reloads the exact
+      # desired lane set. This prevents MISSING/STALE/ORPHAN drift.
+      MULTI_LANE_MANIFEST_RELOAD: "${MULTI_LANE_MANIFEST_RELOAD:-1}"
+      MULTI_LANE_MANIFEST_RELOAD_SECONDS: "${MULTI_LANE_MANIFEST_RELOAD_SECONDS:-60}"
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./research/paper_trials:/app/research/paper_trials
+      - ./research/live_research:/app/research/live_research:ro
+      - ./research/pine_scripts:/app/research/pine_scripts:ro
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  # Agent Gateway research worker. It consumes queued /api/agent/v1/backtests
+  # jobs and writes terminal research-only evidence. No exchange credentials,
+  # no order adapter, no promotion path.
+  agent-job-runner:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.agent_gateway.job_runner",
+              "--interval-seconds", "${AGENT_JOB_RUNNER_INTERVAL_SECONDS:-60}",
+              "--max-per-cycle", "${AGENT_JOB_RUNNER_MAX_PER_CYCLE:-1}"]
+    environment:
+      AGENT_GATEWAY_JOBS_DIR: ${AGENT_GATEWAY_JOBS_DIR:-logs/agent_gateway/jobs}
+      AGENT_JOB_RUNNER_DATA_ROOT: ${AGENT_JOB_RUNNER_DATA_ROOT:-data}
+      AGENT_JOB_RUNNER_ARTIFACT_DIR: ${AGENT_JOB_RUNNER_ARTIFACT_DIR:-research/live_research/agent_jobs}
+      AGENT_JOB_RUNNER_SEED_DEFAULTS: ${AGENT_JOB_RUNNER_SEED_DEFAULTS:-1}
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Quantified Strategy Lab proof lane: seeds/reuses registered-strategy
+  # backtest jobs for pullback_reversion_pack_v1 and publishes their status
+  # back into the lab UI. Research-only; no paper/shadow/live lane mutation.
+  quantified-pullback-reversion-proof:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - agent-job-runner
+    command: ["python", "-m", "vnedge.research.quantified_pullback_reversion_proof",
+              "--interval-seconds", "${QUANTIFIED_PULLBACK_PROOF_INTERVAL_SECONDS:-300}",
+              "--seed-jobs",
+              "--jobs-dir", "${AGENT_GATEWAY_JOBS_DIR:-logs/agent_gateway/jobs}",
+              "--artifact-dir", "research/live_research/agent_jobs",
+              "--out", "research/live_research/quantified_pullback_reversion_proof_latest.json",
+              "--feed", "research/live_research/quantified_pullback_reversion_proof_feed.jsonl"]
+    volumes:
+      - ./logs:/app/logs
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Quantified Strategy Lab complete proof matrix: seeds/reuses Agent Gateway
+  # backtest jobs for all syncable blueprint families and publishes port-level
+  # evidence. Research-only; no paper/shadow/live lane mutation.
+  quantified-blueprint-proof:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - agent-job-runner
+      - quantified-pullback-reversion-proof
+    command: ["python", "-m", "vnedge.research.quantified_blueprint_proof",
+              "--interval-seconds", "${QUANTIFIED_BLUEPRINT_PROOF_INTERVAL_SECONDS:-300}",
+              "--seed-jobs",
+              "--jobs-dir", "${AGENT_GATEWAY_JOBS_DIR:-logs/agent_gateway/jobs}",
+              "--artifact-dir", "research/live_research/agent_jobs",
+              "--out", "research/live_research/quantified_blueprint_proof_latest.json",
+              "--feed", "research/live_research/quantified_blueprint_proof_feed.jsonl"]
+    volumes:
+      - ./logs:/app/logs
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Quantified Strategy Lab result arbiter: turns completed/blocked/pending
+  # blueprint proof cells into operator next actions. Research-only; no
+  # promotion or execution authority.
+  quantified-proof-result-arbiter:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - quantified-blueprint-proof
+    command: ["python", "-m", "vnedge.research.quantified_proof_result_arbiter",
+              "--interval-seconds", "${QUANTIFIED_PROOF_ARBITER_INTERVAL_SECONDS:-300}",
+              "--proof", "research/live_research/quantified_blueprint_proof_latest.json",
+              "--out", "research/live_research/quantified_proof_result_arbiter_latest.json",
+              "--feed", "research/live_research/quantified_proof_result_arbiter_feed.jsonl"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Continuous research: hourly data refresh + rolling walk-forward +
+  # promotion-gate verdicts. No execution access — it shares only market
+  # data (rw) and the research output dir the dashboard reads (ro there).
+  research-loop:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.continuous_research"]
+    environment:
+      RESEARCH_INTERVAL_SECONDS: "3600"
+      # All three venues. delta_india has no ccxt funding history, so its
+      # funding-strategy lanes are marked UNTESTABLE (not run) while its
+      # candle-compatible lanes run — the research loop is funding-capability
+      # aware (#41), so this no longer breaks the cycle.
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+      # Optional comma allowlist for candle lanes. Empty/default means all
+      # registered research strategies. Useful when splitting heavy Quant
+      # sweeps into their own slower service without code changes.
+      RESEARCH_STRATEGIES: "${RESEARCH_STRATEGIES:-}"
+      EDGE_LEADERBOARD_MAX_ROWS: "${EDGE_LEADERBOARD_MAX_ROWS:-50}"
+      EDGE_PROMOTION_QUEUE_MAX_ROWS: "${EDGE_PROMOTION_QUEUE_MAX_ROWS:-20}"
+      # L2-mining passes run in the decoupled l2-research-loop below, NOT here,
+      # so this hourly candle loop never scans the tick/L2 tape. It folds the
+      # l2-research-loop's l2_latest.json into its dashboard latest.json. Flip
+      # either to "1" to re-enable the pass inline (it then bloats this cycle).
+      SCALPER_RESEARCH_ENABLED: "${SCALPER_RESEARCH_ENABLED:-0}"
+      ALPHA_FACTORY_ENABLED: "${ALPHA_FACTORY_ENABLED:-0}"
+    volumes:
+      - ./data:/app/data
+      - ./research/live_research:/app/research/live_research
+      # read-only view of the shadow-lane journals so the edge leaderboard can
+      # fold each lane's live virtual track record in (shadow_perf_reader);
+      # ro because research must never write runtime journals
+      - ./logs:/app/logs:ro
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Decoupled tick/L2 discovery — scalper discovery + structural alpha factory
+  # on their OWN slow cadence (default 6h) so they never bloat the hourly candle
+  # loop. Writes l2_latest.json; research-loop folds it into latest.json.
+  # Research-only: can_trade=false, can_promote=false on every output.
+  l2-research-loop:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.l2_research_loop"]
+    environment:
+      L2_RESEARCH_INTERVAL_SECONDS: "${L2_RESEARCH_INTERVAL_SECONDS:-21600}"
+      # All recorder services below write to the same tick lake. Missing days
+      # are still skipped by the mining loop; coverage is a recorder concern,
+      # not a reason for the scanner to invent evidence.
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Fast recent-slice scout for interactive edge hunting. It reads only the
+  # newest tick/L2 shards per lane and writes l2_scout_latest.json; the full
+  # l2-research-loop above remains the conservative replay/tournament source
+  # of truth. Research-only: no credentials, no orders, no promotion.
+  l2-fast-scout:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.fast_l2_scout",
+              "--interval-seconds", "${L2_SCOUT_INTERVAL_SECONDS:-900}",
+              "--lookback-minutes", "${L2_SCOUT_LOOKBACK_MINUTES:-30}",
+              "--max-shards", "${L2_SCOUT_MAX_SHARDS:-40}",
+              "--max-results", "${L2_SCOUT_MAX_RESULTS:-100}"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Public trade footprint/CVD miner. It compresses recorded trade tape into
+  # delta/CVD/stacked-imbalance research artifacts and queues replay-required
+  # anomalies for the council. Research-only: no credentials, no orders.
+  orderflow-footprint-miner:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    mem_limit: 1500m
+    mem_reservation: 256m
+    command: ["python", "-m", "vnedge.research.orderflow_footprint",
+              "--interval-seconds", "${ORDERFLOW_FOOTPRINT_INTERVAL_SECONDS:-1800}",
+              "--bar-seconds", "${ORDERFLOW_FOOTPRINT_BAR_SECONDS:-60}",
+              "--max-candidates", "${ORDERFLOW_FOOTPRINT_MAX_CANDIDATES:-100}"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Scheduled cross-venue event lead-lag miner. It refreshes
+  # event_leadlag_latest.json so the council/workbench do not keep debating
+  # stale candidate definitions. Research-only: no credentials, no orders.
+  event-leadlag-miner:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.event_leadlag_alpha",
+              "--interval-seconds", "${EVENT_LEADLAG_INTERVAL_SECONDS:-3600}",
+              "--lookback-days", "${EVENT_LEADLAG_LOOKBACK_DAYS:-60}",
+              "--min-samples", "${EVENT_LEADLAG_MIN_SAMPLES:-20}",
+              "--max-results", "${EVENT_LEADLAG_MAX_RESULTS:-100}"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Minute-level shadow journal for the SOL/XRP Delta-follower lead-lag
+  # candidates surfaced by event_leadlag_alpha. This is observability only:
+  # it writes event_leadlag_eval + shadow_intent records, logs why no trade,
+  # and never submits orders or simulates candle-only maker fills.
+  event-leadlag-shadow:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.runtime.event_leadlag_shadow_runner",
+              "--interval-seconds", "${EVENT_LEADLAG_SHADOW_INTERVAL_SECONDS:-60}",
+              "--max-data-age-minutes", "${EVENT_LEADLAG_SHADOW_MAX_DATA_AGE_MINUTES:-180}",
+              "--scan-lookback-minutes", "${EVENT_LEADLAG_SHADOW_SCAN_LOOKBACK_MINUTES:-5}",
+              "--refresh-overlap-minutes", "${EVENT_LEADLAG_SHADOW_REFRESH_OVERLAP_MINUTES:-30}",
+              "--refresh-bootstrap-minutes", "${EVENT_LEADLAG_SHADOW_REFRESH_BOOTSTRAP_MINUTES:-360}"]
+    volumes:
+      # Writable because this runner refreshes public 1m candle context and the
+      # data-quality gate writes reports under data/reports/. Still no
+      # credentials and no execution path.
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Conservative event-to-quote replay for mined microstructure candidates.
+  # This is the execution-native proof step between a research anomaly and any
+  # shadow/paper discussion: passive maker quote, conservative trade-through
+  # fill, taker exit, honest fees. Research-only; no credentials, no orders.
+  candidate-replay-executor:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    mem_limit: 2500m
+    mem_reservation: 256m
+    depends_on: [event-leadlag-miner, orderflow-footprint-miner]
+    command: ["python", "-m", "vnedge.research.candidate_replay_executor",
+              "--interval-seconds", "${CANDIDATE_REPLAY_INTERVAL_SECONDS:-1800}",
+              "--max-event-leadlag", "${CANDIDATE_REPLAY_MAX_EVENT_LEADLAG:-12}",
+              "--max-orderflow", "${CANDIDATE_REPLAY_MAX_ORDERFLOW:-60}"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Post-mortem miner for replay failures. It classifies why candidates fail
+  # (spread, stale book, no trade-through, queue risk, adverse selection, fee
+  # wall) and emits filter hypotheses that must be replayed fresh. Research-only.
+  execution-condition-miner:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    mem_limit: 2500m
+    mem_reservation: 256m
+    depends_on: [candidate-replay-executor]
+    command: ["python", "-m", "vnedge.research.execution_condition_miner",
+              "--interval-seconds", "${EXECUTION_CONDITION_INTERVAL_SECONDS:-1800}"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Fresh filtered replay for execution-condition hypotheses. It excludes
+  # already-seen candidate replay days by default, applies only causal/pre-entry
+  # filters, then reruns the same conservative replay engine. Research-only.
+  filtered-replay-executor:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    mem_limit: 2500m
+    mem_reservation: 256m
+    depends_on: [execution-condition-miner]
+    command: ["python", "-m", "vnedge.research.filtered_replay_executor",
+              "--interval-seconds", "${FILTERED_REPLAY_INTERVAL_SECONDS:-1800}",
+              "--max-event-leadlag", "${FILTERED_REPLAY_MAX_EVENT_LEADLAG:-12}",
+              "--max-orderflow", "${FILTERED_REPLAY_MAX_ORDERFLOW:-60}"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Operator truth table for "what is firing and what can be promoted?" It
+  # joins the shadow-lane manifest, filtered replay trials, and live shadow
+  # outcome journals into lane_promotion_readiness_latest.json. Read-only:
+  # can_trade=false/can_promote=false on every row.
+  lane-promotion-readiness:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      multi-lane-shadow:
+        condition: service_healthy
+      filtered-replay-executor:
+        condition: service_started
+    command: ["python", "-m", "vnedge.research.lane_promotion_readiness",
+              "--interval-seconds", "${LANE_PROMOTION_READINESS_INTERVAL_SECONDS:-300}",
+              "--min-shadow-trades", "${LANE_PROMOTION_MIN_SHADOW_TRADES:-10}",
+              "--min-shadow-span-days", "${LANE_PROMOTION_MIN_SHADOW_SPAN_DAYS:-7}",
+              "--min-shadow-profit-factor", "${LANE_PROMOTION_MIN_SHADOW_PROFIT_FACTOR:-1.25}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Promotion review runbook: refreshes the red-team prosecution of PASSED
+  # walk-forward candidates, then publishes operator steps for "blocked",
+  # "needs answers", or "human paper-review ready". Read-only:
+  # can_trade=false/can_promote=false and no manifest mutation.
+  promotion-review-runbook:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [research-loop]
+    command: ["python", "-m", "vnedge.research.promotion_review_runbook",
+              "--interval-seconds", "${PROMOTION_REVIEW_RUNBOOK_INTERVAL_SECONDS:-300}",
+              "--out", "research/live_research/promotion_review_runbook_latest.json",
+              "--runbook-feed", "research/live_research/promotion_review_runbook_feed.jsonl",
+              "--red-team-out", "research/live_research/promotion_red_team_latest.json",
+              "--print"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+      - ./research/paper_trials:/app/research/paper_trials:ro
+      - ./research/judgments:/app/research/judgments:ro
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Live scanner: answers "what is firing now / near trigger / waiting why?"
+  # from current runtime journals only. It deliberately does NOT read replay
+  # artifacts, and it cannot trade or promote.
+  realtime-scanner:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      multi-lane-shadow:
+        condition: service_healthy
+      # event-leadlag-shadow -> `research` profile; its signal is read from file (stale-OK)
+    command: ["python", "-m", "vnedge.research.realtime_scanner",
+              "--interval-seconds", "${REALTIME_SCANNER_INTERVAL_SECONDS:-60}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Delta India 5m UP/DOWN prep clock: internal event-style scanner over normal
+  # Delta perpetuals. Closed-candle-only, fee-wall-aware, read-only. It says
+  # when the next 5m decision window opens and whether paper maker/taker routing
+  # would clear costs; it has no live-order authority.
+  delta-5m-event-clock:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.delta_5m_event_clock",
+              "--interval-seconds", "${DELTA_5M_EVENT_CLOCK_INTERVAL_SECONDS:-15}",
+              "--data-root", "data",
+              "--symbols", "${DELTA_5M_EVENT_SYMBOLS:-BTC/USD:USD,ETH/USD:USD,SOL/USD:USD,XRP/USD:USD}",
+              "--out", "research/live_research/delta_5m_event_clock_latest.json",
+              "--feed", "research/live_research/delta_5m_event_clock_feed.jsonl"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Joined operator truth layer: why each lane did or did not fire, whether it
+  # reached risk/execution, and where it sits in the paper/live promotion ladder.
+  # Read-only: can_trade=false/can_promote=false.
+  lane-firing-causality:
+    build: .
+    restart: unless-stopped
+    depends_on: [realtime-scanner]  # lane-promotion-readiness -> `research` profile; read from file, not gated
+    command: ["python", "-m", "vnedge.research.lane_firing_causality",
+              "--interval-seconds", "${LANE_FIRING_CAUSALITY_INTERVAL_SECONDS:-60}"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+  # Paper activation truth board: reconciles approved paper manifests, runtime
+  # paper lane routes, scanner pressure, and paper journals into one read-only
+  # answer: running, waiting, route-ready, or blocked.
+  paper-lane-activation:
+    build: .
+    restart: unless-stopped
+    depends_on: [realtime-scanner]  # lane-promotion-readiness -> `research` profile; read from file, not gated
+    command: ["python", "-m", "vnedge.research.paper_lane_activation",
+              "--interval-seconds", "${PAPER_LANE_ACTIVATION_INTERVAL_SECONDS:-60}",
+              "--requested-margin-usd", "${PAPER_LANE_ACTIVATION_MARGIN_USD:-100}",
+              "--requested-leverage", "${PAPER_LANE_ACTIVATION_LEVERAGE:-25}",
+              "--live-margin-usd", "${PAPER_LANE_ACTIVATION_LIVE_MARGIN_USD:-100}",
+              "--live-leverage", "${PAPER_LANE_ACTIVATION_LIVE_LEVERAGE:-5}",
+              "--high-leverage-ack", "${PAPER_LANE_ACTIVATION_HIGH_LEVERAGE_ACK:-0}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+      - ./research/paper_trials:/app/research/paper_trials:ro
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper route doctor: explains route-ready/no-journal cases by joining
+  # activation rows, fleet status, and expected paper journal paths. Read-only:
+  # it never restarts containers or changes manifests.
+  paper-route-doctor:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-lane-activation]
+    command: ["python", "-m", "vnedge.research.paper_route_doctor",
+              "--interval-seconds", "${PAPER_ROUTE_DOCTOR_INTERVAL_SECONDS:-60}",
+              "--stale-after-hours", "${PAPER_ROUTE_DOCTOR_STALE_AFTER_HOURS:-3}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper lane cadence: verifies active paper routes emit live lane_eval events
+  # at the expected timeframe cadence. Read-only: it never restarts services or
+  # changes lane state.
+  paper-lane-cadence:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-lane-activation, paper-route-doctor]
+    command: ["python", "-m", "vnedge.research.paper_lane_cadence",
+              "--interval-seconds", "${PAPER_LANE_CADENCE_INTERVAL_SECONDS:-60}",
+              "--grace-multiplier", "${PAPER_LANE_CADENCE_GRACE_MULTIPLIER:-2.5}",
+              "--min-eval-sla-seconds", "${PAPER_LANE_CADENCE_MIN_EVAL_SLA_SECONDS:-180}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper performance ledger: reads paper decision journals + hash-chained fill
+  # ledgers and publishes per-lane PnL/PF/sample status for the Promote view.
+  # Read-only: no route can trade or promote from this service.
+  paper-lane-performance:
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-lane-activation]
+    command: ["python", "-m", "vnedge.research.paper_lane_performance",
+              "--interval-seconds", "${PAPER_LANE_PERFORMANCE_INTERVAL_SECONDS:-60}",
+              "--min-closed-trades", "${PAPER_LANE_PERFORMANCE_MIN_CLOSED_TRADES:-20}",
+              "--min-profit-factor", "${PAPER_LANE_PERFORMANCE_MIN_PROFIT_FACTOR:-1.5}",
+              "--stale-after-hours", "${PAPER_LANE_PERFORMANCE_STALE_AFTER_HOURS:-3}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper trade entry autopsy: joins closed paper entries to prior lane_eval
+  # signal context to explain stale entries, missing signal linkage, side drift,
+  # and fee-wall-short expected edge. Read-only.
+  paper-trade-entry-autopsy:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-lane-performance]
+    command: ["python", "-m", "vnedge.research.paper_trade_entry_autopsy",
+              "--interval-seconds", "${PAPER_TRADE_ENTRY_AUTOPSY_INTERVAL_SECONDS:-60}",
+              "--min-closed-trades", "${PAPER_TRADE_ENTRY_AUTOPSY_MIN_CLOSED_TRADES:-5}",
+              "--min-profit-factor", "${PAPER_TRADE_ENTRY_AUTOPSY_MIN_PROFIT_FACTOR:-1.5}",
+              "--min-avg-net-bps", "${PAPER_TRADE_ENTRY_AUTOPSY_MIN_AVG_NET_BPS:-25}",
+              "--min-expected-edge-bps", "${PAPER_TRADE_ENTRY_AUTOPSY_MIN_EXPECTED_EDGE_BPS:-25}",
+              "--fee-wall-bps", "${PAPER_TRADE_ENTRY_AUTOPSY_FEE_WALL_BPS:-8}",
+              "--max-signal-age-seconds", "${PAPER_TRADE_ENTRY_AUTOPSY_MAX_SIGNAL_AGE_SECONDS:-600}",
+              "--max-signal-age-bars", "${PAPER_TRADE_ENTRY_AUTOPSY_MAX_SIGNAL_AGE_BARS:-2.25}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper trade exit autopsy: reads closed paper fills and exit journal metadata
+  # to explain whether losses are stop-, fee-, timeout-, or TP-capture driven.
+  # Read-only: no route can trade or promote from this service.
+  paper-trade-exit-autopsy:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-lane-performance]
+    command: ["python", "-m", "vnedge.research.paper_trade_exit_autopsy",
+              "--interval-seconds", "${PAPER_TRADE_EXIT_AUTOPSY_INTERVAL_SECONDS:-60}",
+              "--min-closed-trades", "${PAPER_TRADE_EXIT_AUTOPSY_MIN_CLOSED_TRADES:-5}",
+              "--min-profit-factor", "${PAPER_TRADE_EXIT_AUTOPSY_MIN_PROFIT_FACTOR:-1.5}",
+              "--min-avg-net-bps", "${PAPER_TRADE_EXIT_AUTOPSY_MIN_AVG_NET_BPS:-25}",
+              "--fee-wall-bps", "${PAPER_TRADE_EXIT_AUTOPSY_FEE_WALL_BPS:-8}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Trade Analyzer OS: joins paper trade journal, entry autopsy, and exit
+  # autopsy into one operator answer: entry gap, giveback, fee wall, stop
+  # domination, daily-hold drift, or healthy capture. Read-only.
+  trade-analyzer-os:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-trade-entry-autopsy, paper-trade-exit-autopsy]
+    command: ["python", "-m", "vnedge.research.trade_analyzer_os",
+              "--interval-seconds", "${TRADE_ANALYZER_OS_INTERVAL_SECONDS:-60}",
+              "--out", "research/live_research/trade_analyzer_os_latest.json",
+              "--feed", "research/live_research/trade_analyzer_os_feed.jsonl",
+              "--min-closed-trades", "${TRADE_ANALYZER_OS_MIN_CLOSED_TRADES:-5}",
+              "--min-profit-factor", "${TRADE_ANALYZER_OS_MIN_PROFIT_FACTOR:-1.5}",
+              "--min-avg-net-bps", "${TRADE_ANALYZER_OS_MIN_AVG_NET_BPS:-25}",
+              "--fee-wall-bps", "${TRADE_ANALYZER_OS_FEE_WALL_BPS:-8}",
+              "--giveback-arm-bps", "${TRADE_ANALYZER_OS_GIVEBACK_ARM_BPS:-15}",
+              "--giveback-min-bps", "${TRADE_ANALYZER_OS_GIVEBACK_MIN_BPS:-10}",
+              "--print"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper trade contract reconciler: joins closed paper fills back to their
+  # order intents, exit intents, leverage/margin economics, fee drag, and exit
+  # metadata so losses are classified as contract drift vs alpha failure.
+  # Read-only: no route can trade or promote from this service.
+  paper-trade-contract-reconciler:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-lane-performance, paper-trade-exit-autopsy]
+    command: ["python", "-m", "vnedge.research.paper_trade_contract_reconciler",
+              "--interval-seconds", "${PAPER_TRADE_CONTRACT_RECONCILER_INTERVAL_SECONDS:-60}",
+              "--min-expected-net-bps", "${PAPER_TRADE_CONTRACT_MIN_EXPECTED_NET_BPS:-25}",
+              "--max-fee-bps", "${PAPER_TRADE_CONTRACT_MAX_FEE_BPS:-12}",
+              "--max-quantity-drift-pct", "${PAPER_TRADE_CONTRACT_MAX_QUANTITY_DRIFT_PCT:-1}",
+              "--max-notional-drift-pct", "${PAPER_TRADE_CONTRACT_MAX_NOTIONAL_DRIFT_PCT:-10}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Maker quote lifecycle: proves whether fired/scanner lanes actually move
+  # through post-only maker placement, fill/cancel, and fee-aware taker fallback.
+  # Read-only; it cannot trade, promote, restart, or mutate runtime routes.
+  maker-quote-lifecycle:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [paper-lane-performance, paper-trade-exit-autopsy]
+    command: ["python", "-m", "vnedge.research.maker_quote_lifecycle",
+              "--interval-seconds", "${MAKER_QUOTE_LIFECYCLE_INTERVAL_SECONDS:-60}",
+              "--performance", "research/live_research/paper_lane_performance_latest.json",
+              "--exit-autopsy", "research/live_research/paper_trade_exit_autopsy_latest.json",
+              "--out", "research/live_research/maker_quote_lifecycle_latest.json",
+              "--feed", "research/live_research/maker_quote_lifecycle_feed.jsonl",
+              "--min-maker-attempts", "${MAKER_QUOTE_LIFECYCLE_MIN_MAKER_ATTEMPTS:-5}",
+              "--min-maker-fill-rate-pct", "${MAKER_QUOTE_LIFECYCLE_MIN_FILL_RATE_PCT:-5}",
+              "--min-taker-net-edge-bps", "${MAKER_QUOTE_LIFECYCLE_MIN_TAKER_NET_EDGE_BPS:-25}",
+              "--min-taker-cost-coverage", "${MAKER_QUOTE_LIFECYCLE_MIN_TAKER_COVERAGE:-1.5}",
+              "--print"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Operator action queue publisher: joins activation, route doctor, cadence,
+  # sizing profile, paper performance, exit autopsy, contract truth, and firing
+  # causality into one durable "what next" artifact/feed. Read-only.
+  operator-actions:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - paper-lane-activation
+      - paper-route-doctor
+      - paper-lane-cadence
+      - paper-lane-performance
+      - paper-trade-exit-autopsy
+      - lane-firing-causality
+    command: ["python", "-m", "vnedge.research.operator_actions",
+              "--interval-seconds", "${OPERATOR_ACTIONS_INTERVAL_SECONDS:-60}",
+              "--exit-autopsy", "research/live_research/paper_trade_exit_autopsy_latest.json",
+              "--contract-reconciler", "research/live_research/paper_trade_contract_reconciler_latest.json",
+              "--out", "research/live_research/operator_actions_latest.json",
+              "--feed", "research/live_research/operator_actions_feed.jsonl",
+              "--print"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper promotion bridge: joins lane readiness, paper PnL/PF, contract truth,
+  # maker quote lifecycle, and operator actions into one conservative
+  # paper/live-review answer. Read-only: can_trade=false/can_promote=false.
+  paper-promotion-bridge:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - lane-promotion-readiness
+      - paper-lane-performance
+      - paper-trade-contract-reconciler
+      - maker-quote-lifecycle
+      - operator-actions
+    command: ["python", "-m", "vnedge.research.paper_promotion_bridge",
+              "--interval-seconds", "${PAPER_PROMOTION_BRIDGE_INTERVAL_SECONDS:-60}",
+              "--readiness", "research/live_research/lane_promotion_readiness_latest.json",
+              "--performance", "research/live_research/paper_lane_performance_latest.json",
+              "--contract", "research/live_research/paper_trade_contract_reconciler_latest.json",
+              "--maker-quote", "research/live_research/maker_quote_lifecycle_latest.json",
+              "--actions", "research/live_research/operator_actions_latest.json",
+              "--out", "research/live_research/paper_promotion_bridge_latest.json",
+              "--feed", "research/live_research/paper_promotion_bridge_feed.jsonl",
+              "--print"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper lane root-cause matrix: joins route, cadence, sizing, entry/exit,
+  # performance, survival, governor, and causality evidence into one primary
+  # blocker per lane. Read-only.
+  paper-lane-root-cause:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - paper-lane-activation
+      - paper-route-doctor
+      - paper-lane-cadence
+      - paper-lane-performance
+      - paper-trade-exit-autopsy
+      - lane-survival
+      - paper-lane-governor
+      - lane-firing-causality
+    command: ["python", "-m", "vnedge.research.paper_lane_root_cause",
+              "--interval-seconds", "${PAPER_LANE_ROOT_CAUSE_INTERVAL_SECONDS:-60}",
+              "--exit-autopsy", "research/live_research/paper_trade_exit_autopsy_latest.json",
+              "--entry-autopsy", "research/live_research/paper_trade_entry_autopsy_latest.json",
+              "--survival", "research/live_research/lane_survival_latest.json",
+              "--governor", "research/live_research/paper_lane_governor_latest.json",
+              "--out", "research/live_research/paper_lane_root_cause_latest.json",
+              "--feed", "research/live_research/paper_lane_root_cause_feed.jsonl",
+              "--print"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Lane survival engine: reconciles activation + route + cadence + corrected
+  # performance into keep/observe/demote/repair recommendations. Read-only.
+  lane-survival:
+    build: .
+    restart: unless-stopped
+    # detangled: paper-route-doctor / paper-lane-cadence are in the `research`
+    # profile; their output is read from files (stale-OK), so lane-survival runs
+    # in the lean core without pulling them in (2026-08-02).
+    depends_on:
+      - paper-lane-activation
+      - paper-lane-performance
+    command: ["python", "-m", "vnedge.research.lane_survival",
+              "--interval-seconds", "${LANE_SURVIVAL_INTERVAL_SECONDS:-60}",
+              "--min-closed-trades", "${LANE_SURVIVAL_MIN_CLOSED_TRADES:-20}",
+              "--min-profit-factor", "${LANE_SURVIVAL_MIN_PROFIT_FACTOR:-1.5}",
+              "--min-avg-net-bps", "${LANE_SURVIVAL_MIN_AVG_NET_BPS:-25}"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper lane governor: converts lane-survival evidence into a proposed paper
+  # roster, survivor tournament, demotion queue, and repair queue. Read-only.
+  paper-lane-governor:
+    build: .
+    restart: unless-stopped
+    depends_on: [lane-survival]
+    command: ["python", "-m", "vnedge.research.paper_lane_governor",
+              "--interval-seconds", "${PAPER_LANE_GOVERNOR_INTERVAL_SECONDS:-60}",
+              "--min-closed-trades", "${PAPER_LANE_GOVERNOR_MIN_CLOSED_TRADES:-20}",
+              "--min-profit-factor", "${PAPER_LANE_GOVERNOR_MIN_PROFIT_FACTOR:-1.5}",
+              "--min-avg-net-bps", "${PAPER_LANE_GOVERNOR_MIN_AVG_NET_BPS:-25}",
+              "--demote-after-negative-closed", "${PAPER_LANE_GOVERNOR_DEMOTE_AFTER_NEGATIVE_CLOSED:-5}",
+              "--max-paper-roster", "${PAPER_LANE_GOVERNOR_MAX_PAPER_ROSTER:-18}",
+              "--max-tournament-lanes", "${PAPER_LANE_GOVERNOR_MAX_TOURNAMENT_LANES:-12}"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Atlas-inspired Darwinian survival layer: advisory scanner/agent weights
+  # plus JANUS-style cohort weights. Read-only; no runtime mutation.
+  darwinian-agent-survival:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - lane-survival
+      - paper-lane-governor
+      - realtime-scanner
+      - alpha-arena-lite
+    command: ["python", "-m", "vnedge.research.darwinian_agent_survival",
+              "--interval-seconds", "${DARWINIAN_AGENT_SURVIVAL_INTERVAL_SECONDS:-60}",
+              "--survival", "research/live_research/lane_survival_latest.json",
+              "--governor", "research/live_research/paper_lane_governor_latest.json",
+              "--scanner", "research/live_research/realtime_scanner_latest.json",
+              "--alpha-arena", "research/live_research/alpha_arena_lite_latest.json",
+              "--out", "research/live_research/darwinian_agent_survival_latest.json",
+              "--feed", "research/live_research/darwinian_agent_survival_feed.jsonl",
+              "--print"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Paper roster drift: compares the governor's proposed paper roster to the
+  # actual runtime/scanner paper lanes. Read-only: names extra/missing lanes,
+  # but cannot start, stop, demote, promote, or trade anything.
+  paper-roster-drift:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - paper-lane-governor
+      - realtime-scanner
+      - paper-lane-activation
+    command: ["python", "-m", "vnedge.research.paper_roster_drift",
+              "--interval-seconds", "${PAPER_ROSTER_DRIFT_INTERVAL_SECONDS:-60}",
+              "--governor", "research/live_research/paper_lane_governor_latest.json",
+              "--scanner", "research/live_research/realtime_scanner_latest.json",
+              "--activation", "research/live_research/paper_lane_activation_latest.json",
+              "--shadow-manifest", "research/live_research/shadow_lanes.json",
+              "--out", "research/live_research/paper_roster_drift_latest.json",
+              "--feed", "research/live_research/paper_roster_drift_feed.jsonl",
+              "--max-runtime-age-seconds", "${PAPER_ROSTER_DRIFT_MAX_RUNTIME_AGE_SECONDS:-10800}",
+              "--print"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # ML pipeline status: runs the real meta-label dataset builder over the live
+  # journals + candles so the dashboard ML view shows the training set GROWING
+  # as trials mature. Read-only; trains/promotes nothing.
+  ml-pipeline-status:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.ml_pipeline_status",
+              "--interval-seconds", "${ML_PIPELINE_STATUS_INTERVAL_SECONDS:-300}"]
+    volumes:
+      - ./logs:/app/logs:ro
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Real-time shadow scalp: drives the cascade + lead-lag echo detectors on the
+  # LIVE tick stream (Binance USDM trades + liquidations, Delta native L2), firing
+  # shadow intents the instant a setup forms and resolving them into virtual PnL.
+  # Fast live track record + maker-vs-taker split at the scalp's native timescale.
+  # STRICTLY SHADOW: public streams only, NO credentials, NO order path, NO
+  # gateway; can_trade=false/can_promote=false on every payload. A feed drop
+  # reconnects with backoff; it never trades. Promotion still requires the
+  # replay families' pre-registered judgment + human approval.
+  realtime-shadow-scalp:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.runtime.realtime_shadow_scalp",
+              "--publish-interval-seconds", "${SCALP_PUBLISH_INTERVAL_SECONDS:-30}"]
+    environment:
+      SCALP_CASCADE_VENUE: "${SCALP_CASCADE_VENUE:-binanceusdm}"
+      SCALP_CASCADE_SYMBOLS: "${SCALP_CASCADE_SYMBOLS:-BTC/USDT:USDT,ETH/USDT:USDT}"
+      # Lead-lag echo pairs by base (default: all configured Binance->Delta pairs)
+      SCALP_ECHO_PAIRS: "${SCALP_ECHO_PAIRS:-}"
+      SCALP_NOTIONAL_USD: "${SCALP_NOTIONAL_USD:-100}"
+    volumes:
+      # writable: it owns its scalp_shadow journals and publishes the artifact.
+      # NO credentials mounted — public websocket streams only.
+      - ./logs:/app/logs
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  # Daily scalper miner: 4h/1h context, 15m setup, 1m trigger across all
+  # configured exchanges/symbols/families. Slow cadence by design: it is
+  # research-only and feeds the council/workbench, never execution.
+  daily-scalper-pack:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.daily_scalper_pack",
+              "--interval-seconds", "${DAILY_SCALPER_INTERVAL_SECONDS:-21600}",
+              "--lookback-days", "${DAILY_SCALPER_LOOKBACK_DAYS:-120}",
+              "--train-days", "${DAILY_SCALPER_TRAIN_DAYS:-30}",
+              "--test-days", "${DAILY_SCALPER_TEST_DAYS:-7}",
+              "--max-candidates", "${DAILY_SCALPER_MAX_CANDIDATES:-72}"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Cadence refactor smoke miner: quickly answers "which 4h/1h/15m/1m lane
+  # profiles fire more often without immediately losing to fees?" It runs a
+  # cheap baseline-parameter, fee-aware smoke backtest for strict/balanced/active
+  # trigger profiles and writes daily_scalper_cadence_latest.json. Full
+  # walk-forward remains the proof layer for any row this surfaces.
+  daily-scalper-cadence:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.daily_scalper_pack",
+              "--cadence-sweep",
+              "--fast-smoke",
+              "--interval-seconds", "${DAILY_SCALPER_CADENCE_INTERVAL_SECONDS:-21600}",
+              "--lookback-days", "${DAILY_SCALPER_CADENCE_LOOKBACK_DAYS:-45}",
+              "--train-days", "${DAILY_SCALPER_CADENCE_TRAIN_DAYS:-14}",
+              "--test-days", "${DAILY_SCALPER_CADENCE_TEST_DAYS:-3}",
+              "--max-candidates", "${DAILY_SCALPER_CADENCE_MAX_CANDIDATES:-24}"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Public-indicator distillation miner: Lux/Willy-style ideas reduced to
+  # causal VNEDGE atoms, then walk-forwarded with realistic fees. Research-only
+  # proof feed for the Alpha Council.
+  alpha-distillation:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.alpha_distillation",
+              "--interval-seconds", "${ALPHA_DISTILLATION_INTERVAL_SECONDS:-21600}",
+              "--lookback-days", "${ALPHA_DISTILLATION_LOOKBACK_DAYS:-120}",
+              "--train-days", "${ALPHA_DISTILLATION_TRAIN_DAYS:-30}",
+              "--test-days", "${ALPHA_DISTILLATION_TEST_DAYS:-7}",
+              "--max-candidates", "${ALPHA_DISTILLATION_MAX_CANDIDATES:-18}"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Pine source-backed intention distiller. Publishes the artifact consumed by
+  # Pine evidence/uplift services so UI code deploys cannot leave stale
+  # distiller JSON behind.
+  pine-alpha-distiller:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    command: ["python", "-m", "vnedge.research.pine_alpha_distiller",
+              "--interval-seconds", "${PINE_ALPHA_DISTILLER_INTERVAL_SECONDS:-1800}",
+              "--kb", "research/pine_scripts/pine_research_kb.json",
+              "--source-dir", "research/pine_scripts/sources",
+              "--out", "research/live_research/pine_alpha_distiller_latest.json",
+              "--feed", "research/live_research/pine_alpha_distiller_feed.jsonl"]
+    volumes:
+      - ./research/pine_scripts:/app/research/pine_scripts:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Pine research evidence overlay: maps source-backed Pine distiller tasks onto
+  # VNEDGE-owned primitive backtest/replay artifacts so the Pine Lab matrix
+  # shows completed/blocked evidence instead of stale "queued" placeholders.
+  # Research-only: no source code emitted, no orders, no promotion path.
+  pine-backtest-evidence:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    depends_on:
+      - daily-scalper-pack
+      - daily-scalper-cadence
+      - alpha-distillation
+      - orderflow-footprint-miner
+      - event-leadlag-miner
+      - candidate-replay-executor
+      - fee-wall-forensics
+      - pine-alpha-distiller
+    command: ["python", "-m", "vnedge.research.pine_backtest_evidence",
+              "--interval-seconds", "${PINE_BACKTEST_EVIDENCE_INTERVAL_SECONDS:-1800}",
+              "--kb", "research/pine_scripts/pine_research_kb.json",
+              "--distiller", "research/live_research/pine_alpha_distiller_latest.json",
+              "--report-dir", "research/live_research"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/pine_scripts:/app/research/pine_scripts
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Exact TradingView-lifecycle replay for the supplied VNEDGE Algo ML Pro
+  # scanner under Delta India contract sizing. This is the operator answer to
+  # "why does the 5m chart look good but the bot cannot promote it?" It writes
+  # a 6-pair x 5-TF x 2-exit-mode fee-aware matrix. Research-only.
+  vnedge-algo-ml-pro-contract-matrix:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - pine-backtest-evidence
+    command: ["python", "-m", "vnedge.research.vnedge_algo_ml_pro_contract_matrix",
+              "--interval-seconds", "${VNEDGE_ALGO_ML_PRO_MATRIX_INTERVAL_SECONDS:-21600}",
+              "--data-root", "data",
+              "--exchange", "delta_india",
+              "--symbols", "BTCUSD", "ETHUSD", "SOLUSD", "XRPUSD", "BNBUSD", "DOGEUSD",
+              "--timeframes", "1m", "5m", "15m", "1h", "4h",
+              "--capture-modes", "pine_tp3", "smart_ladder",
+              "--lookback-days", "${VNEDGE_ALGO_ML_PRO_MATRIX_LOOKBACK_DAYS:-30}",
+              "--sizing-mode", "delta_contract_risk",
+              "--delta-live-product-spec",
+              "--account-equity-usd", "${VNEDGE_ALGO_ML_PRO_ACCOUNT_EQUITY_USD:-500}",
+              "--risk-per-trade-pct", "${VNEDGE_ALGO_ML_PRO_RISK_PER_TRADE_PCT:-1}",
+              "--paper-margin-usd", "${VNEDGE_ALGO_ML_PRO_PAPER_MARGIN_USD:-100}",
+              "--paper-leverage", "${VNEDGE_ALGO_ML_PRO_PAPER_LEVERAGE:-25}",
+              "--acknowledge-high-leverage",
+              "--fee-cost-bps", "${VNEDGE_ALGO_ML_PRO_FEE_COST_BPS:-12.5}",
+              "--out", "research/live_research/vnedge_algo_ml_pro_contract_matrix_latest.json"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Scanner backtest uplift: classifies every completed matrix/tournament row
+  # into promotable, sparse, fee-wall near-miss, overscalp bleed, or reject, then
+  # publishes concrete next experiments. It does not promote or trade.
+  scanner-backtest-uplift:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - vnedge-algo-ml-pro-contract-matrix
+      - scanner-tournament
+    command: ["python", "-m", "vnedge.research.scanner_backtest_uplift",
+              "--interval-seconds", "${SCANNER_BACKTEST_UPLIFT_INTERVAL_SECONDS:-1800}",
+              "--input", "research/live_research/vnedge_algo_ml_pro_contract_matrix_latest.json",
+              "--source-name", "vnedge_algo_ml_pro_contract_matrix",
+              "--input", "research/live_research/scanner_tournament_latest.json",
+              "--source-name", "scanner_tournament",
+              "--out", "research/live_research/scanner_backtest_uplift_latest.json",
+              "--feed", "research/live_research/scanner_backtest_uplift_feed.jsonl"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Alpha Arena Lite: turns scanner uplift experiments into durable Quant OS
+  # research tasks and hash-backed scorecards. It does not replay, promote, or
+  # trade; it queues the next frozen untouched-window proof step.
+  alpha-arena-lite:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    depends_on:
+      - scanner-backtest-uplift
+      - scanner-tournament
+      - fee-wall-forensics
+    command: ["python", "-m", "vnedge.research.alpha_arena_lite",
+              "--interval-seconds", "${ALPHA_ARENA_LITE_INTERVAL_SECONDS:-1800}",
+              "--uplift", "research/live_research/scanner_backtest_uplift_latest.json",
+              "--scanner", "research/live_research/scanner_tournament_latest.json",
+              "--fee-wall", "research/live_research/fee_wall_forensics_latest.json",
+              "--gateway-dir", "${QUANT_OS_AGENT_GATEWAY_DIR:-logs/agent_gateway/quant_os}",
+              "--out", "research/live_research/alpha_arena_lite_latest.json",
+              "--feed", "research/live_research/alpha_arena_lite_feed.jsonl"]
+    volumes:
+      - ./logs/agent_gateway:/app/logs/agent_gateway
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Quant Loop Governance: control-plane heartbeat for the AI Quant OS. It
+  # reads Alpha Arena, scanner uplift/progress, gateway snapshots, and the
+  # machine-readable loop gates, then publishes readiness/collision/budget
+  # status. It never trades or promotes.
+  quant-loop-governance:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    depends_on:
+      - alpha-arena-lite
+      - scanner-backtest-uplift
+      - scanner-tournament
+    command: ["python", "-m", "vnedge.research.quant_loop_governance",
+              "--interval-seconds", "${QUANT_LOOP_GOVERNANCE_INTERVAL_SECONDS:-1800}",
+              "--gates", "governance/loop_gates.yaml",
+              "--state", "research/quant_loop_state.json",
+              "--alpha-arena", "research/live_research/alpha_arena_lite_latest.json",
+              "--scanner-uplift", "research/live_research/scanner_backtest_uplift_latest.json",
+              "--scanner-progress", "research/live_research/scanner_tournament_progress.json",
+              "--gateway-snapshot", "logs/agent_gateway/quant_os/snapshot.json",
+              "--out", "research/live_research/quant_loop_governance_latest.json",
+              "--feed", "research/live_research/quant_loop_governance_feed.jsonl",
+              "--run-log", "research/live_research/quant_loop_run_log.jsonl"]
+    volumes:
+      - ./governance:/app/governance:ro
+      - ./logs/agent_gateway:/app/logs/agent_gateway:ro
+      - ./research/quant_loop_state.json:/app/research/quant_loop_state.json:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Unified research evidence index publisher. It reconciles Pine Lab,
+  # scanner tournament/uplift, Alpha Arena, fee-wall, contract-matrix, and
+  # replay artifacts into one read-optimized truth table for the dashboard and
+  # operator queries. Research-only: it grants no paper/live permission.
+  evidence-index-publisher:
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    # depends_on detangled (2026-08-02): these research inputs live in the
+    # `research` profile (off by default). Their output is read from files
+    # (stale-OK), never gated — so evidence-index-publisher runs in the lean
+    # core without pulling the whole research cluster back in.
+    command: ["python", "-m", "vnedge.research.evidence_store",
+              "--interval-seconds", "${EVIDENCE_INDEX_INTERVAL_SECONDS:-300}",
+              "--report-dir", "research/live_research",
+              "--pine-kb", "research/pine_scripts/pine_research_kb.json",
+              "--out", "research/live_research/evidence_index_latest.json",
+              "--sqlite", "research/live_research/evidence_index.sqlite",
+              "--feed", "research/live_research/evidence_index_feed.jsonl"]
+    volumes:
+      - ./research/pine_scripts:/app/research/pine_scripts:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Execution-realistic replay profile publisher. It classifies research rows
+  # by the fill evidence they actually cleared and blocks prediction-market
+  # terminal-settlement assumptions from leaking into crypto-perp promotion.
+  execution-replay-profile:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    depends_on:
+      - evidence-index-publisher
+      - fee-wall-forensics
+      - candidate-replay-executor
+    command: ["python", "-m", "vnedge.research.execution_replay_profile",
+              "--interval-seconds", "${EXECUTION_REPLAY_PROFILE_INTERVAL_SECONDS:-300}",
+              "--evidence-index", "research/live_research/evidence_index_latest.json",
+              "--fee-wall", "research/live_research/fee_wall_forensics_latest.json",
+              "--candidate-replay", "research/live_research/candidate_replay_latest.json",
+              "--out", "research/live_research/execution_replay_profile_latest.json",
+              "--feed", "research/live_research/execution_replay_profile_feed.jsonl"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Agentic failure-salvage planner for Pine-derived evidence.  It turns
+  # failed/positive/queued replay cells into ranked research-only uplift
+  # experiments: confluence stacks, feature-bank candidates, execution-filtered
+  # replays, or untouched-judgment requests.  It never promotes or trades.
+  pine-edge-uplift-agent:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    depends_on:
+      - pine-backtest-evidence
+    command: ["python", "-m", "vnedge.research.pine_edge_uplift_agent",
+              "--interval-seconds", "${PINE_EDGE_UPLIFT_INTERVAL_SECONDS:-1800}",
+              "--kb", "research/pine_scripts/pine_research_kb.json",
+              "--distiller", "research/live_research/pine_alpha_distiller_latest.json",
+              "--out", "research/live_research/pine_edge_uplift_agent_latest.json",
+              "--feed", "research/live_research/pine_edge_uplift_agent_feed.jsonl"]
+    volumes:
+      - ./research/pine_scripts:/app/research/pine_scripts:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Research-only executor queue. Converts Pine edge-uplift experiments plus
+  # scanner/fee-wall evidence into concrete causal-port, replay, feature-bank,
+  # and untouched-judgment tasks. It never trades or promotes.
+  edge-uplift-executor:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    user: "${VNEDGE_CONTAINER_UID:-1000}:${VNEDGE_CONTAINER_GID:-1000}"
+    depends_on:
+      - pine-edge-uplift-agent
+      - scanner-tournament
+      - fee-wall-forensics
+      - scanner-backtest-uplift
+    command: ["python", "-m", "vnedge.research.edge_uplift_executor",
+              "--interval-seconds", "${EDGE_UPLIFT_EXECUTOR_INTERVAL_SECONDS:-1800}",
+              "--uplift", "research/live_research/pine_edge_uplift_agent_latest.json",
+              "--scanner", "research/live_research/scanner_tournament_latest.json",
+              "--fee-wall", "research/live_research/fee_wall_forensics_latest.json",
+              "--out", "research/live_research/edge_uplift_experiments_latest.json",
+              "--feed", "research/live_research/edge_uplift_experiments_feed.jsonl"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Relaxed scanner tournament: intentionally lowers only research-discovery
+  # thresholds so Pine/Willy/Lux-style scanners fire enough examples for
+  # fee-aware ranking and edge-model learning. It is not a promotion lane:
+  # every artifact is can_trade=false/can_promote=false, and normal untouched
+  # judgment remains mandatory.
+  scanner-tournament:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.scanner_tournament",
+              "--interval-seconds", "${SCANNER_TOURNAMENT_INTERVAL_SECONDS:-21600}",
+              "--profile", "${SCANNER_TOURNAMENT_PROFILE:-discovery_relaxed}",
+              "--timeframes", "${SCANNER_TOURNAMENT_TIMEFRAMES:-1m,5m,15m,1h,4h}",
+              "--lookback-days", "${SCANNER_TOURNAMENT_LOOKBACK_DAYS:-30}",
+              "--max-targets", "${SCANNER_TOURNAMENT_MAX_TARGETS:-30}",
+              "--max-candidates", "${SCANNER_TOURNAMENT_MAX_CANDIDATES:-75}",
+              "--output", "research/live_research/scanner_tournament_latest.json",
+              "--feed", "research/live_research/scanner_tournament_feed.jsonl",
+              "--progress", "research/live_research/scanner_tournament_progress.json"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Fee-wall forensics: batch trade-geometry truth for scanner families. It
+  # preserves every compact lane report plus a full route JSONL so sparse
+  # winners and exit-giveback failures can be mined into the next scanner
+  # uplift. Research-only: no credentials, no orders, no promotion path.
+  fee-wall-forensics:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.fee_wall_forensics",
+              "--interval-seconds", "${FEE_WALL_FORENSICS_INTERVAL_SECONDS:-21600}",
+              "--timeframes", "${FEE_WALL_FORENSICS_TIMEFRAMES:-5m,15m,1h,4h}",
+              "--strategies", "${FEE_WALL_FORENSICS_STRATEGIES:-vnedge_algo_ml_pro_v1,luxara_live_plan_qtm_v1,luxara_break_bounce_v27_v1,sats_5m_scalper_v1,stealth_trail_bbp_v1,fvg_liquidity_breakout_v1,luxy_ut_bot_forecast_v1,momentum_cascade_lyro_v1,context_scalper_v2,quantified_fee_wall_sniper_v1}",
+              "--lookback-days", "${FEE_WALL_FORENSICS_LOOKBACK_DAYS:-30}",
+              "--max-targets", "${FEE_WALL_FORENSICS_MAX_TARGETS:-18}",
+              "--min-samples", "${FEE_WALL_FORENSICS_MIN_SAMPLES:-10}",
+              "--min-edge-bps", "${FEE_WALL_FORENSICS_MIN_EDGE_BPS:-8}",
+              "--min-profit-factor", "${FEE_WALL_FORENSICS_MIN_PROFIT_FACTOR:-1.15}",
+              "--output", "research/live_research/fee_wall_forensics_latest.json",
+              "--feed", "research/live_research/fee_wall_forensics_feed.jsonl",
+              "--progress", "research/live_research/fee_wall_forensics_progress.json",
+              "--routes-output", "research/live_research/fee_wall_forensics_routes_latest.jsonl"]
+    environment:
+      RESEARCH_EXCHANGES: "binanceusdm,bybit,delta_india"
+      RESEARCH_SYMBOLS: "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT"
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Fee-wall paper-probe bridge: copies only strict, threshold-clearing
+  # forensics candidates into the durable manifest consumed by multi-lane
+  # PAPER probe lanes. Simulated fills only; no live orders or promotion.
+  fee-wall-paper-probe-bridge:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - fee-wall-forensics
+    command: ["python", "-m", "vnedge.research.fee_wall_paper_probe_bridge",
+              "--interval-seconds", "${FEE_WALL_PAPER_PROBE_BRIDGE_INTERVAL_SECONDS:-1800}",
+              "--input", "research/live_research/fee_wall_forensics_latest.json",
+              "--out", "research/live_research/fee_wall_paper_probes.json",
+              "--feed", "research/live_research/fee_wall_paper_probes_feed.jsonl",
+              "--min-routed", "${FEE_WALL_PAPER_PROBE_MIN_ROUTED:-10}",
+              "--min-avg-net-bps", "${FEE_WALL_PAPER_PROBE_MIN_AVG_NET_BPS:-8}",
+              "--min-profit-factor", "${FEE_WALL_PAPER_PROBE_MIN_PROFIT_FACTOR:-1.15}",
+              "--max-probes", "${FEE_WALL_PAPER_PROBE_MAX_PROBES:-12}"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Fee-wall probe actuals: joins the published paper-probe manifest to actual
+  # paper journals/fill-ledger performance so operators can see whether probes
+  # launched, fired, closed trades, and survived fees. Read-only.
+  fee-wall-probe-actuals:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - fee-wall-paper-probe-bridge
+      - paper-lane-performance
+      - paper-route-doctor
+    command: ["python", "-m", "vnedge.research.fee_wall_probe_actuals",
+              "--interval-seconds", "${FEE_WALL_PROBE_ACTUALS_INTERVAL_SECONDS:-60}",
+              "--manifest", "research/live_research/fee_wall_paper_probes.json",
+              "--performance", "research/live_research/paper_lane_performance_latest.json",
+              "--route-doctor", "research/live_research/paper_route_doctor_latest.json",
+              "--out", "research/live_research/fee_wall_probe_actuals_latest.json",
+              "--feed", "research/live_research/fee_wall_probe_actuals_feed.jsonl"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Bitcoin-native regime sensor: read-only node/mempool/fee telemetry that
+  # tags research windows as calm/building/stressed/panic. It is context only:
+  # no wallet RPCs, no exchange credentials, no data/execution mounts.
+  bitcoin-regime-sensor:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.bitcoin_regime",
+              "--interval-seconds", "${BITCOIN_REGIME_INTERVAL_SECONDS:-900}"]
+    environment:
+      BITCOIN_RPC_URL: "${BITCOIN_RPC_URL:-}"
+      BITCOIN_RPC_USER: "${BITCOIN_RPC_USER:-}"
+      BITCOIN_RPC_PASSWORD: "${BITCOIN_RPC_PASSWORD:-}"
+      MEMPOOL_API_BASE: "${MEMPOOL_API_BASE:-https://mempool.space}"
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Research-only agent debate layer. Reads the published research artifacts,
+  # ranks candidates, and emits the next proof step. It has no data/execution
+  # mounts and cannot place or promote trades.
+  alpha-council:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [daily-scalper-pack, alpha-distillation, event-leadlag-miner, orderflow-footprint-miner, candidate-replay-executor, execution-condition-miner, filtered-replay-executor, scanner-tournament, bitcoin-regime-sensor]
+    command: ["python", "-m", "vnedge.research.alpha_council",
+              "--interval-seconds", "${ALPHA_COUNCIL_INTERVAL_SECONDS:-900}",
+              "--max-candidates", "${ALPHA_COUNCIL_MAX_CANDIDATES:-40}"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Durable alpha proof-task queue. It consumes the alpha council verdicts and
+  # checkpoints replay/judgment/recording tasks into small chunks so restarts do
+  # not rediscover the same work. Research-only: no credentials, no orders.
+  alpha-workbench:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    depends_on: [alpha-council]
+    command: ["python", "-m", "vnedge.research.alpha_workbench",
+              "--interval-seconds", "${ALPHA_WORKBENCH_INTERVAL_SECONDS:-900}",
+              "--max-tasks", "${ALPHA_WORKBENCH_MAX_TASKS:-50}"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Vibe-style hypothesis lifecycle memory. It joins alpha-council debates with
+  # alpha-workbench proof tasks, then persists active/monitoring/decayed/disabled
+  # hypothesis cards. Research-only: no credentials, no orders, no promotions.
+  vibe-intelligence:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    mem_limit: 512m
+    mem_reservation: 128m
+    depends_on: [alpha-council, alpha-workbench]
+    command: ["python", "-m", "vnedge.research.vibe_intelligence",
+              "--interval-seconds", "${VIBE_INTELLIGENCE_INTERVAL_SECONDS:-900}",
+              "--max-cards", "${VIBE_INTELLIGENCE_MAX_CARDS:-50}"]
+    volumes:
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Agentic Research OS v2: durable supervisor over Vibe, Alpha Arena, Quant OS
+  # tasks, Quant Loop Governance, and paper performance. Research-only: no
+  # credentials, no orders, no promotions.
+  agentic-research-os:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    mem_limit: 512m
+    mem_reservation: 128m
+    depends_on:
+      - vibe-intelligence
+      - alpha-arena-lite
+      - quant-loop-governance
+      - paper-lane-performance
+    command: ["python", "-m", "vnedge.research.agentic_research_os",
+              "--interval-seconds", "${AGENTIC_RESEARCH_OS_INTERVAL_SECONDS:-900}",
+              "--vibe", "research/live_research/vibe_intelligence_latest.json",
+              "--alpha-arena", "research/live_research/alpha_arena_lite_latest.json",
+              "--gateway-snapshot", "logs/agent_gateway/quant_os/snapshot.json",
+              "--quant-loop", "research/live_research/quant_loop_governance_latest.json",
+              "--paper-performance", "research/live_research/paper_lane_performance_latest.json",
+              "--out", "research/live_research/agentic_research_os_latest.json",
+              "--feed", "research/live_research/agentic_research_os_feed.jsonl"]
+    volumes:
+      - ./logs/agent_gateway:/app/logs/agent_gateway:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Zero-risk Binance tick + top-of-book recorder. No credentials, no execution —
+  # collects the raw order-flow data the TRUE microstructure scalper backtest
+  # needs (candle proxies proved too weak to conclude). Replay after ~2 weeks.
+  tick-recorder:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.exchange.tick_recorder",
+              "--symbols",
+              "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT",
+              "--data-root", "/app/data", "--levels", "10"]
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Zero-risk Bybit public L2/trade recorder. Same major universe as Binance,
+  # written into ticks/exchange=bybit/... for scanner + replay parity.
+  tick-recorder-bybit:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.exchange.tick_recorder",
+              "--exchange", "bybit",
+              "--symbols",
+              "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT",
+              "--data-root", "/app/data", "--levels", "10"]
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Delta India L2/trade recorder — native websocket (Delta has no CCXT Pro
+  # class), writing the same six-symbol campaign to the atomic Parquet tick
+  # lake under ticks/exchange=delta_india/… so scalper discovery and the L2
+  # research loop pick it up with no other changes.
+  tick-recorder-delta:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.exchange.tick_recorder",
+              "--exchange", "delta_india",
+              "--symbols", "BTC/USD:USD,ETH/USD:USD,SOL/USD:USD,BNB/USD:USD,XRP/USD:USD,DOGE/USD:USD",
+              "--data-root", "/app/data", "--levels", "10"]
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Zero-risk Binance USDT-M liquidation (forceOrder) recorder. Public stream,
+  # no credentials — captures the forced-liquidation events the event-scalper
+  # families key on most, into ticks/.../stream=liquidations/.
+  liquidation-recorder:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.exchange.liquidation_recorder",
+              "--symbols",
+              "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT",
+              "--data-root", "/app/data"]
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Liquidation-cascade reversion replay (research only, can_trade/can_promote
+  # false). Every 6h it rescans the recorded liquidation days against the
+  # trade tape, reports taker-taker AND maker-first cost models side by side
+  # (maker numbers flagged ASSUMED_MAKER_FILL), and publishes
+  # cascade_reversion.json for the continuous-research folding hook.
+  cascade-reversion:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.research.cascade_reversion",
+              "--interval-seconds", "${CASCADE_REVERSION_INTERVAL_SECONDS:-21600}",
+              "--exchanges", "binanceusdm,bybit",
+              "--symbols",
+              "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT",
+              "--data-root", "/app/data"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Cross-venue lead-lag echo scalp replay (research only, can_trade/can_promote
+  # false). Every 6h it rescans the recorded leader (binanceusdm trades) vs
+  # follower (delta_india L2 book) overlap days, estimates the cross-venue lag,
+  # replays a maker-first echo scalp with a queue-aware follower fill against a
+  # strict taker_taker floor (maker numbers flagged ASSUMED_QUEUE_FILL), and
+  # publishes leadlag_echo_scalp.json for the continuous-research folding hook.
+  leadlag-echo-scalp:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    mem_limit: 1500m
+    mem_reservation: 256m
+    command: ["python", "-m", "vnedge.research.leadlag_echo_scalp",
+              "--interval-seconds", "${LEADLAG_ECHO_SCALP_INTERVAL_SECONDS:-21600}",
+              "--pairs", "BTC,ETH",
+              "--data-root", "/app/data"]
+    volumes:
+      - ./data:/app/data:ro
+      - ./research/live_research:/app/research/live_research
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Zero-risk Bybit liquidation recorder (allLiquidation topic via CCXT Pro;
+  # position side is normalised to forced-order side on ingest). Same universe,
+  # written into ticks/exchange=bybit/.../stream=liquidations/ for parity.
+  liquidation-recorder-bybit:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.exchange.liquidation_recorder",
+              "--exchange", "bybit",
+              "--symbols",
+              "BTC/USDT:USDT,ETH/USDT:USDT,SOL/USDT:USDT,BNB/USDT:USDT,XRP/USDT:USDT,DOGE/USDT:USDT",
+              "--data-root", "/app/data"]
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Tick-lake janitor: every 6h it compacts each closed day's per-flush shards
+  # into one sorted Parquet file and enforces per-stream retention (book 21d /
+  # trades 60d / liquidations 120d) so the recorders can't eat the disk. The
+  # binanceusdm_hist backfill archive is never touched. A disk-pressure guard
+  # trims the oldest book days (hard 7-day floor) above DISK_USAGE_HALT_PCT.
+  # No credentials, no execution — it only rewrites/deletes lake files.
+  tick-lake-maintenance:
+    profiles: ["research"]
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "vnedge.data.tick_lake_maintenance",
+              "--data-root", "/app/data",
+              "--interval-seconds", "${TICK_MAINTENANCE_INTERVAL_SECONDS:-21600}"]
+    environment:
+      TICK_RETENTION_BOOK_DAYS: "${TICK_RETENTION_BOOK_DAYS:-21}"
+      TICK_RETENTION_TRADES_DAYS: "${TICK_RETENTION_TRADES_DAYS:-60}"
+      TICK_RETENTION_LIQUIDATIONS_DAYS: "${TICK_RETENTION_LIQUIDATIONS_DAYS:-120}"
+      DISK_USAGE_HALT_PCT: "${DISK_USAGE_HALT_PCT:-85}"
+    volumes:
+      - ./data:/app/data
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Internet-facing TLS front (self-signed) so the read-only dashboard needs
+  # no SSH tunnel. Port 8765 must be open in the cloud security list.
+  # Edge hardening lives in deploy/Caddyfile + docs/DEPLOY.md §7:
+  # DASHBOARD_ALLOWLIST restricts source IPs; empty = allow-all (token-only).
+  dashboard-tls:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # Gate the public TLS proxy on the dashboard being HEALTHY (not merely
+    # started), so 8765 never routes to a warming/unhealthy dashboard — the
+    # service_healthy half of the outage fix (the deploy.sh self-heal is the
+    # other half).
+    depends_on:
+      multi-lane-shadow:
+        condition: service_healthy
+    environment:
+      # Comma-separated client CIDRs/IPs allowed through the TLS front,
+      # e.g. "203.0.113.7/32,198.51.100.0/24". EMPTY = every source IP is
+      # allowed and DASHBOARD_TOKEN is the only protection.
+      DASHBOARD_ALLOWLIST: "${DASHBOARD_ALLOWLIST:-}"
+      # Only used once the ACME block in deploy/Caddyfile is uncommented.
+      DASHBOARD_DOMAIN: "${DASHBOARD_DOMAIN:-}"
+    # Same process the stock image runs, prefixed by one translation step:
+    # Caddy's remote_ip matcher wants space-separated ranges while .env keeps
+    # the ergonomic comma-separated form. An empty/blank allowlist is UNSET so
+    # the Caddyfile's {$DASHBOARD_ALLOWLIST:allow-all-default} takes over
+    # (Caddy only applies the default when the variable is absent).
+    command:
+      - sh
+      - -c
+      - |
+        DASHBOARD_ALLOWLIST="$$(printf '%s' "$$DASHBOARD_ALLOWLIST" | tr ',' ' ')"
+        if [ -z "$$(printf '%s' "$$DASHBOARD_ALLOWLIST" | tr -d ' ')" ]; then
+            unset DASHBOARD_ALLOWLIST
+        else
+            export DASHBOARD_ALLOWLIST
+        fi
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    ports:
+      - "8765:8765"
+      # Uncomment for the real-certificate (ACME) upgrade path — see
+      # deploy/Caddyfile and docs/DEPLOY.md §7. Both ports must also be
+      # opened in the cloud security list.
+      # - "80:80"
+      # - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./deploy/certs:/certs:ro
+      - caddy_data:/data
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+
+volumes:
+  caddy_data:

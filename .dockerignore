@@ -1,0 +1,20 @@
+.venv/
+.git/
+data/
+logs/
+models/
+research/live_research/
+__pycache__/
+*.pyc
+.pytest_cache/
+.claude/
+tests/
+# Frontend: the Node build stage runs `npm ci` from package-lock, so never ship
+# the host's node_modules or a stale local dist into the build context.
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+# docs/ is NOT ignored: the dashboard's /runbooks route serves docs/RUNBOOKS.md
+# at runtime, and the Dockerfile COPYs docs/ into the image (2026-07-11).
+.env
+KILL

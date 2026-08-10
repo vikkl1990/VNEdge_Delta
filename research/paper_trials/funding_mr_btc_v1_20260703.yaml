@@ -1,0 +1,46 @@
+# Governed paper trial manifest — locked at trial start, never edited mid-trial.
+# Approval phrase received 2026-07-03: "approved for paper: funding_mean_reversion_v1 BTC only"
+
+trial_id: funding_mr_btc_v1_20260703
+strategy: funding_mean_reversion_v1
+symbol: "BTC/USDT:USDT"
+timeframe: 1h
+mode: live_data_paper
+approved_by: human
+approval_date: "2026-07-03"
+promotion_source_commit: 3b56d20
+research_result: round_3_pass_untouched_2024_2025
+
+# Strategy parameters: the grid corner selected in 6 of 7 round-3 windows.
+# Frozen for the trial — no parameter changes mid-trial.
+strategy_params:
+  extreme_pct: 0.85
+  z_entry: 1.5
+  funding_pct_window: 240
+  z_window: 48
+  stop_atr_mult: 1.5
+
+# Risk limits (enforced by the existing gateway; listed here for the record)
+starting_equity: 500
+daily_loss_limit_usd: 10
+max_daily_loss_pct: 2.0
+max_leverage: 5
+
+# Trial protocol
+min_duration_days: 14
+preferred_duration_days: 30
+min_trades: 10
+max_drawdown_pct: 6
+live_orders_enabled: false
+dashboard_read_only: true
+failure_policy: pause_and_report
+
+# Pass criteria (locked before start):
+#   net PnL positive after fees/slippage; no risk-invariant violations;
+#   no unresolved order states; no journal failures; no unresolved
+#   reconciliation mismatches; live slippage ~ modeled; >= min_trades;
+#   drawdown within backtest envelope (<= max_drawdown_pct).
+# Pause/reject criteria:
+#   daily loss stop trips; trades outside funding-extreme conditions;
+#   expectancy collapse; repeated staleness rejects; journal/runtime
+#   divergence; any unreconcilable unknown order.

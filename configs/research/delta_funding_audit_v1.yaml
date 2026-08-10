@@ -1,0 +1,68 @@
+contract_id: delta_funding_audit_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  symbols: [BTCUSD, ETHUSD]
+  funding_resolution: 1h
+  candle_timeframe: 1m
+  selection_start: "2025-01-01T00:00:00+00:00"
+  selection_end: "2026-04-02T00:01:00+00:00"
+  untouched_start: "2026-04-02T00:01:00+00:00"
+  untouched_end: "2026-07-25T00:00:00+00:00"
+  untouched_policy: sealed_no_funding_or_price_values_read
+
+funding_integrity:
+  raw_timestamp_semantics: hourly_candle_start
+  settled_available_at_offset_seconds: 3600
+  expected_cadence_seconds: 3600
+  required_timestamp_alignment_seconds: 3600
+  raw_unit: percent
+  canonical_unit: fraction
+  raw_to_canonical_divisor: 100.0
+  maximum_abs_raw_percent_sanity: 5.0
+  maximum_abs_canonical_fraction_sanity: 0.05
+  duplicate_policy: report_raw_duplicates_then_keep_last
+  malformed_policy: report_and_drop
+  incomplete_policy: exclude_until_raw_start_plus_interval_is_at_or_before_cutoff
+  join_policy: backward_asof_on_settled_available_at_only
+  forward_fill_from_raw_candle_start: forbidden
+  maximum_missing_fraction: 0.001
+
+event_diagnostic:
+  zscore_history_prints: 240
+  zscore_excludes_current: true
+  absolute_zscore_threshold: 2.0
+  event_rule: crossing_from_below_threshold
+  event_cooldown_hours: 24
+  entry: first_1m_open_at_or_after_settled_available_at
+  orientations: [reversal, continuation]
+  primary_horizon_hours: 8
+  secondary_horizons_hours: [1, 4, 12, 24]
+  path_metrics: [terminal_gross_bps, mfe_bps, mae_bps]
+  fee_bps_round_trip: 14.8
+  no_stop_or_target_optimization: true
+  no_parameter_search: true
+
+go_no_go:
+  minimum_total_events: 40
+  minimum_events_per_market: 15
+  primary_horizon_average_net_bps_minimum: 0.0
+  primary_horizon_profit_factor_minimum: 1.15
+  maximum_false_signal_rate: 0.70
+  maximum_single_market_event_fraction: 0.75
+  require_same_orientation_positive_in_both_markets: true
+  require_positive_first_and_second_chronological_halves: true
+  require_median_mfe_cost_multiple: 2.0
+  outcome_of_go: permits_preregistration_only
+  outcome_of_no_go: funding_squeeze_reversal_v1_not_preregistered
+
+policy:
+  selection_only: true
+  sealed_tail_opening: forbidden
+  funding_payment_cashflows: not_included_diagnostic_tests_price_information_only
+  regime_gates: forbidden
+  meta_labeling: forbidden
+  parameter_changes_after_first_run: invalidate_v1

@@ -1,0 +1,56 @@
+# TLS front for the read-only dashboard. Self-signed ("internal") certs —
+# the browser will warn once; the point is encrypting the token in transit.
+# The dashboard itself remains token-gated and read-only.
+{
+	auto_https disable_redirects
+}
+
+https://:8765 {
+	tls /certs/cert.pem /certs/key.pem
+
+	# --------------------------------------------------------------------
+	# IP allowlist. DASHBOARD_ALLOWLIST is a comma-separated CIDR/IP list
+	# in .env (e.g. "203.0.113.7/32,198.51.100.0/24"); the docker-compose
+	# command wrapper translates commas to the spaces Caddy's remote_ip
+	# matcher expects before Caddy starts.
+	#
+	#   *** WARNING: EMPTY DASHBOARD_ALLOWLIST = ALLOW ALL. The default
+	#   *** below (0.0.0.0/0 ::/0) preserves the historical behaviour:
+	#   *** every IP on the internet reaches this endpoint and only
+	#   *** DASHBOARD_TOKEN stands in the way. Set the allowlist unless
+	#   *** you explicitly accept that. See docs/DEPLOY.md §7.
+	# --------------------------------------------------------------------
+	@allowed remote_ip {$DASHBOARD_ALLOWLIST:0.0.0.0/0 ::/0}
+	handle @allowed {
+		reverse_proxy multi-lane-shadow:8080
+	}
+	handle {
+		respond "Forbidden" 403
+	}
+}
+
+# --- Real-certificate (ACME) upgrade path — when a domain exists ------------
+# Self-signed works but trains you to click through browser warnings. Once
+# you own a domain (docs/DEPLOY.md §7 has the full steps):
+#   1. DNS A/AAAA record for the domain -> VPS IP.
+#   2. Publish ports 80 + 443 on dashboard-tls (commented lines in
+#      docker-compose.yml) and open them in the cloud security list.
+#   3. Set DASHBOARD_DOMAIN in .env and uncomment the block below —
+#      Let's Encrypt issuance and renewal are then automatic (HTTP-01).
+#   4. Optionally retire the self-signed :8765 block above.
+#
+# {$DASHBOARD_DOMAIN} {
+# 	@allowed remote_ip {$DASHBOARD_ALLOWLIST:0.0.0.0/0 ::/0}
+# 	handle @allowed {
+# 		reverse_proxy multi-lane-shadow:8080
+# 	}
+# 	handle {
+# 		respond "Forbidden" 403
+# 	}
+# }
+
+# NOTE on rate limiting: stock caddy:2-alpine ships NO native request-rate
+# limiter — `rate_limit` is the mholt/caddy-ratelimit PLUGIN and needs a
+# custom xcaddy image build. We deliberately do NOT change the image; the
+# allowlist above plus the high-entropy DASHBOARD_TOKEN are the brute-force
+# mitigations. docs/DEPLOY.md §7 documents the plugin path if ever wanted.

@@ -1,0 +1,66 @@
+# Pre-registered PAPER trial manifest — LOCKED at trial start, never edited mid-trial.
+#
+# Human directive 2026-07-26: run the top second-eye candidate as a live-forward
+# paper trial (real-money-equivalent, paper capital) INSTEAD of a historical
+# walk-forward. Rationale: the grid data (2024-2025 Delta) was already seen for
+# this strategy; a live forward paper trial validates on genuinely unseen data
+# with real execution frictions and zero lookahead — a stronger out-of-sample
+# test than a backtest.
+#
+# RUNNER: this trial runs as a multi-lane PAPER lane
+# (evidence_paper_trial_lanes in multi_lane_shadow.py), NOT the funding-MR-only
+# runtime.paper_trial harness. Same PaperBroker/gateway/journal pipeline on live
+# Delta websocket data. This file is the pre-registration record + the pass/fail
+# contract that lane_promotion_readiness is evaluated against.
+
+trial_id: vnedge_algo_ml_pro_eth_4h_20260726
+strategy: vnedge_algo_ml_pro_v1
+symbol: "ETH/USD:USD"            # Delta India (first live venue)
+timeframe: 4h
+companion_lanes:                  # run in parallel to accumulate trades faster
+  - symbol: "DOGE/USD:USD"
+    timeframe: 1h                 # grid PF 1.54, n=128 — ~2.5 trades/week
+mode: live_data_paper
+approved_by: human
+approval_date: "2026-07-26"
+promotion_source: second_eye_grid_2026-07-26   # research/live_research/second_eye_grid.json
+research_result: >
+  ETH 4h taker PF 3.64, 77% win, max-DD ~$6, consistent across binance/bybit/delta
+  (n=22, single-window). SEEN data — this paper trial is the out-of-sample check.
+
+# Strategy parameters: DEFAULT config — matches exactly what the grid measured.
+# Frozen for the trial; NO parameter changes mid-trial.
+strategy_params: {}
+
+# Risk limits (enforced by the existing gateway; listed here for the record).
+starting_equity: 500
+daily_loss_limit_usd: 20
+max_leverage: 5
+live_orders_enabled: false        # paper only — never a real order
+dashboard_read_only: true
+
+# Trial protocol. NOTE the sample-rate reality: ETH 4h fires ~2/week and
+# DOGE 1h ~2.5/week, so >= min_trades takes weeks, not days — this is a slow,
+# honest forward test, not a quick one.
+min_duration_days: 30
+preferred_duration_days: 60
+min_trades: 15                    # aggregate across ETH-4h + DOGE-1h lanes
+max_drawdown_pct: 8
+failure_policy: pause_and_report
+
+# PASS criteria (locked before start — all must hold):
+#   - net PnL positive after fees / funding / slippage
+#   - profit_factor >= 1.3 (conservative vs the grid's 3.6, allowing for live
+#     frictions the single-window backtest under-modeled)
+#   - >= min_trades aggregate, over >= min_duration_days
+#   - max drawdown <= max_drawdown_pct
+#   - no risk-invariant violations; no unresolved order states; no journal
+#     failures; no unreconcilable order; live slippage ~ modeled
+# PAUSE / REJECT criteria:
+#   - daily-loss stop trips repeatedly
+#   - expectancy collapse (profit_factor < 1.0 after >= min_trades)
+#   - staleness-reject storms or journal/runtime divergence
+#
+# A PASS makes it ELIGIBLE for live consideration; it is NOT an auto-promotion.
+# Live still requires the full pre-live checklist, mainnet trade-only keys, the
+# live_ladder attestation, and explicit human sign-off.

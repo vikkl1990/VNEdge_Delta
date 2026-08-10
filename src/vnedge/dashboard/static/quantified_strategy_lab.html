@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VNEDGE Quantified Strategy Lab</title>
+  <style>
+    :root{
+      --bg:#080b10;
+      --panel:#0d131b;
+      --panel-2:#111925;
+      --line:#1f2b3b;
+      --line-2:#31445f;
+      --text:#e8eef7;
+      --muted:#91a0b3;
+      --faint:#667589;
+      --accent:#39d6c8;
+      --blue:#4ca7ff;
+      --green:#39d98a;
+      --amber:#f6b44b;
+      --red:#ff6070;
+      --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,monospace;
+      --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+      color-scheme:dark;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;min-height:100%}
+    body{
+      background:
+        linear-gradient(rgba(76,167,255,.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(76,167,255,.045) 1px, transparent 1px),
+        var(--bg);
+      background-size:52px 52px;
+      color:var(--text);
+      font-family:var(--sans);
+      font-size:14px;
+      line-height:1.45;
+      letter-spacing:0;
+    }
+    .wrap{max-width:1740px;margin:0 auto;padding:22px 28px 40px}
+    header{
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:18px;
+      align-items:end;
+      border-bottom:1px solid var(--line);
+      padding-bottom:18px;
+      margin-bottom:18px;
+    }
+    h1{margin:4px 0 8px;font-size:30px;line-height:1.1;font-weight:800;letter-spacing:0}
+    h2{margin:0;font-family:var(--mono);font-size:16px;letter-spacing:0;text-transform:uppercase}
+    p{margin:0;color:var(--muted)}
+    a{color:inherit;text-decoration:none}
+    button,.link{
+      border:1px solid var(--line-2);
+      background:#0c121a;
+      color:var(--text);
+      min-height:34px;
+      padding:0 13px;
+      border-radius:6px;
+      font-family:var(--mono);
+      font-weight:700;
+      cursor:pointer;
+    }
+    button:hover,.link:hover{border-color:var(--blue);color:white}
+    .eyebrow{font-family:var(--mono);font-size:12px;font-weight:800;color:var(--accent);text-transform:uppercase}
+    .actions{display:flex;gap:10px;align-items:center}
+    .status{
+      display:inline-flex;
+      align-items:center;
+      border:1px solid rgba(57,217,138,.42);
+      color:var(--green);
+      padding:8px 12px;
+      border-radius:6px;
+      font-family:var(--mono);
+      font-size:12px;
+      font-weight:800;
+    }
+    .grid{display:grid;gap:14px}
+    .summary{grid-template-columns:repeat(6,minmax(0,1fr));margin-bottom:14px}
+    .card{
+      background:linear-gradient(180deg,rgba(17,25,37,.92),rgba(10,15,22,.96));
+      border:1px solid var(--line);
+      border-radius:8px;
+      min-width:0;
+    }
+    .metric{padding:16px}
+    .label{
+      font-family:var(--mono);
+      color:var(--faint);
+      font-size:11px;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:0;
+    }
+    .value{font-family:var(--mono);font-size:28px;font-weight:900;margin-top:5px}
+    .sub{font-size:12px;color:var(--muted);margin-top:4px}
+    .split{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;margin-bottom:14px}
+    .panel-title{
+      padding:13px 15px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:center;
+    }
+    .panel-body{padding:14px}
+    .fast-track{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+    .chunk{background:rgba(76,167,255,.05);border:1px solid var(--line);border-radius:8px;padding:12px;min-height:132px}
+    .chunk strong{display:block;font-family:var(--mono);font-size:20px;color:var(--accent);margin-bottom:8px}
+    .chunk b{display:block;font-size:13px;margin-bottom:8px}
+    .chipbar{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+    .chip{
+      border:1px solid var(--line-2);
+      background:#0b121b;
+      border-radius:5px;
+      padding:3px 6px;
+      font-family:var(--mono);
+      color:var(--muted);
+      font-size:11px;
+      font-weight:700;
+    }
+    .tasks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .task{background:#0b1119;border:1px solid var(--line);border-radius:8px;padding:12px}
+    .task .top{display:flex;justify-content:space-between;gap:12px}
+    .task h3{margin:0;font-family:var(--mono);font-size:14px;color:var(--text)}
+    .task .score{font-family:var(--mono);font-weight:900;color:var(--accent)}
+    .task p{font-size:12px;margin-top:8px}
+    .factory-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .factory-card{background:#0b1119;border:1px solid var(--line);border-radius:8px;padding:12px}
+    .factory-card h3{margin:0 0 8px;font-family:var(--mono);font-size:14px;color:var(--text)}
+    .factory-card .big{font-family:var(--mono);font-size:24px;font-weight:900;color:var(--accent)}
+    .proof-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:12px}
+    .proof-table{max-height:360px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+    .proof-table table{min-width:980px}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap;padding:13px 15px;border-bottom:1px solid var(--line)}
+    input,select{
+      background:#0a1018;
+      border:1px solid var(--line);
+      color:var(--text);
+      border-radius:6px;
+      min-height:34px;
+      padding:0 10px;
+      font-family:var(--mono);
+    }
+    input{min-width:260px}
+    .table-wrap{overflow:auto;max-height:620px}
+    table{width:100%;border-collapse:collapse;min-width:1320px}
+    th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+    th{
+      position:sticky;
+      top:0;
+      z-index:1;
+      background:#0b1119;
+      color:var(--muted);
+      font-family:var(--mono);
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:0;
+    }
+    td{font-size:13px}
+    .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+    .title{font-weight:800}
+    .tiny{font-size:12px;color:var(--muted);margin-top:3px}
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      border:1px solid var(--line-2);
+      border-radius:5px;
+      padding:3px 7px;
+      font-family:var(--mono);
+      font-size:11px;
+      font-weight:900;
+      text-transform:uppercase;
+      color:var(--muted);
+    }
+    .portable{color:var(--green);border-color:rgba(57,217,138,.42);background:rgba(57,217,138,.08)}
+    .study{color:var(--amber);border-color:rgba(246,180,75,.45);background:rgba(246,180,75,.08)}
+    .blocked{color:var(--red);border-color:rgba(255,96,112,.42);background:rgba(255,96,112,.08)}
+    .note{border-left:3px solid var(--blue);background:rgba(76,167,255,.08);padding:12px 14px;color:var(--muted);font-size:13px}
+    .loading{padding:22px;color:var(--muted);font-family:var(--mono)}
+    @media(max-width:1100px){
+      header{grid-template-columns:1fr}
+      .summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .split{grid-template-columns:1fr}
+      .fast-track{grid-template-columns:1fr}
+      .tasks{grid-template-columns:1fr}
+      .factory-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="eyebrow">VNEDGE AI Quant OS</div>
+        <h1>Quantified Strategy Lab</h1>
+        <p>Finite 95-strategy title inventory, crypto portability triage, and replay work queue. Research only: no title can trade until a VNEDGE-owned causal port clears cost-aware proof.</p>
+      </div>
+      <div class="actions">
+        <a class="link" id="cockpit" href="/">OPERATOR COCKPIT</a>
+        <button id="refresh" type="button">REFRESH</button>
+        <span class="status" id="status">LOADING</span>
+      </div>
+    </header>
+
+    <section class="grid summary" id="summary"></section>
+
+    <section class="split">
+      <article class="card">
+        <div class="panel-title">
+          <h2>Fast Track</h2>
+          <span class="badge portable">chunked</span>
+        </div>
+        <div class="panel-body">
+          <div class="fast-track" id="fastTrack"></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="panel-title">
+          <h2>Replay Contract</h2>
+          <span class="badge blocked">no promotion</span>
+        </div>
+        <div class="panel-body">
+          <div class="note" id="contract">Loading replay contract...</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="card" style="margin-bottom:14px">
+      <div class="panel-title">
+        <h2>Port Families</h2>
+        <span class="badge study">research queue</span>
+      </div>
+      <div class="panel-body">
+        <div class="tasks" id="tasks"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:14px">
+      <div class="panel-title">
+        <h2>Agentic Port Factory</h2>
+        <span class="badge portable" id="factoryBadge">queued</span>
+      </div>
+      <div class="panel-body">
+        <div class="factory-grid" id="factory"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:14px">
+      <div class="panel-title">
+        <h2>Blueprint Proof Matrix</h2>
+        <span class="badge study" id="proofBadge">research only</span>
+      </div>
+      <div class="panel-body">
+        <div class="proof-grid" id="proofSummary"></div>
+        <div class="note" id="proofAnswer">Waiting for proof artifact...</div>
+        <div class="proof-table" style="margin-top:12px">
+          <table>
+            <thead>
+              <tr>
+                <th>Lane</th>
+                <th>Status</th>
+                <th>Verdict</th>
+                <th>Trades</th>
+                <th>Avg Net</th>
+                <th>PF</th>
+                <th>Next</th>
+              </tr>
+            </thead>
+            <tbody id="proofRows">
+              <tr><td colspan="7" class="loading">Loading blueprint proof queue...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-bottom:14px">
+      <div class="panel-title">
+        <h2>Proof Result Arbiter</h2>
+        <span class="badge study" id="arbiterBadge">research only</span>
+      </div>
+      <div class="panel-body">
+        <div class="proof-grid" id="arbiterSummary"></div>
+        <div class="note" id="arbiterAnswer">Waiting for proof arbiter artifact...</div>
+        <div class="proof-table" style="margin-top:12px">
+          <table>
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Lane</th>
+                <th>Bucket</th>
+                <th>Trades</th>
+                <th>Avg Net</th>
+                <th>PF</th>
+                <th>Why</th>
+              </tr>
+            </thead>
+            <tbody id="arbiterRows">
+              <tr><td colspan="7" class="loading">Loading proof arbiter...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="panel-title">
+        <h2>Strategy Inventory</h2>
+        <span class="badge" id="sourcePolicy">source policy</span>
+      </div>
+      <div class="toolbar">
+        <input id="filter" placeholder="filter title, port, mechanism" autocomplete="off" />
+        <select id="portFilter"><option value="">All port families</option></select>
+        <select id="fitFilter">
+          <option value="">All fit scores</option>
+          <option value="80">Fit >= 80</option>
+          <option value="70">Fit >= 70</option>
+          <option value="50">Fit >= 50</option>
+          <option value="blocked">Blocked / placeholder</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Strategy</th>
+              <th>Mechanism</th>
+              <th>Asset Scope</th>
+              <th>Fit</th>
+              <th>Portability</th>
+              <th>VNEDGE Port</th>
+              <th>Next Action</th>
+              <th>Replay</th>
+            </tr>
+          </thead>
+          <tbody id="rows">
+            <tr><td colspan="9" class="loading">Loading 95-strategy research inventory...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const tokenFromUrl = new URLSearchParams(location.search).get("token");
+    if (tokenFromUrl) localStorage.setItem("vnedge_dashboard_token", tokenFromUrl);
+    const token = tokenFromUrl || localStorage.getItem("vnedge_dashboard_token") || "";
+    if (token) {
+      const cockpit = document.getElementById("cockpit");
+      cockpit.href = "/?token=" + encodeURIComponent(token);
+    }
+
+    let payload = null;
+    let factory = null;
+    let blueprintProof = null;
+    let proofArbiter = null;
+    let pullbackProof = null;
+    const fmt = new Intl.NumberFormat("en-US");
+
+    function badgeClass(value){
+      if ((value || "").includes("PLACEHOLDER") || (value || "").includes("RESEARCH_ONLY")) return "blocked";
+      if ((value || "").includes("SESSION") || (value || "").includes("RELATIVE")) return "study";
+      return "portable";
+    }
+
+    function metric(label, value, sub){
+      return `<div class="card metric"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub || ""}</div></div>`;
+    }
+
+    function renderSummary(){
+      const s = payload.summary || {};
+      document.getElementById("summary").innerHTML = [
+        metric("Total Strategies", fmt.format(s.total_strategies || 0), "from operator supplied image"),
+        metric("Portable / Adaptable", fmt.format(s.portable_or_adaptable || 0), "can become VNEDGE hypotheses"),
+        metric("Blocked / Placeholder", fmt.format(s.blocked_or_placeholder || 0), "asset-specific or unreleased"),
+        metric("Source-Backed Rules", fmt.format(s.source_backed_rules || 0), "title-only pack"),
+        metric("Can Trade", payload.can_trade ? "YES" : "NO", "research boundary enforced"),
+        metric("Can Promote", payload.can_promote ? "YES" : "NO", "untouched proof required")
+      ].join("");
+      document.getElementById("sourcePolicy").textContent = (payload.source && payload.source.source_policy) || "policy";
+      document.getElementById("status").textContent = "LOADED";
+    }
+
+    function renderFastTrack(){
+      const chunks = payload.fast_track || [];
+      document.getElementById("fastTrack").innerHTML = chunks.map(chunk => `
+        <div class="chunk">
+          <strong>${chunk.chunk}</strong>
+          <b>${chunk.name}</b>
+          <p>${chunk.why}</p>
+          <div class="chipbar">${(chunk.strategy_numbers || []).slice(0,24).map(n => `<span class="chip">${n}</span>`).join("")}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderContract(){
+      const c = payload.replay_contract || {};
+      const gates = (c.promotion_gate || []).map(x => `<span class="chip">${x}</span>`).join("");
+      document.getElementById("contract").innerHTML = `
+        Timeframes: ${(c.timeframes || []).join(", ")}<br>
+        Venues: ${(c.venues || []).join(", ")}<br>
+        Fees: ${c.fees || "--"}<br>
+        Exit: ${c.exit_policy || "--"}
+        <div class="chipbar">${gates}</div>
+      `;
+    }
+
+    function renderTasks(){
+      const tasks = payload.port_tasks || [];
+      document.getElementById("tasks").innerHTML = tasks.map(task => `
+        <div class="task">
+          <div class="top"><h3>${task.recommended_port}</h3><span class="score">${task.source_count}</span></div>
+          <p>${task.first_backtest}</p>
+          <div class="chipbar">${(task.strategy_numbers || []).slice(0,18).map(n => `<span class="chip">${n}</span>`).join("")}</div>
+        </div>
+      `).join("");
+    }
+
+    function renderFactory(){
+      const el = document.getElementById("factory");
+      if (!factory || !factory.summary) {
+        document.getElementById("factoryBadge").textContent = "unavailable";
+        el.innerHTML = '<div class="note">Port factory artifact unavailable. The lab inventory is loaded, but agent-ready build tasks have not been published yet.</div>';
+        return;
+      }
+      const s = factory.summary || {};
+      document.getElementById("factoryBadge").textContent = "agent tasks";
+      const cards = [
+        `<div class="factory-card"><div class="label">Blueprints</div><div class="big">${fmt.format(s.blueprints || 0)}</div><p>VNEDGE-owned port families</p></div>`,
+        `<div class="factory-card"><div class="label">Strategy Coverage</div><div class="big">${fmt.format(s.strategy_coverage || 0)}</div><p>titles covered by queued port work</p></div>`,
+        `<div class="factory-card"><div class="label">Gateway Tasks</div><div class="big">${fmt.format((s.gateway_tasks_created || 0) + (s.gateway_tasks_reused || 0))}</div><p>created or reused in Quant OS</p></div>`
+      ];
+      const blueprints = (factory.blueprints || []).slice(0,6).map(row => `
+        <div class="task">
+          <div class="top"><h3>${row.chunk} · ${row.recommended_port}</h3><span class="score">${row.source_count}</span></div>
+          <p>${row.next_action}</p>
+          <div class="chipbar">${(row.strategy_numbers || []).slice(0,16).map(n => `<span class="chip">${n}</span>`).join("")}</div>
+        </div>
+      `).join("");
+      el.innerHTML = cards.join("") + blueprints;
+    }
+
+    function renderProof(){
+      const proof = blueprintProof || pullbackProof;
+      const summaryEl = document.getElementById("proofSummary");
+      const rowsEl = document.getElementById("proofRows");
+      if (!proof || !proof.summary) {
+        document.getElementById("proofBadge").textContent = "unavailable";
+        summaryEl.innerHTML = "";
+        document.getElementById("proofAnswer").textContent = "Blueprint proof artifact unavailable. Seed the Quantified proof queue to start replay jobs.";
+        rowsEl.innerHTML = '<tr><td colspan="7" class="loading">No proof artifact published.</td></tr>';
+        return;
+      }
+      const s = proof.summary || {};
+      const gate = s.gate || {};
+      const profile = s.paper_profile || {};
+      document.getElementById("proofBadge").textContent = `${fmt.format(s.completed_cells || 0)}/${fmt.format(s.total_cells || 0)} complete`;
+      summaryEl.innerHTML = [
+        `<div class="factory-card"><div class="label">Cells</div><div class="big">${fmt.format(s.total_cells || 0)}</div><p>venue x pair x timeframe</p></div>`,
+        `<div class="factory-card"><div class="label">Completed</div><div class="big">${fmt.format(s.completed_cells || 0)}</div><p>${fmt.format(s.pending_cells || 0)} pending / ${fmt.format(s.running_cells || 0)} running / ${fmt.format(s.queued_cells || 0)} queued</p></div>`,
+        `<div class="factory-card"><div class="label">Proof Candidates</div><div class="big">${fmt.format(s.promotable_proof_candidates || 0)}</div><p>needs untouched judgment</p></div>`,
+        `<div class="factory-card"><div class="label">Ports</div><div class="big">${fmt.format(s.ports || 1)}</div><p>${fmt.format(s.proxy_adapter_cells || 0)} proxy cells / gate ${gate.min_net_bps || "--"} bps</p></div>`,
+        `<div class="factory-card"><div class="label">Paper Profile</div><div class="big">$${fmt.format(profile.margin_usd || 0)}</div><p>${profile.leverage || "--"}x / $${fmt.format(profile.notional_usd || 0)} notional</p></div>`
+      ].join("");
+      document.getElementById("proofAnswer").textContent = proof.operator_answer || "Blueprint proof loaded.";
+      const rows = (proof.rows || []).slice().sort((a,b) => {
+        const av = a.avg_net_bps == null ? -999999 : Number(a.avg_net_bps);
+        const bv = b.avg_net_bps == null ? -999999 : Number(b.avg_net_bps);
+        return bv - av;
+      }).slice(0,36);
+      rowsEl.innerHTML = rows.map(row => {
+        const avg = row.avg_net_bps == null ? "--" : `${Number(row.avg_net_bps).toFixed(2)} bps`;
+        const pf = row.profit_factor == null ? "--" : Number(row.profit_factor).toFixed(2);
+        const cls = (row.verdict || "").includes("PROMOTABLE") || (row.verdict || "").includes("SPARSE") ? "portable" :
+          (row.verdict || "").includes("NEGATIVE") || (row.verdict || "").includes("FAILED") || (row.verdict || "").includes("BLOCKED") ? "blocked" : "study";
+        return `<tr>
+          <td><div class="title">${row.exchange} · ${row.symbol}</div><div class="tiny">${row.timeframe} · ${row.port_id || "pullback_reversion_pack_v1"} · ${row.setup_mode || "pullback-only"}${row.canonical_adapter === false ? " · proxy" : ""}</div></td>
+          <td><span class="badge">${row.status || "--"}</span></td>
+          <td><span class="badge ${cls}">${row.verdict || "--"}</span></td>
+          <td class="num">${fmt.format(row.samples || 0)}</td>
+          <td class="num">${avg}</td>
+          <td class="num">${pf}</td>
+          <td>${row.next_action || "--"}</td>
+        </tr>`;
+      }).join("") || '<tr><td colspan="7" class="loading">No proof rows yet.</td></tr>';
+    }
+
+    function renderArbiter(){
+      const summaryEl = document.getElementById("arbiterSummary");
+      const rowsEl = document.getElementById("arbiterRows");
+      if (!proofArbiter || !proofArbiter.summary) {
+        document.getElementById("arbiterBadge").textContent = "unavailable";
+        summaryEl.innerHTML = "";
+        document.getElementById("arbiterAnswer").textContent = "Proof arbiter artifact unavailable. It will appear after the blueprint proof publisher writes its matrix.";
+        rowsEl.innerHTML = '<tr><td colspan="7" class="loading">No arbiter artifact published.</td></tr>';
+        return;
+      }
+      const s = proofArbiter.summary || {};
+      document.getElementById("arbiterBadge").textContent = `${fmt.format(s.actionable_cells || 0)} actions`;
+      summaryEl.innerHTML = [
+        `<div class="factory-card"><div class="label">Actionable</div><div class="big">${fmt.format(s.actionable_cells || 0)}</div><p>repair, uplift, or judgment cells</p></div>`,
+        `<div class="factory-card"><div class="label">Judgment Ready</div><div class="big">${fmt.format(s.ready_for_judgment || 0)}</div><p>canonical only</p></div>`,
+        `<div class="factory-card"><div class="label">Proxy Edges</div><div class="big">${fmt.format(s.proxy_edges || 0)}</div><p>needs real scanner port</p></div>`,
+        `<div class="factory-card"><div class="label">Near Fee Wall</div><div class="big">${fmt.format((s.fee_wall_near_misses || 0) + (s.exit_route_uplifts || 0))}</div><p>exit and routing salvage</p></div>`,
+        `<div class="factory-card"><div class="label">Repair / Wait</div><div class="big">${fmt.format((s.data_repairs || 0) + (s.replay_repairs || 0) + (s.metric_repairs || 0))}</div><p>${fmt.format(s.awaiting_backtest || 0)} waiting</p></div>`
+      ].join("");
+      document.getElementById("arbiterAnswer").textContent = proofArbiter.operator_answer || "Proof arbiter loaded.";
+      const rows = (proofArbiter.action_queue || []).slice(0,36);
+      rowsEl.innerHTML = rows.map(row => {
+        const avg = row.avg_net_bps == null ? "--" : `${Number(row.avg_net_bps).toFixed(2)} bps`;
+        const pf = row.profit_factor == null ? "--" : Number(row.profit_factor).toFixed(2);
+        const cls = (row.bucket || "").includes("READY") || (row.bucket || "").includes("PROXY") ? "portable" :
+          (row.bucket || "").includes("REPAIR") || (row.bucket || "").includes("NEGATIVE") ? "blocked" : "study";
+        return `<tr>
+          <td><div class="title">${row.next_action || "--"}</div><div class="tiny">${row.use_as || "--"}</div></td>
+          <td><div class="title">${row.exchange} · ${row.symbol}</div><div class="tiny">${row.timeframe} · ${row.port_id}${row.canonical_adapter === false ? " · proxy" : ""}</div></td>
+          <td><span class="badge ${cls}">${row.bucket || "--"}</span></td>
+          <td class="num">${fmt.format(row.samples || 0)}</td>
+          <td class="num">${avg}</td>
+          <td class="num">${pf}</td>
+          <td>${row.rationale || "--"}</td>
+        </tr>`;
+      }).join("") || '<tr><td colspan="7" class="loading">No arbiter actions yet.</td></tr>';
+    }
+
+    function populateFilters(){
+      const ports = [...new Set((payload.strategy_reviews || []).map(r => r.recommended_port))].sort();
+      document.getElementById("portFilter").innerHTML = '<option value="">All port families</option>' +
+        ports.map(p => `<option value="${p}">${p}</option>`).join("");
+    }
+
+    function replayText(row){
+      const tfs = row.replay_timeframes || [];
+      const venues = row.replay_venues || [];
+      if (!tfs.length || !venues.length) return "blocked";
+      return `${tfs.join("/")} x ${venues.length} venues`;
+    }
+
+    function renderRows(){
+      const query = document.getElementById("filter").value.toLowerCase().trim();
+      const port = document.getElementById("portFilter").value;
+      const fit = document.getElementById("fitFilter").value;
+      const rows = (payload.strategy_reviews || []).filter(row => {
+        const hay = `${row.title} ${row.recommended_port} ${row.mechanism} ${row.asset_scope}`.toLowerCase();
+        if (query && !hay.includes(query)) return false;
+        if (port && row.recommended_port !== port) return false;
+        if (fit === "blocked") return row.crypto_portability.includes("PLACEHOLDER") || row.crypto_portability.includes("RESEARCH_ONLY");
+        if (fit && row.crypto_fit_score < Number(fit)) return false;
+        return true;
+      });
+      document.getElementById("rows").innerHTML = rows.map(row => `
+        <tr>
+          <td class="num">${row.strategy_number}</td>
+          <td><div class="title">${row.title}</div><div class="tiny">${row.source_state}</div></td>
+          <td><span class="badge">${row.mechanism}</span></td>
+          <td>${row.asset_scope}</td>
+          <td class="num">${row.crypto_fit_score}/100</td>
+          <td><span class="badge ${badgeClass(row.crypto_portability)}">${row.crypto_portability}</span></td>
+          <td class="num">${row.recommended_port}</td>
+          <td>${row.next_action}</td>
+          <td>${replayText(row)}</td>
+        </tr>
+      `).join("") || '<tr><td colspan="9" class="loading">No rows match the filters.</td></tr>';
+    }
+
+    async function load(){
+      document.getElementById("status").textContent = "LOADING";
+      const url = "/quantified-strategy-lab/kb" + (token ? "?token=" + encodeURIComponent(token) : "");
+      const factoryUrl = "/quantified-strategy-lab/port-factory" + (token ? "?token=" + encodeURIComponent(token) : "");
+      const blueprintProofUrl = "/quantified-strategy-lab/blueprint-proof" + (token ? "?token=" + encodeURIComponent(token) : "");
+      const arbiterUrl = "/quantified-strategy-lab/proof-arbiter" + (token ? "?token=" + encodeURIComponent(token) : "");
+      const proofUrl = "/quantified-strategy-lab/pullback-proof" + (token ? "?token=" + encodeURIComponent(token) : "");
+      const res = await fetch(url, {cache:"no-store"});
+      if (!res.ok) throw new Error("request failed " + res.status);
+      payload = await res.json();
+      try {
+        const factoryRes = await fetch(factoryUrl, {cache:"no-store"});
+        factory = factoryRes.ok ? await factoryRes.json() : null;
+      } catch {
+        factory = null;
+      }
+      try {
+        const blueprintProofRes = await fetch(blueprintProofUrl, {cache:"no-store"});
+        blueprintProof = blueprintProofRes.ok ? await blueprintProofRes.json() : null;
+      } catch {
+        blueprintProof = null;
+      }
+      try {
+        const arbiterRes = await fetch(arbiterUrl, {cache:"no-store"});
+        proofArbiter = arbiterRes.ok ? await arbiterRes.json() : null;
+      } catch {
+        proofArbiter = null;
+      }
+      try {
+        const proofRes = await fetch(proofUrl, {cache:"no-store"});
+        pullbackProof = proofRes.ok ? await proofRes.json() : null;
+      } catch {
+        pullbackProof = null;
+      }
+      renderSummary();
+      renderFastTrack();
+      renderContract();
+      renderTasks();
+      renderFactory();
+      renderProof();
+      renderArbiter();
+      populateFilters();
+      renderRows();
+    }
+
+    document.getElementById("refresh").addEventListener("click", () => load().catch(showError));
+    document.getElementById("filter").addEventListener("input", renderRows);
+    document.getElementById("portFilter").addEventListener("change", renderRows);
+    document.getElementById("fitFilter").addEventListener("change", renderRows);
+    function showError(err){
+      document.getElementById("status").textContent = "ERROR";
+      document.getElementById("rows").innerHTML = `<tr><td colspan="9" class="loading">${err.message}</td></tr>`;
+    }
+    load().catch(showError);
+  </script>
+</body>
+</html>

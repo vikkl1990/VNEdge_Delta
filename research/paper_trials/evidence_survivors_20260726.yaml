@@ -1,0 +1,78 @@
+# Pre-registered PAPER trial manifest — diversification round. LOCKED at start.
+#
+# Human directive 2026-07-26: don't be single-threaded on one candidate. Promote
+# the other cross-venue survivors from the second-eye grid to live-forward PAPER
+# trials so several mature in parallel (portfolio read, not a one-shot). These
+# run alongside the vnedge_algo_ml_pro ETH-4h trial
+# (vnedge_algo_ml_pro_eth_4h_20260726.yaml).
+#
+# RUNNER: multi-lane PAPER lanes (evidence_paper_trial_lanes in
+# multi_lane_shadow.py) — simulated fills through the full gateway on live Delta
+# websocket data (real fees/funding/slippage, paper capital). This file is the
+# pre-registration record + pass/fail contract that lane_promotion_readiness is
+# judged against. Forward data is genuinely unseen, so it cannot be overfit.
+
+trial_set_id: evidence_survivors_20260726
+mode: live_data_paper
+approved_by: human
+approval_date: "2026-07-26"
+promotion_source: second_eye_grid_2026-07-26   # research/live_research/second_eye_grid.json
+venue: delta_india                              # first live candidate (locked decision)
+live_orders_enabled: false                      # paper only — never a real order
+dashboard_read_only: true
+
+candidates:
+  - trial_id: stealth_trail_bbp_eth_4h_20260726
+    strategy: stealth_trail_bbp_v1
+    symbol: "ETH/USD:USD"
+    timeframe: 4h
+    strategy_params: {}                         # default config, matches the grid
+    grid_evidence: "taker PF 1.79, +$148, n=49, cross-venue (bin/byb/del)"
+    caveat: >
+      Backtest drawdown ran high (~17% of a $500 book at grid sizing) — this
+      trial specifically tests whether live DD stays inside the 8% bar. Also a
+      byte-identical duplicate of human_trade_fingerprint_v1 (registry cleanup
+      tracked separately; human_trade is not deployed).
+
+  - trial_id: luxy_ut_bot_forecast_xrp_1h_20260726
+    strategy: luxy_ut_bot_forecast_v1
+    symbol: "XRP/USD:USD"
+    timeframe: 1h
+    strategy_params: {}
+    grid_evidence: "taker PF 1.66, +$88, n=44, cross-venue (bin/byb/del)"
+
+  - trial_id: quant_signal_pack_bnb_4h_20260726
+    strategy: quant_signal_pack_v1
+    symbol: "BNB/USD:USD"
+    timeframe: 4h
+    strategy_params: {}
+    grid_evidence: "taker PF 1.65, +$72, n=39, 2-venue (byb/del)"
+
+# Shared risk limits (enforced by the gateway; recorded here).
+starting_equity: 500
+daily_loss_limit_usd: 20
+max_leverage: 5
+
+# Shared trial protocol. Sample-rate reality: 4h fires ~2/week, 1h ~2.5-4/week,
+# so a meaningful read is WEEKS, not days.
+min_duration_days: 30
+preferred_duration_days: 60
+min_trades: 15               # per candidate, aggregate over its lane
+max_drawdown_pct: 8
+
+# PASS criteria (locked before start — all must hold, per candidate):
+#   - net PnL positive after fees / funding / slippage
+#   - profit_factor >= 1.3 (conservative vs grid; allows for live frictions)
+#   - >= min_trades over >= min_duration_days
+#   - max drawdown <= max_drawdown_pct
+#   - no risk-invariant violations; no unresolved orders; no journal failures;
+#     no unreconcilable order; live slippage ~ modeled
+# PAUSE / REJECT (per candidate):
+#   - daily-loss stop trips repeatedly
+#   - expectancy collapse (profit_factor < 1.0 after >= min_trades)
+#   - drawdown breaches max_drawdown_pct
+#   - staleness-reject storms or journal/runtime divergence
+#
+# A PASS makes that candidate ELIGIBLE for live consideration — NOT an
+# auto-promotion. Live still requires the full pre-live checklist, mainnet
+# trade-only keys, the live_ladder attestation, and explicit human sign-off.

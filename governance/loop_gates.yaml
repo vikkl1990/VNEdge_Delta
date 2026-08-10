@@ -1,0 +1,87 @@
+version: 1
+governance_id: quant_loop_governance_v1
+description: Research-loop control plane for VNEDGE AI Quant OS. These gates never
+  grant paper, shadow, or live permission.
+
+promotion:
+  policy_version: v1.2.0
+  burn_registry_required: true
+  verifier_required_before_paper: true
+  untouched_window_required: true
+  human_approval_required: true
+  sample_min_trades: 20
+  min_net_bps: 25.0
+  min_profit_factor: 1.5
+  max_retries_per_candidate: 3
+
+denylist_paths:
+  - src/vnedge/risk/
+  - src/vnedge/live/
+  - src/vnedge/execution/
+  - src/vnedge/runtime/live_trader.py
+  - src/vnedge/config/
+  - .env
+  - docker-compose.yml:live-trader
+
+review_required_paths:
+  - src/vnedge/strategies/
+  - src/vnedge/research/
+  - src/vnedge/runtime/
+  - research/paper_trials/
+  - research/judgments/
+  - governance/
+
+auto_action_allowlist:
+  - write_research_artifact
+  - append_run_log
+  - create_agent_task
+  - register_agent_artifact
+  - score_candidate
+  - mark_stale
+
+collision_lock_keys:
+  - strategy_id
+  - exchange
+  - symbol
+  - timeframe
+  - data_window
+
+loop_budgets:
+  quant_loop_governance:
+    max_runs_per_day: 96
+    max_artifact_age_minutes: 120
+    owner: operator-control-plane
+  pine_research:
+    max_runs_per_day: 24
+    max_artifact_age_minutes: 360
+    owner: pine-kb
+  scanner_tournament:
+    max_runs_per_day: 8
+    max_artifact_age_minutes: 1440
+    owner: scanner-tournament
+  scanner_backtest_uplift:
+    max_runs_per_day: 48
+    max_artifact_age_minutes: 360
+    owner: scanner-uplift
+  alpha_arena_lite:
+    max_runs_per_day: 48
+    max_artifact_age_minutes: 360
+    owner: alpha-arena
+  fee_wall_forensics:
+    max_runs_per_day: 8
+    max_artifact_age_minutes: 1440
+    owner: fee-wall
+  paper_lane_monitor:
+    max_runs_per_day: 1440
+    max_artifact_age_minutes: 15
+    owner: runtime-observer
+
+hard_blocks:
+  - id: live_order_scope
+    rule: Research agents cannot set live_orders_enabled=true.
+  - id: promotion_scope
+    rule: Research agents cannot set can_promote=true.
+  - id: risk_path_write
+    rule: Research-loop PRs touching risk/live/execution paths require explicit human review.
+  - id: burn_registry
+    rule: Any judgment must assert untouched windows before running.

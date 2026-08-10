@@ -1,0 +1,52 @@
+study_id: btc_eth_lead_lag_causal_discovery_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  leader_symbol: BTCUSD
+  follower_symbol: ETHUSD
+  start: "2025-01-01T00:00:00+00:00"
+  end: "2026-04-01T23:53:00+00:00"
+  sealed_tail_start: "2026-04-02T00:23:00+00:00"
+  source_timeframe: 1m
+  require_exact_timestamp_match: true
+  require_complete_5m_buckets: true
+  sealed_tail_access_forbidden: true
+
+design:
+  timeframes_minutes: [1, 5]
+  directions: [btc_to_eth, eth_to_btc]
+  maximum_lags: [1, 2, 3, 6]
+  rolling_window_days: 90
+  rolling_step_days: 30
+  train_fraction: 0.70
+  minimum_observations_per_window: 5000
+  include_intercept: true
+  full_period_result_role: descriptive_only
+
+statistics:
+  alpha: 0.01
+  multiple_test_correction: benjamini_hochberg_per_rolling_window
+  test: nested_ols_f_test
+  target: log_return
+  economic_check: chronological_out_of_sample_mse_and_sign_accuracy
+
+advancement:
+  minimum_valid_rolling_windows: 8
+  minimum_corrected_significant_fraction: 0.60
+  minimum_positive_oos_fraction: 0.60
+  minimum_median_oos_mse_improvement_pct: 0.01
+  minimum_median_sign_accuracy_uplift_pp: 0.0
+  minimum_directionality_ratio: 1.25
+  positive_result_authorizes: preregistration_of_a_distinct_v2_only
+  scanner_backtest_authorized: false
+  old_v1_tail_may_open: false
+
+policy:
+  causal_claim: predictive_precedence_not_structural_causation
+  parameter_search: forbidden_after_results
+  scanner_threshold_selection: forbidden
+  transaction_cost_claim: none
+  result_scope: selection_window_only

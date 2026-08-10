@@ -1,0 +1,43 @@
+# Secrets — never commit
+.env
+*.pem
+*.key
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Data & runtime state (anchored to root — src/vnedge/data is source code).
+# Exclude data CONTENTS but keep the AI strategy sandbox tracked: AI-authored
+# strategy SOURCE is validated code (not market data) and never trades — it is
+# a research candidate. Re-inclusion must step through each parent dir.
+/data/*
+!/data/strategies
+/data/strategies/*
+!/data/strategies/ai
+/logs/
+*.parquet
+*.db
+KILL
+/research/live_research/*
+!/research/live_research/README.md
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Claude Code local session settings
+.claude/settings.local.json
+
+# ML model registry artifacts
+/models/
+deploy/certs/
+research/experiments/

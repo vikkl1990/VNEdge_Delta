@@ -1,0 +1,1265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VNEDGE Pine Research Lab</title>
+  <style>
+    :root{
+      --bg:#06090d;--panel:#0b1118;--panel2:#0e151f;--line:#1f2b3a;
+      --text:#e8eef7;--muted:#8d9aaa;--blue:#4db2ff;--cyan:#2ee6d6;
+      --green:#47d18c;--amber:#f3b44e;--red:#ff5b67;--purple:#b58cff;
+      --mono:"SF Mono",ui-monospace,Menlo,Consolas,monospace;
+      --sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+      letter-spacing:0;min-height:100vh;
+    }
+    body:before{
+      content:"";position:fixed;inset:0;pointer-events:none;
+      background:
+        linear-gradient(90deg,rgba(77,178,255,.05) 1px,transparent 1px),
+        linear-gradient(0deg,rgba(77,178,255,.035) 1px,transparent 1px);
+      background-size:48px 48px;mask-image:linear-gradient(to bottom,#000,transparent 88%);
+    }
+    a{color:var(--blue);text-decoration:none}
+    .locked{display:none;margin:18vh auto 0;max-width:520px;border:1px solid var(--line);background:var(--panel);padding:22px}
+    .shell{display:none;max-width:1680px;margin:0 auto;padding:18px}
+    .topbar{
+      display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:end;
+      border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:14px;
+    }
+    .eyebrow{font:700 11px/1 var(--mono);text-transform:uppercase;color:var(--cyan);letter-spacing:.08em}
+    h1{margin:6px 0 0;font-size:28px;line-height:1.05;letter-spacing:0}
+    .sub{margin-top:7px;color:var(--muted);font-size:13px;max-width:900px}
+    .toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .chip,.btn{
+      border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--text);
+      padding:8px 10px;font:700 11px/1 var(--mono);text-transform:uppercase;
+    }
+    .btn{cursor:pointer}
+    .btn:hover{border-color:var(--blue)}
+    .grid{display:grid;grid-template-columns:360px minmax(0,1fr);gap:14px;align-items:start}
+    .panel{border:1px solid var(--line);background:linear-gradient(180deg,var(--panel),#070b10);min-width:0}
+    .panel h2{
+      margin:0;padding:12px 14px;border-bottom:1px solid var(--line);
+      font-size:13px;text-transform:uppercase;font-family:var(--mono);letter-spacing:.04em;
+    }
+    .summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px}
+    .metric{border:1px solid #182333;background:var(--panel2);padding:10px;min-height:74px}
+    .metric span{display:block;color:var(--muted);font:700 10px/1 var(--mono);text-transform:uppercase}
+    .metric b{display:block;margin-top:8px;font:900 23px/1 var(--mono)}
+    .metric i{display:block;margin-top:6px;color:var(--muted);font-style:normal;font-size:11px}
+    .policy{padding:12px;color:var(--muted);font-size:12px;line-height:1.55;border-top:1px solid var(--line)}
+    .filters{display:flex;gap:8px;flex-wrap:wrap;padding:12px;border-bottom:1px solid var(--line)}
+    input,select{
+      background:#070c12;border:1px solid var(--line);color:var(--text);padding:9px 10px;
+      font:700 12px/1 var(--mono);min-width:170px;
+    }
+    .table-wrap{overflow:auto;max-height:calc(100vh - 330px)}
+    table{width:100%;border-collapse:collapse;min-width:1280px}
+    th,td{border-bottom:1px solid #182333;padding:9px 10px;text-align:left;vertical-align:top}
+    th{position:sticky;top:0;background:#0c131d;color:var(--muted);font:700 10px/1 var(--mono);text-transform:uppercase;z-index:1}
+    td{font-size:12px;color:#d7e0ec}
+    td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+    tr.active{background:rgba(77,178,255,.08)}
+    .mini{display:block;margin-top:5px;color:var(--muted);font-size:11px;line-height:1.35}
+    .row-stack{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+    .pill{display:inline-flex;align-items:center;border:1px solid var(--line);padding:4px 7px;font:800 10px/1 var(--mono);text-transform:uppercase}
+    .good{color:var(--green);border-color:rgba(71,209,140,.45);background:rgba(71,209,140,.08)}
+    .warn{color:var(--amber);border-color:rgba(243,180,78,.45);background:rgba(243,180,78,.08)}
+    .bad{color:var(--red);border-color:rgba(255,91,103,.45);background:rgba(255,91,103,.08)}
+    .info{color:var(--blue);border-color:rgba(77,178,255,.45);background:rgba(77,178,255,.08)}
+    .neutral{color:var(--muted)}
+    .detail{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(360px,.9fr);gap:14px;margin-top:14px}
+    .detail-body{padding:14px}
+    .title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+    .script-title{font-size:19px;font-weight:900}
+    .meta{color:var(--muted);font:700 11px/1.45 var(--mono);margin-top:6px}
+    .tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+    .kv-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
+    .kv{border:1px solid #182333;background:rgba(255,255,255,.025);padding:9px}
+    .kv span{display:block;color:var(--muted);font:700 10px/1 var(--mono);text-transform:uppercase}
+    .kv b{display:block;margin-top:6px;font:900 16px/1.15 var(--mono);overflow-wrap:anywhere}
+    .notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+    .note{border:1px solid #182333;background:rgba(255,255,255,.02);padding:10px}
+    .note h3{margin:0 0 8px;font:800 11px/1 var(--mono);text-transform:uppercase;color:var(--cyan)}
+    .note ul{margin:0;padding-left:16px;color:#c6d0de;font-size:12px;line-height:1.45}
+    .matrix{padding:12px}
+    .tf-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+    .tf{border:1px solid #182333;background:#090f16;padding:10px;min-height:92px}
+    .tf b{display:block;font:900 18px/1 var(--mono)}
+    .tf span{display:block;margin-top:6px;color:var(--muted);font-size:11px;line-height:1.35}
+    .answer{margin-top:12px;border-left:3px solid var(--blue);padding:10px 12px;background:rgba(77,178,255,.06);color:#c9d6e6;font-size:12px;line-height:1.45}
+    .distiller{margin-top:14px}
+    .task-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px}
+    .task{border:1px solid #182333;background:rgba(255,255,255,.025);padding:11px;min-width:0}
+    .task b{display:block;font:900 14px/1.2 var(--mono);overflow-wrap:anywhere}
+    .task span{display:block;margin-top:7px;color:var(--muted);font-size:11px;line-height:1.35}
+    .task .score{margin-top:9px;font:900 20px/1 var(--mono);color:var(--cyan)}
+    .evidence{margin-top:14px}
+    .coverage-panel{margin-top:14px}
+    .progress-panel{margin-top:14px}
+    .progress-track{height:9px;margin:0 12px 12px;border:1px solid #18334a;background:#070c12}
+    .progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--cyan));transition:width .2s ease}
+    .footer{margin-top:14px;color:var(--muted);font-size:11px;text-align:center}
+    @media(max-width:1100px){
+      .grid,.detail{grid-template-columns:1fr}
+      .table-wrap{max-height:none}
+    }
+    @media(max-width:720px){
+      .topbar{grid-template-columns:1fr}
+      .toolbar{justify-content:flex-start}
+      .summary,.kv-grid,.notes,.tf-grid{grid-template-columns:1fr}
+      .task-list{grid-template-columns:1fr}
+      .shell{padding:12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="locked" id="locked">
+    <div class="eyebrow">Access locked</div>
+    <h1>Pine Research Lab</h1>
+    <p class="sub">Open from the VNEDGE dashboard or append a dashboard token. This page is read-only and cannot trade.</p>
+  </div>
+
+  <main class="shell" id="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">VNEDGE AI Quant OS</div>
+        <h1>Pine Research Lab</h1>
+        <div class="sub">Open-source TradingView script review, crypto portability triage, multi-timeframe replay status, and AI uplift memory. Research-only: no script can trade or promote from this page.</div>
+      </div>
+      <div class="toolbar">
+        <a class="btn" id="backLink" href="/">Operator Cockpit</a>
+        <button class="btn" id="refreshBtn" type="button">Refresh</button>
+        <span class="chip" id="statusChip">loading</span>
+      </div>
+    </header>
+
+    <section class="grid">
+      <aside class="panel">
+        <h2>Research Queue</h2>
+        <div class="summary">
+          <div class="metric"><span>Total scripts</span><b id="m_total">--</b><i>known records</i></div>
+          <div class="metric"><span>Source-backed</span><b id="m_source_backed">--</b><i>portable now</i></div>
+          <div class="metric"><span>Catalog-only</span><b id="m_catalog_only">--</b><i>needs source</i></div>
+          <div class="metric"><span>Portable</span><b id="m_portable">--</b><i>needs proof</i></div>
+          <div class="metric"><span>Needs source</span><b id="m_source">--</b><i>metadata only</i></div>
+          <div class="metric"><span>Port queue</span><b id="m_port_queue">--</b><i>source-backed</i></div>
+          <div class="metric"><span>Catalog matches</span><b id="m_matches">--</b><i>reconciled</i></div>
+          <div class="metric"><span>Queued TFs</span><b id="m_queue">--</b><i>backtest cells</i></div>
+          <div class="metric"><span>Opened pages</span><b id="m_extract_attempted">--</b><i>manifested</i></div>
+          <div class="metric"><span>Extracted source</span><b id="m_extract_extracted">--</b><i>open-source only</i></div>
+          <div class="metric"><span>Blocked/errors</span><b id="m_extract_blocked">--</b><i>needs operator</i></div>
+          <div class="metric"><span>Last extract</span><b id="m_extract_latest">--</b><i>UTC</i></div>
+        </div>
+        <div class="policy" id="policyText">Loading policy...</div>
+        <div class="policy">
+          <b>Why rows show no source:</b> TradingView catalog pages are discovery
+          metadata. They usually expose title, URL, author/card tags, and sometimes
+          descriptions, but not executable Pine. VNEDGE only ports/backtests a
+          script after a source-backed artifact exists in
+          <span style="font-family:var(--mono)">research/pine_scripts/sources</span>.
+        </div>
+      </aside>
+
+      <section class="panel">
+        <h2>Script Inventory</h2>
+        <div class="filters">
+          <input id="searchBox" placeholder="filter script, tag, decision">
+          <select id="verdictFilter">
+            <option value="">All verdicts</option>
+            <option value="PORTABLE">Portable</option>
+            <option value="PORTABLE_WITH_CHANGES">Portable with changes</option>
+            <option value="RESEARCH_ONLY">Research only</option>
+            <option value="BLOCKED_NO_SOURCE">No source</option>
+            <option value="BLOCKED_REPAINT_RISK">Repaint risk</option>
+          </select>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Script</th><th>Mechanism</th><th>AI review</th><th>Backtests</th><th>Priority</th><th>Verdict</th><th>Source evidence</th><th>Next action</th>
+            </tr></thead>
+            <tbody id="scriptRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="panel coverage-panel">
+      <h2>Pine Coverage Auditor</h2>
+      <div class="summary">
+        <div class="metric"><span>Discovered</span><b id="cov_discovered">--</b><i>catalog universe</i></div>
+        <div class="metric"><span>Visible rows</span><b id="cov_visible">--</b><i>active KB</i></div>
+        <div class="metric"><span>Unloaded backlog</span><b id="cov_unloaded">--</b><i>catalog not in KB</i></div>
+        <div class="metric"><span>Source-backed</span><b id="cov_source">--</b><i>hash-backed</i></div>
+        <div class="metric"><span>Retry errors</span><b id="cov_retry">--</b><i>browser chunks</i></div>
+        <div class="metric"><span>Source-tab misses</span><b id="cov_source_tab">--</b><i>opened, not captured</i></div>
+        <div class="metric"><span>Port-ready</span><b id="cov_port">--</b><i>causal work queue</i></div>
+        <div class="metric"><span>Quarantine</span><b id="cov_quarantine">--</b><i>repaint/HTF</i></div>
+      </div>
+      <div class="task-list" id="coverageGaps"></div>
+      <div class="policy" id="coverageAnswer">Loading Pine coverage audit.</div>
+    </section>
+
+    <section class="panel distiller">
+      <h2>Source-Backed Alpha Distiller</h2>
+      <div class="summary">
+        <div class="metric"><span>Reviewed source</span><b id="pd_reviewed">--</b><i>hash-backed scripts</i></div>
+        <div class="metric"><span>Port candidates</span><b id="pd_candidates">--</b><i>causal task queue</i></div>
+        <div class="metric"><span>Quarantine</span><b id="pd_quarantine">--</b><i>repaint/HTF review</i></div>
+        <div class="metric"><span>Queued cells</span><b id="pd_cells">--</b><i>venue x TF proof</i></div>
+      </div>
+      <div class="task-list" id="intentionClusters"></div>
+      <div class="task-list" id="distillerTasks"></div>
+      <div class="policy" id="distillerAnswer">Loading source-backed primitive queue from /pine-research/distiller.</div>
+    </section>
+
+    <section class="panel distiller">
+      <h2>Local TradingView Rule Adapter</h2>
+      <div class="summary">
+        <div class="metric"><span>Status</span><b id="tvra_status">--</b><i>local compiler</i></div>
+        <div class="metric"><span>Assignments</span><b id="tvra_assignments">--</b><i>typed rule nodes</i></div>
+        <div class="metric"><span>Indicators</span><b id="tvra_indicators">--</b><i>computed on Delta data</i></div>
+        <div class="metric"><span>Signals</span><b id="tvra_signals">--</b><i>local replay only</i></div>
+        <div class="metric"><span>Blockers</span><b id="tvra_blockers">--</b><i>fail-closed</i></div>
+        <div class="metric"><span>TV network calls</span><b id="tvra_network">--</b><i>must remain zero</i></div>
+      </div>
+      <div class="task-list" id="tvRuleDetails"></div>
+      <div class="policy" id="tvRuleAnswer">Loading local RuleSpec adapter status from /pine-research/rule-spec.</div>
+    </section>
+
+    <section class="panel evidence">
+      <h2>Backtest Evidence</h2>
+      <div class="summary">
+        <div class="metric"><span>Total cells</span><b id="bt_total">--</b><i>all script x TF rows</i></div>
+        <div class="metric"><span>Completed</span><b id="bt_completed">--</b><i>passed + failed cells</i></div>
+        <div class="metric"><span>Queued</span><b id="bt_queued">--</b><i>needs causal port</i></div>
+        <div class="metric"><span>Blocked</span><b id="bt_blocked">--</b><i>source/repaint/data</i></div>
+        <div class="metric"><span>Best positive bps</span><b id="bt_best_bps">--</b><i>cost-positive cells only</i></div>
+        <div class="metric"><span>Best positive PF</span><b id="bt_best_pf">--</b><i>paired with positive bps</i></div>
+      </div>
+      <div class="policy" id="btEvidenceAnswer">Loading backtest evidence.</div>
+    </section>
+
+    <section class="panel evidence">
+      <h2>Unified Evidence Index</h2>
+      <div class="summary">
+        <div class="metric"><span>Records</span><b id="ei_records">--</b><i>normalized rows</i></div>
+        <div class="metric"><span>Completed</span><b id="ei_completed">--</b><i>rows with net bps</i></div>
+        <div class="metric"><span>Judgment queue</span><b id="ei_strict">--</b><i>canonical strict candidates</i></div>
+        <div class="metric"><span>Sparse positives</span><b id="ei_sparse">--</b><i>sample expansion queue</i></div>
+        <div class="metric"><span>Best bps</span><b id="ei_best_bps">--</b><i>all research artifacts</i></div>
+        <div class="metric"><span>Best PF</span><b id="ei_best_pf">--</b><i>paired with best bps</i></div>
+      </div>
+      <div class="task-list" id="evidenceIndexRows"></div>
+      <div class="policy" id="evidenceIndexAnswer">Loading unified evidence index.</div>
+    </section>
+
+    <section class="panel evidence">
+      <h2>Execution Replay Profile</h2>
+      <div class="summary">
+        <div class="metric"><span>Records</span><b id="ep_records">--</b><i>profiled evidence</i></div>
+        <div class="metric"><span>Strict economics</span><b id="ep_strict">--</b><i>25bps / PF1.5 / 20</i></div>
+        <div class="metric"><span>Execution ready</span><b id="ep_ready">--</b><i>L3/L4 proof</i></div>
+        <div class="metric"><span>Paper blocked</span><b id="ep_blocked">--</b><i>needs fill proof</i></div>
+        <div class="metric"><span>L3/L4 rows</span><b id="ep_l3l4">--</b><i>tick/L2 evidence</i></div>
+        <div class="metric"><span>Settlement blocks</span><b id="ep_settlement">--</b><i>PM logic unsafe</i></div>
+      </div>
+      <div class="task-list" id="executionProfileRows"></div>
+      <div class="policy" id="executionProfileAnswer">Loading execution replay profile.</div>
+    </section>
+
+    <section class="panel progress-panel">
+      <h2>Backtest Progress</h2>
+      <div class="summary">
+        <div class="metric"><span>Status</span><b id="bp_status">--</b><i id="bp_phase">phase --</i></div>
+        <div class="metric"><span>Progress</span><b id="bp_pct">--</b><i id="bp_work">0 / 0 units</i></div>
+        <div class="metric"><span>Current lane</span><b id="bp_current">--</b><i id="bp_strategy">strategy --</i></div>
+        <div class="metric"><span>Heartbeat</span><b id="bp_heartbeat">--</b><i id="bp_started">started --</i></div>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="bp_bar"></div></div>
+      <div class="policy" id="btProgressAnswer">Loading scanner tournament progress.</div>
+    </section>
+
+    <section class="panel distiller">
+      <h2>Agentic Edge Uplift</h2>
+      <div class="summary">
+        <div class="metric"><span>Promotable proofs</span><b id="eu_proofs">--</b><i>needs untouched judgment</i></div>
+        <div class="metric"><span>Sparse positives</span><b id="eu_sparse">--</b><i>expand replay</i></div>
+        <div class="metric"><span>Near misses</span><b id="eu_near">--</b><i>execution/context salvage</i></div>
+        <div class="metric"><span>Experiments</span><b id="eu_experiments">--</b><i>research-only queue</i></div>
+      </div>
+      <div class="task-list" id="upliftTasks"></div>
+      <div class="policy" id="upliftAnswer">Loading edge uplift agent.</div>
+    </section>
+
+    <section class="panel distiller">
+      <h2>Scanner Backtest Uplift</h2>
+      <div class="summary">
+        <div class="metric"><span>Evidence rows</span><b id="su_rows">--</b><i>matrix + tournament</i></div>
+        <div class="metric"><span>Fee-wall near</span><b id="su_near">--</b><i>execution salvage</i></div>
+        <div class="metric"><span>Visual only</span><b id="su_visual">--</b><i>positive before costs</i></div>
+        <div class="metric"><span>Experiments</span><b id="su_experiments">--</b><i>next replay queue</i></div>
+      </div>
+      <div class="task-list" id="scannerUpliftTasks"></div>
+      <div class="policy" id="scannerUpliftAnswer">Loading scanner backtest uplift.</div>
+    </section>
+
+    <section class="panel distiller">
+      <h2>Alpha Arena Lite</h2>
+      <div class="summary">
+        <div class="metric"><span>Candidates</span><b id="aal_candidates">--</b><i>arena scorecards</i></div>
+        <div class="metric"><span>Task refs</span><b id="aal_tasks">--</b><i>Quant OS durable</i></div>
+        <div class="metric"><span>Sample valid</span><b id="aal_sample">--</b><i>min trade gate</i></div>
+        <div class="metric"><span>Judgment ready</span><b id="aal_judgment">--</b><i>still human gated</i></div>
+      </div>
+      <div class="task-list" id="alphaArenaTasks"></div>
+      <div class="policy" id="alphaArenaAnswer">Loading Alpha Arena Lite.</div>
+    </section>
+
+    <section class="panel distiller">
+      <h2>Quant Loop Governance</h2>
+      <div class="summary">
+        <div class="metric"><span>Readiness</span><b id="ql_score">--</b><i id="ql_level">loop level --</i></div>
+        <div class="metric"><span>Healthy loops</span><b id="ql_ok">--</b><i id="ql_wait">waiting --</i></div>
+        <div class="metric"><span>Collisions</span><b id="ql_collisions">--</b><i>candidate lock conflicts</i></div>
+        <div class="metric"><span>Budget alerts</span><b id="ql_budgets">--</b><i>run-loop pressure</i></div>
+      </div>
+      <div class="task-list" id="quantLoopTasks"></div>
+      <div class="policy" id="quantLoopAnswer">Loading Quant Loop Governance.</div>
+    </section>
+
+    <section class="panel distiller">
+      <h2>Edge Uplift Executor</h2>
+      <div class="summary">
+        <div class="metric"><span>Tasks</span><b id="ux_tasks">--</b><i>agent output queued</i></div>
+        <div class="metric"><span>Replay ready</span><b id="ux_replay">--</b><i>execute proof replay</i></div>
+        <div class="metric"><span>Judgment ready</span><b id="ux_judgment">--</b><i>freeze and approve</i></div>
+        <div class="metric"><span>Feature bank</span><b id="ux_bank">--</b><i>train edge router</i></div>
+      </div>
+      <div class="task-list" id="executorTasks"></div>
+      <div class="policy" id="executorAnswer">Loading edge uplift executor.</div>
+    </section>
+
+    <section class="detail">
+      <div class="panel">
+        <h2>AI Review</h2>
+        <div class="detail-body">
+          <div class="title-row">
+            <div>
+              <div class="script-title" id="d_title">Select a script</div>
+              <div class="meta" id="d_meta">--</div>
+            </div>
+            <span class="pill neutral" id="d_verdict">--</span>
+          </div>
+          <div class="tag-row" id="d_tags"></div>
+          <div class="kv-grid">
+            <div class="kv"><span>Crypto fit</span><b id="d_fit">--</b></div>
+            <div class="kv"><span>Kind</span><b id="d_kind">--</b></div>
+            <div class="kv"><span>Source lines</span><b id="d_lines">--</b></div>
+            <div class="kv"><span>Mechanism</span><b id="d_mechanism">--</b></div>
+            <div class="kv"><span>Priority</span><b id="d_priority">--</b></div>
+            <div class="kv"><span>Source state</span><b id="d_source_state">--</b></div>
+            <div class="kv"><span>Next action</span><b id="d_action">--</b></div>
+            <div class="kv"><span>Promotion</span><b id="d_promo">NO</b></div>
+          </div>
+          <div class="answer" id="sourceAnswer">Select a script to inspect source provenance.</div>
+          <div class="answer" id="d_intention">Select a source-backed script to inspect its distilled trading intention.</div>
+          <div class="notes">
+            <div class="note"><h3>Context / Setup</h3><ul id="d_context_setup"></ul></div>
+            <div class="note"><h3>Trigger / Route</h3><ul id="d_trigger_route"></ul></div>
+            <div class="note"><h3>Exit / Proof</h3><ul id="d_exit_proof"></ul></div>
+          </div>
+          <div class="notes">
+            <div class="note"><h3>Portable Atoms</h3><ul id="d_portable_atoms"></ul></div>
+            <div class="note"><h3>Non-Portable</h3><ul id="d_non_portable"></ul></div>
+            <div class="note"><h3>Agent Questions</h3><ul id="d_agent_questions"></ul></div>
+          </div>
+          <div class="notes">
+            <div class="note"><h3>Features</h3><ul id="d_features"></ul></div>
+            <div class="note"><h3>Risks</h3><ul id="d_risks"></ul></div>
+            <div class="note"><h3>AI Uplift</h3><ul id="d_uplift"></ul></div>
+          </div>
+          <div class="answer" id="operatorAnswer">Loading research policy...</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Backtest Matrix</h2>
+        <div class="matrix">
+          <div class="tf-grid" id="tfGrid"></div>
+          <div class="answer" id="selectedBacktestAnswer">Select a script to inspect replay status.</div>
+        </div>
+      </div>
+    </section>
+    <div class="footer" id="footer">read-only research build</div>
+  </main>
+
+<script>
+(function(){
+  const TOKEN_KEY="vnedge.dashboard.token";
+  const params=new URLSearchParams(location.search);
+  let token=params.get("token")||"";
+  if(token){
+    try{sessionStorage.setItem(TOKEN_KEY,token);}catch(_err){}
+    params.delete("token");
+    history.replaceState(null,"",location.pathname+(params.toString()?"?"+params:""));
+  }else{
+    try{token=sessionStorage.getItem(TOKEN_KEY)||"";}catch(_err){token="";}
+  }
+  const $=id=>document.getElementById(id);
+  const state={records:[],selected:null,intentionsByScript:{}};
+  if(!token){$("locked").style.display="block";return;}
+  $("shell").style.display="block";
+  $("backLink").href="/?token="+encodeURIComponent(token);
+
+  function cls(verdict){
+    if(verdict==="PORTABLE"||verdict==="PORTABLE_WITH_CHANGES")return "good";
+    if(verdict==="RESEARCH_ONLY")return "warn";
+    if(verdict==="BLOCKED_REPAINT_RISK")return "bad";
+    if(verdict==="BLOCKED_NO_SOURCE")return "bad";
+    return "info";
+  }
+  function text(id,v){const e=$(id);if(e)e.textContent=v==null||v===""?"--":String(v);}
+  function list(id,items){
+    const el=$(id); if(!el)return; el.innerHTML="";
+    (Array.isArray(items)?items:[]).forEach(item=>{
+      const li=document.createElement("li"); li.textContent=String(item); el.appendChild(li);
+    });
+    if(!el.children.length){const li=document.createElement("li"); li.textContent="none recorded"; el.appendChild(li);}
+  }
+  function pill(label,tone){
+    const span=document.createElement("span");
+    span.className="pill "+tone; span.textContent=label; return span;
+  }
+  function small(label){
+    const span=document.createElement("span");
+    span.className="mini"; span.textContent=label; return span;
+  }
+  function summarizeCells(cells){
+    const counts={total:0,queued:0,running:0,passed:0,failed:0,blocked:0,not_applicable:0,completed:0,positiveCompleted:0};
+    let bestBps=null,bestPf=null,bestCompletedBps=null,bestCompletedPf=null;
+    (cells||[]).forEach(cell=>{
+      const status=String(cell.status||"queued").toLowerCase();
+      counts.total+=1;
+      counts[status]=(counts[status]||0)+1;
+      const completed=(status==="passed"||status==="failed");
+      const bps=finiteNumber(cell.avg_net_bps);
+      const pf=finiteNumber(cell.profit_factor);
+      if(completed){
+        counts.completed+=1;
+        if(betterCellScore(bps,pf,bestCompletedBps,bestCompletedPf)){
+          bestCompletedBps=bps;
+          bestCompletedPf=pf;
+        }
+        if(bps!=null&&bps>0){
+          counts.positiveCompleted+=1;
+          if(betterCellScore(bps,pf,bestBps,bestPf)){
+            bestBps=bps;
+            bestPf=pf;
+          }
+        }
+      }
+    });
+    counts.bestBps=bestBps;
+    counts.bestPf=bestPf;
+    counts.bestCompletedBps=bestCompletedBps;
+    counts.bestCompletedPf=bestCompletedPf;
+    return counts;
+  }
+  function finiteNumber(value){
+    if(value==null)return null;
+    const n=Number(value);
+    return Number.isFinite(n)?n:null;
+  }
+  function betterCellScore(nextBps,nextPf,currentBps,currentPf){
+    if(nextBps==null)return false;
+    if(currentBps==null)return true;
+    if(nextBps!==currentBps)return nextBps>currentBps;
+    if(nextPf==null)return false;
+    if(currentPf==null)return true;
+    return nextPf>currentPf;
+  }
+  function publisherEvidenceCounts(payload, fallback){
+    const evidence=(payload&&payload.backtest_evidence)||{};
+    const statusCounts=evidence.status_counts||{};
+    const completedRaw=Number(evidence.completed_cells);
+    const positiveRaw=Number(evidence.positive_completed_cells);
+    const failed=Number(statusCounts.failed??fallback.failed);
+    const passed=Number(statusCounts.passed??fallback.passed);
+    const derivedCompleted=Number.isFinite(failed)&&Number.isFinite(passed)?failed+passed:null;
+    const completed=Number.isFinite(completedRaw)&&completedRaw>0
+      ? completedRaw
+      : (derivedCompleted??fallback.completed);
+    const hasPublisher=Number.isFinite(completedRaw)||Object.keys(statusCounts).length>0;
+    if(!hasPublisher)return fallback;
+    return {
+      ...fallback,
+      completed:Number.isFinite(completed)?completed:fallback.completed,
+      queued:Number(statusCounts.queued??fallback.queued),
+      blocked:Number(statusCounts.blocked??fallback.blocked),
+      failed,
+      passed,
+      not_applicable:Number(statusCounts.not_applicable??fallback.not_applicable),
+      positiveCompleted:Number.isFinite(positiveRaw)?positiveRaw:fallback.positiveCompleted,
+      bestBps:finiteNumber(evidence.best_positive_avg_net_bps)??fallback.bestBps,
+      bestPf:finiteNumber(evidence.best_positive_profit_factor)??fallback.bestPf,
+      bestCompletedBps:finiteNumber(evidence.best_completed_avg_net_bps)??fallback.bestCompletedBps,
+      bestCompletedPf:finiteNumber(evidence.best_completed_profit_factor)??fallback.bestCompletedPf,
+      headlineVerdict:evidence.headline_verdict||"",
+    };
+  }
+  function backtestTone(counts){
+    if(counts.passed>0)return "good";
+    if(counts.failed>0)return "bad";
+    if(counts.blocked>0)return "warn";
+    if(counts.queued>0)return "info";
+    return "neutral";
+  }
+  function backtestLine(counts){
+    const parts=[];
+    if(counts.passed)parts.push("passed "+counts.passed);
+    if(counts.failed)parts.push("failed "+counts.failed);
+    if(counts.queued)parts.push("queued "+counts.queued);
+    if(counts.blocked)parts.push("blocked "+counts.blocked);
+    if(!parts.length)return "no replay cells";
+    return parts.join(" | ");
+  }
+  function hasCompletedEvidence(r){
+    return summarizeCells(r&&r.backtests||[]).completed>0;
+  }
+  function distillationFor(r){
+    if(!r)return null;
+    return state.intentionsByScript[String(r.script_id||"")]||null;
+  }
+  function intentionFor(r){
+    const d=distillationFor(r);
+    return d&&d.intention?d.intention:null;
+  }
+  function aiReviewSummary(r){
+    const intent=intentionFor(r);
+    if(intent){
+      return "intent: "+String(intent.intent_family||"--").replaceAll("_"," ")
+        +" | thesis: "+(intent.trading_thesis||"--")
+        +" | bot: "+(intent.bot_use||"--");
+    }
+    const bits=[];
+    const features=(r.features||[]).slice(0,3).join(", ");
+    const risks=(r.risks||[]).slice(0,2).join(", ");
+    const uplift=(r.ai_uplift_ideas||[])[0]||"no uplift recorded";
+    if(features)bits.push("features: "+features);
+    if(risks)bits.push("risks: "+risks);
+    bits.push("uplift: "+uplift);
+    return bits.join(" | ");
+  }
+  function sourceLabel(r){
+    if(r.source_available){
+      return r.source_status==="SOURCE_BACKED_CATALOG_MATCH"?"source + catalog":"source";
+    }
+    if(String(r.url||"").includes("/script/"))return "catalog only";
+    return "no source";
+  }
+  function sourceTone(r){
+    if(r.source_available)return "good";
+    if(String(r.url||"").includes("/script/"))return "warn";
+    return "bad";
+  }
+  function ageSeconds(iso){
+    if(!iso)return null;
+    const ms=Date.now()-Date.parse(iso);
+    return Number.isFinite(ms)?Math.max(0,Math.round(ms/1000)):null;
+  }
+  function ageLabel(seconds){
+    if(seconds==null)return "--";
+    if(seconds<60)return seconds+"s ago";
+    if(seconds<3600)return Math.floor(seconds/60)+"m ago";
+    return Math.floor(seconds/3600)+"h "+Math.floor((seconds%3600)/60)+"m ago";
+  }
+  function shortIso(iso){
+    return iso?String(iso).slice(0,19).replace("T"," "):"--";
+  }
+  function targetLabel(target){
+    if(!target)return "--";
+    return [target.exchange,target.symbol,target.timeframe].filter(Boolean).join(" ");
+  }
+  function renderBacktestProgress(payload){
+    payload=payload||{};
+    const total=Number(payload.total_work_units||0);
+    const completed=Number(payload.completed_work_units||0);
+    const pct=Number.isFinite(Number(payload.progress_pct))
+      ? Number(payload.progress_pct)
+      : (total?completed/total*100:0);
+    const boundedPct=Math.max(0,Math.min(100,pct));
+    const age=ageSeconds(payload.heartbeat_at);
+    const status=String(payload.status||"idle").toUpperCase();
+    const staleAfter=Number(payload.stale_after_seconds||300);
+    const stale=status==="RUNNING"&&age!=null&&age>staleAfter;
+    text("bp_status",stale?"STALE":status);
+    text("bp_phase",payload.phase?"phase "+payload.phase:"phase --");
+    text("bp_pct",boundedPct.toFixed(1)+"%");
+    text("bp_work",completed+" / "+total+" units");
+    text("bp_current",targetLabel(payload.current_target));
+    text("bp_strategy",payload.current_strategy||"strategy --");
+    text("bp_heartbeat",ageLabel(age));
+    text("bp_started","started "+shortIso(payload.started_at));
+    const bar=$("bp_bar");
+    if(bar)bar.style.width=boundedPct.toFixed(1)+"%";
+    let answer="";
+    if(payload.last_error){
+      answer="Backtest worker reported an error: "+payload.last_error+". Results are not complete until the progress status returns to COMPLETED and evidence is republished.";
+    }else if(stale){
+      answer="Scanner tournament progress heartbeat is stale after "+Math.round(staleAfter)+"s. The worker may be stalled or the dashboard may be reading an old artifact; check the scanner-tournament container before trusting queued cells.";
+    }else if(status==="RUNNING"){
+      answer="Scanner tournament is actively replaying strategy/venue/timeframe work units. Current rows and routes are research-only labels; no paper/live promotion can happen from this progress stream.";
+    }else if(status==="COMPLETED"){
+      answer="Latest scanner tournament completed and wrote its final report. Backtest Evidence updates when the Pine evidence publisher reconciles the completed report.";
+    }else if(status==="FAILED"){
+      answer="Latest scanner tournament failed. Treat all queued cells as pending until the worker completes a clean run.";
+    }else{
+      answer="No live scanner tournament progress artifact is published yet.";
+    }
+    if(payload.current_rows!=null||payload.current_routes!=null){
+      answer+=" Last unit rows="+(payload.current_rows??"--")+", routes="+(payload.current_routes??"--")+".";
+    }
+    text("btProgressAnswer",answer);
+  }
+  function renderRows(){
+    const q=($("searchBox").value||"").toLowerCase();
+    const verdict=$("verdictFilter").value||"";
+    const body=$("scriptRows"); body.innerHTML="";
+    const rows=state.records.filter(r=>{
+      if(verdict && r.crypto_portability!==verdict)return false;
+      if(!q)return true;
+      return [r.title,r.script_id,r.decision,(r.tags||[]).join(" ")].join(" ").toLowerCase().includes(q);
+    });
+    rows.forEach((r,idx)=>{
+      const tr=document.createElement("tr");
+      if(state.selected&&state.selected.script_id===r.script_id)tr.className="active";
+      const cellSummary=summarizeCells(r.backtests||[]);
+      tr.innerHTML="<td><b></b><div class='meta'></div></td><td></td><td></td><td></td><td class='num'></td><td></td><td></td><td></td>";
+      tr.querySelector("b").textContent=r.title||r.script_id;
+      tr.querySelector(".meta").textContent=r.url||"--";
+      tr.children[1].appendChild(pill(r.mechanism||"general","info"));
+      const tags=document.createElement("div"); tags.className="row-stack";
+      (r.tags||[]).slice(0,4).forEach(t=>tags.appendChild(pill(t,"info")));
+      tr.children[1].appendChild(tags);
+      tr.children[2].appendChild(small(aiReviewSummary(r)));
+      tr.children[3].appendChild(pill(backtestLine(cellSummary),backtestTone(cellSummary)));
+      tr.children[3].appendChild(small(
+        cellSummary.completed
+          ? (
+              cellSummary.bestBps==null
+                ? "no positive completed cell | best completed avg "+(cellSummary.bestCompletedBps==null?"--":cellSummary.bestCompletedBps.toFixed(2)+" bps")
+                : "best positive avg "+cellSummary.bestBps.toFixed(2)+" bps | PF "+(cellSummary.bestPf==null?"--":cellSummary.bestPf.toFixed(2))
+            )
+          : "no completed VNEDGE replay yet"
+      ));
+      tr.children[4].textContent=(r.priority_score==null?"--":String(r.priority_score));
+      tr.children[5].appendChild(pill(r.crypto_portability||"--",cls(r.crypto_portability)));
+      tr.children[6].appendChild(pill(sourceLabel(r),sourceTone(r)));
+      tr.children[7].textContent=r.next_action||r.decision||"--";
+      tr.addEventListener("click",()=>{state.selected=r;renderRows();renderDetail();});
+      body.appendChild(tr);
+      if(idx===0&&!state.selected){state.selected=r;}
+    });
+    renderDetail();
+  }
+  function renderDetail(){
+    const r=state.selected || state.records[0];
+    if(!r)return;
+    text("d_title",r.title||r.script_id);
+    text("d_meta",(r.author||"unknown")+" | "+(r.url||"no url")+" | reviewed "+(r.reviewed_at||"--"));
+    const verdict=$("d_verdict"); verdict.textContent=r.crypto_portability||"--"; verdict.className="pill "+cls(r.crypto_portability);
+    const tags=$("d_tags"); tags.innerHTML="";
+    (r.tags||[]).forEach(t=>tags.appendChild(pill(t,"info")));
+    text("d_fit",(r.crypto_fit_score==null?"--":r.crypto_fit_score+"/100"));
+    text("d_kind",r.kind||"--");
+    text("d_lines",r.source_lines||0);
+    text("d_mechanism",r.mechanism||"--");
+    text("d_priority",(r.priority_score==null?"--":r.priority_score+"/100"));
+    text("d_source_state",r.source_status||sourceLabel(r));
+    text("d_action",r.next_action||"--");
+    text("d_promo",r.can_promote?"YES":"NO");
+    const extraction=r.source_extraction||{};
+    const extractionText=extraction.extracted_at
+      ? " Extracted: "+extraction.extracted_at+" | hash "+String(extraction.source_sha256||"").slice(0,12)+"."
+      : "";
+    text("sourceAnswer",(r.source_explanation||"Source provenance is not published.")+extractionText+" Next: "+(r.source_next_step||r.next_action||"--"));
+    const intent=intentionFor(r);
+    if(intent){
+      text(
+        "d_intention",
+        String(intent.intent_family||"--").replaceAll("_"," ").toUpperCase()
+          + " | " + (intent.trading_thesis||"--")
+          + " Bot use: " + (intent.bot_use||"--")
+      );
+      list("d_context_setup",["Context: "+(intent.context||"--"),"Setup: "+(intent.setup||"--")]);
+      list("d_trigger_route",["Trigger: "+(intent.trigger||"--"),"Execution: "+(intent.execution_bias||"--")]);
+      list("d_exit_proof",["Exit: "+(intent.exit_plan||"--"),"Replay: "+(intent.backtest_recipe||"--")]);
+      list("d_portable_atoms",intent.portable_atoms||[]);
+      list("d_non_portable",intent.non_portable_atoms||[]);
+      list("d_agent_questions",intent.uplift_questions||[]);
+    }else{
+      text("d_intention","No source-backed intention is published for this row yet.");
+      list("d_context_setup",[]);
+      list("d_trigger_route",[]);
+      list("d_exit_proof",[]);
+      list("d_portable_atoms",[]);
+      list("d_non_portable",[]);
+      list("d_agent_questions",[]);
+    }
+    list("d_features",r.features||[]);
+    list("d_risks",r.risks||[]);
+    list("d_uplift",r.ai_uplift_ideas||[]);
+    const tf=$("tfGrid"); tf.innerHTML="";
+    const counts=summarizeCells(r.backtests||[]);
+    (r.backtests||[]).forEach(cell=>{
+      const div=document.createElement("div");
+      const tone=cell.status==="passed"?"good":cell.status==="failed"?"bad":cell.status==="blocked"?"warn":"info";
+      div.className="tf";
+      div.innerHTML="<b></b><span></span><span></span><span></span>";
+      div.querySelector("b").textContent=cell.timeframe||"--";
+      div.children[1].appendChild(pill(cell.status||"queued",tone));
+      div.children[2].textContent="samples "+(cell.samples||0)+" | avg "+(cell.avg_net_bps==null?"--":Number(cell.avg_net_bps).toFixed(2)+" bps")+" | PF "+(cell.profit_factor==null?"--":Number(cell.profit_factor).toFixed(2));
+      const evidenceBits=[];
+      if(cell.evidence_source)evidenceBits.push(cell.evidence_source);
+      if(cell.tested_strategy)evidenceBits.push(cell.tested_strategy);
+      if(cell.tested_symbol)evidenceBits.push(cell.tested_symbol);
+      evidenceBits.push(cell.blocker||"awaiting replay");
+      div.children[3].textContent=evidenceBits.join(" | ");
+      tf.appendChild(div);
+    });
+    if(!tf.children.length)tf.textContent="No timeframe cells published.";
+    text(
+      "selectedBacktestAnswer",
+      counts.completed
+        ? "Completed replay cells exist for this script. Treat them as research evidence only until a VNEDGE causal port and untouched judgment pass."
+        : "No completed VNEDGE backtest result exists for this script yet. The visible cells are queued/blocked intake status, not proof of edge."
+    );
+  }
+  function renderBacktestEvidence(payload){
+    const cells=[];
+    state.records.forEach(r=>(r.backtests||[]).forEach(cell=>cells.push(cell)));
+    const rowCounts=summarizeCells(cells);
+    const counts=publisherEvidenceCounts(payload,rowCounts);
+    text("bt_total",counts.total);
+    text("bt_completed",counts.completed);
+    text("bt_queued",counts.queued);
+    text("bt_blocked",counts.blocked);
+    text("bt_best_bps",counts.bestBps==null?"--":counts.bestBps.toFixed(2));
+    text("bt_best_pf",counts.bestPf==null?"--":counts.bestPf.toFixed(2));
+    let answer="";
+    if(!counts.total){
+      answer="No backtest cells are published in the KB yet.";
+    }else if(!counts.completed){
+      answer="No completed VNEDGE replay/backtest results are published yet. Current cells are queued or blocked because the Pine ideas still need source review, causal Python ports, and cost-aware replay.";
+    }else if(!counts.positiveCompleted){
+      answer="Completed VNEDGE cells exist, but none are positive after costs. Best PF is hidden here unless its cell also has positive net bps; failed cells remain useful evidence for rejection and refactor mining.";
+    }else{
+      answer="At least one completed cell is positive after costs, but it remains research-only and cannot promote without causal port, fee-aware replay, and untouched-window judgment.";
+    }
+    text("btEvidenceAnswer",answer);
+  }
+  function renderEvidenceIndex(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    text("ei_records",s.total_records);
+    text("ei_completed",s.completed_records);
+    text("ei_strict",s.untouched_judgment_queue??s.canonical_strict_candidates??s.strict_fee_wall_breakers);
+    text("ei_sparse",s.sparse_positives);
+    text("ei_best_bps",s.best_avg_net_bps==null?"--":Number(s.best_avg_net_bps).toFixed(2));
+    text("ei_best_pf",s.best_profit_factor==null?"--":Number(s.best_profit_factor).toFixed(2));
+    text("evidenceIndexAnswer",payload.operator_answer||"No unified evidence index artifact published yet.");
+    const listEl=$("evidenceIndexRows"); listEl.innerHTML="";
+    const rows=[
+      ...(payload.untouched_judgment_queue||payload.canonical_candidates||[]).map(row=>({...row, bucket:"JUDGMENT"})),
+      ...(payload.sparse_positives||[]).map(row=>({...row, bucket:"SPARSE"})),
+      ...(payload.top_positive||[]).map(row=>({...row, bucket:"POSITIVE"})),
+    ];
+    const seen=new Set();
+    rows.forEach(row=>{
+      const rowKey=row.candidate_id||row.record_id||[row.strategy_id,row.exchange,row.symbol,row.timeframe,row.bucket].join("|");
+      if(seen.has(rowKey)||listEl.children.length>=8)return;
+      seen.add(rowKey);
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=[row.strategy_id,row.exchange,row.symbol,row.timeframe].filter(Boolean).join(" ")||row.source_kind||"--";
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=row.avg_net_bps==null?"--":Number(row.avg_net_bps).toFixed(2)+" bps";
+      const meta=document.createElement("span");
+      const pf=row.profit_factor==null?"--":Number(row.profit_factor).toFixed(2);
+      const source=(Array.isArray(row.source_kinds)&&row.source_kinds.length)?row.source_kinds.join("+"):(row.source_kind||"--");
+      const evidence=row.evidence_count?(" | evidence "+row.evidence_count):"";
+      meta.textContent=(row.bucket||"--")+" | "+source+" | samples "+(row.samples??0)+" | PF "+pf+evidence;
+      const action=document.createElement("span");
+      action.textContent=row.next_action||row.failure_mode||row.verdict||"review evidence row";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(action);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No indexed evidence rows published.";
+      listEl.appendChild(div);
+    }
+  }
+  function loadEvidenceIndex(){
+    fetch("/pine-research/evidence-index",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderEvidenceIndex)
+      .catch(err=>{$("evidenceIndexAnswer").textContent=String(err);renderEvidenceIndex({});});
+  }
+  function renderExecutionProfile(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    text("ep_records",s.records);
+    text("ep_strict",s.strict_economic_rows);
+    text("ep_ready",s.execution_truth_ready);
+    text("ep_blocked",s.requires_execution_replay_before_paper);
+    text("ep_l3l4",s.l3_or_l4_rows);
+    text("ep_settlement",s.settlement_blocked_rows);
+    text("executionProfileAnswer",payload.operator_answer||"No execution replay profile artifact published yet.");
+    const listEl=$("executionProfileRows"); listEl.innerHTML="";
+    const rows=[
+      ...(payload.execution_ready_rows||[]).map(row=>({...row,bucket:"EXECUTION_READY"})),
+      ...(payload.paper_blocked_rows||[]).map(row=>({...row,bucket:"NEEDS_EXECUTION_REPLAY"})),
+      ...(payload.rows||[]).map(row=>({...row,bucket:row.strict_economic_edge?"STRICT_REVIEW":"PROFILED"})),
+    ];
+    const seen=new Set();
+    rows.forEach(row=>{
+      const key=row.row_id||[row.strategy_id,row.exchange,row.symbol,row.timeframe,row.profile_id].join("|");
+      if(seen.has(key)||listEl.children.length>=8)return;
+      seen.add(key);
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=[row.strategy_id,row.exchange,row.symbol,row.timeframe].filter(Boolean).join(" ")||row.source_kind||"--";
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=row.avg_net_bps==null?"--":Number(row.avg_net_bps).toFixed(2)+" bps";
+      if(row.execution_truth_ready)score.style.color="var(--green)";
+      if(row.settlement_portability==="BLOCKED_PREDICTION_MARKET_ASSUMPTION")score.style.color="var(--red)";
+      const meta=document.createElement("span");
+      const pf=row.profit_factor==null?"--":Number(row.profit_factor).toFixed(2);
+      meta.textContent=(row.bucket||"--")+" | "+(row.profile_id||"--")+" | samples "+(row.samples??0)+" | PF "+pf;
+      const action=document.createElement("span");
+      const blockers=Array.isArray(row.blockers)?row.blockers.slice(0,2).join(", "):"";
+      action.textContent=(row.next_action||"review execution profile")+(blockers?" | "+blockers:"");
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(action);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No execution-profile rows published.";
+      listEl.appendChild(div);
+    }
+  }
+  function loadExecutionProfile(){
+    fetch("/pine-research/execution-profile",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderExecutionProfile)
+      .catch(err=>{$("executionProfileAnswer").textContent=String(err);renderExecutionProfile({});});
+  }
+  function renderCoverageAudit(payload){
+    const audit=(payload&&payload.coverage_audit)||{};
+    text("cov_discovered",audit.discovered_records);
+    text("cov_visible",audit.visible_records);
+    text("cov_unloaded",audit.unloaded_catalog_backlog);
+    text("cov_source",audit.source_backed_records);
+    text("cov_retry",audit.retryable_browser_errors);
+    text("cov_source_tab",audit.source_tab_failures);
+    text("cov_port",audit.port_ready_records);
+    text("cov_quarantine",audit.causality_quarantine);
+    text("coverageAnswer",audit.operator_answer||"No Pine coverage audit is published yet.");
+    const listEl=$("coverageGaps"); listEl.innerHTML="";
+    (audit.gaps||[]).slice(0,8).forEach(gap=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=gap.bucket||"--";
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=gap.count==null?"--":String(gap.count);
+      const meta=document.createElement("span");
+      const tone=String(gap.severity||"INFO");
+      meta.textContent=tone+" | "+(gap.action||"--");
+      const why=document.createElement("span");
+      why.textContent=gap.explanation||"No explanation published.";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(why);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No coverage gaps published.";
+      listEl.appendChild(div);
+    }
+  }
+  function render(payload){
+    state.records=Array.isArray(payload.records)?payload.records:[];
+    state.selected=state.records.find(hasCompletedEvidence)||state.records[0]||null;
+    const s=payload.summary||{};
+    text("m_total",s.total);
+    text("m_source_backed",s.source_backed);
+    text("m_catalog_only",s.catalog_only);
+    text("m_portable",s.portable);
+    text("m_source",s.needs_source);
+    text("m_port_queue",s.port_queue);
+    text("m_matches",s.reconciled_catalog_matches);
+    text("m_queue",s.backtests_queued);
+    const ex=payload.source_extraction||{};
+    text("m_extract_attempted",ex.attempted);
+    text("m_extract_extracted",ex.extracted);
+    text("m_extract_blocked",Number(ex.blocked||0)+Number(ex.errors||0));
+    text("m_extract_latest",(ex.latest_success_at||"").slice(0,16)||"--");
+    const p=payload.policy||{};
+    $("policyText").textContent=[p.source_rule,p.promotion_rule,"Venues: "+(p.venues||[]).join(", "),"TFs: "+(p.timeframes||[]).join(", ")].filter(Boolean).join(" | ");
+    text("operatorAnswer",payload.operator_answer||"research-only");
+    text("footer","source "+(payload.source||"--")+" | generated "+(payload.generated_at||"--"));
+    const chip=$("statusChip"); chip.textContent="loaded"; chip.className="chip good";
+    renderCoverageAudit(payload);
+    renderBacktestEvidence(payload);
+    renderRows();
+  }
+  function renderDistiller(payload){
+    payload=payload||{};
+    state.intentionsByScript={};
+    (payload.script_distillations||[]).forEach(row=>{
+      if(row&&row.script_id)state.intentionsByScript[String(row.script_id)]=row;
+    });
+    renderRows();
+    const s=payload.summary||{};
+    text("pd_reviewed",s.source_backed_reviewed);
+    text("pd_candidates",s.port_candidates);
+    text("pd_quarantine",s.causality_quarantine);
+    text("pd_cells",s.queued_backtest_cells);
+    text("distillerAnswer",payload.operator_answer||"No distiller artifact published yet.");
+    const clusterEl=$("intentionClusters"); clusterEl.innerHTML="";
+    (payload.intention_clusters||[]).slice(0,6).forEach(cluster=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=String(cluster.intent_family||"--").replaceAll("_"," ");
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=(cluster.port_candidates||0)+"/"+(cluster.source_count||0);
+      const meta=document.createElement("span");
+      meta.textContent=(cluster.recommended_port||"--")+" | fit "+(cluster.median_fit_score??"--")+" | quarantine "+(cluster.quarantine_count||0);
+      const play=document.createElement("span");
+      play.textContent=cluster.playbook||cluster.bot_value||"awaiting playbook";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(play);
+      clusterEl.appendChild(div);
+    });
+    if(!clusterEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No source-backed intention clusters published.";
+      clusterEl.appendChild(div);
+    }
+    const listEl=$("distillerTasks"); listEl.innerHTML="";
+    (payload.port_tasks||[]).slice(0,6).forEach(task=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=task.recommended_port||"--";
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=(task.distillation_score==null?"--":task.distillation_score)+"/100";
+      const meta=document.createElement("span");
+      meta.textContent="sources "+(task.source_count||0)+" | primitives "+((task.primitive_stack||[]).slice(0,4).join(", ")||"--");
+      const replay=document.createElement("span");
+      replay.textContent=task.first_replay||"awaiting replay plan";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(replay);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No source-backed port tasks published.";
+      listEl.appendChild(div);
+    }
+  }
+  function renderTVRuleAdapter(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    const evaluation=payload.evaluation||{};
+    const policy=payload.policy||{};
+    const spec=payload.rule_spec||{};
+    text("tvra_status",payload.status||"--");
+    text("tvra_assignments",s.assignments??0);
+    text("tvra_indicators",s.indicator_assignments??0);
+    text("tvra_signals",Number(evaluation.long_signals||0)+Number(evaluation.short_signals||0));
+    text("tvra_blockers",s.blockers??0);
+    text("tvra_network",policy.network_access===false?"ZERO":"BLOCK");
+    text("tvRuleAnswer",payload.operator_answer||"No local RuleSpec artifact published yet.");
+    const listEl=$("tvRuleDetails"); listEl.innerHTML="";
+    const cards=[
+      ["Rule",spec.title||spec.rule_id||"none compiled",spec.timeframe?"timeframe "+spec.timeframe:"awaiting lawful local Pine source"],
+      ["Data boundary",policy.local_closed_candles_only?"LOCAL DELTA":"BLOCKED",policy.tradingview_data_used?"TradingView data detected":"no TradingView market-data ingestion"],
+      ["Safety",payload.can_trade?"UNSAFE":"RESEARCH ONLY",(spec.blockers||[]).slice(0,3).join(" | ")||"unsupported/repaint constructs fail closed"]
+    ];
+    cards.forEach(card=>{
+      const div=document.createElement("div"); div.className="task";
+      const title=document.createElement("b"); title.textContent=card[0];
+      const score=document.createElement("div"); score.className="score"; score.textContent=card[1];
+      const meta=document.createElement("span"); meta.textContent=card[2];
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); listEl.appendChild(div);
+    });
+  }
+  function loadTVRuleAdapter(){
+    fetch("/pine-research/rule-spec",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderTVRuleAdapter)
+      .catch(err=>{$("tvRuleAnswer").textContent=String(err);renderTVRuleAdapter({});});
+  }
+  function loadProgress(){
+    fetch("/pine-research/progress",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderBacktestProgress)
+      .catch(err=>{$("btProgressAnswer").textContent=String(err);renderBacktestProgress({});});
+  }
+  function renderUpliftAgent(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    text("eu_proofs",s.promotable_proofs);
+    text("eu_sparse",s.positive_under_sampled);
+    text("eu_near",s.near_miss_after_cost);
+    text("eu_experiments",s.experiments);
+    text("upliftAnswer",payload.operator_answer||"No edge uplift artifact published yet.");
+    const listEl=$("upliftTasks"); listEl.innerHTML="";
+    (payload.experiments||[]).slice(0,6).forEach(task=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=task.experiment_type||task.experiment_id||"--";
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=(task.salvage_score==null?"--":task.salvage_score)+"/100";
+      const meta=document.createElement("span");
+      meta.textContent=(task.recommended_port||"--")+" | failed "+(task.failed_cells||0)+" | positive "+(task.positive_cells||0);
+      const action=document.createElement("span");
+      action.textContent=task.next_action||task.hypothesis||"awaiting agent plan";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(action);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No edge uplift experiments published.";
+      listEl.appendChild(div);
+    }
+  }
+  function loadExecutor(){
+    fetch("/pine-research/uplift-executor",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderUpliftExecutor)
+      .catch(err=>{$("executorAnswer").textContent=String(err);renderUpliftExecutor({});});
+  }
+  function renderScannerUplift(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    text("su_rows",s.evidence_rows);
+    text("su_near",s.fee_wall_near_misses);
+    text("su_visual",s.visual_only_positive);
+    text("su_experiments",s.experiments);
+    text("scannerUpliftAnswer",payload.operator_answer||"No scanner uplift artifact published yet.");
+    const listEl=$("scannerUpliftTasks"); listEl.innerHTML="";
+    (payload.top_uplifts||[]).slice(0,6).forEach(row=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=(row.symbol||"--")+" "+(row.timeframe||"--")+" "+(row.mode||"");
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=row.avg_net_bps==null?"--":Number(row.avg_net_bps).toFixed(2)+" bps";
+      const meta=document.createElement("span");
+      meta.textContent=(row.failure_mode||"--")+" | PF "+(row.profit_factor==null?"--":Number(row.profit_factor).toFixed(2))+" | need "+(row.required_uplift_bps==null?"--":Number(row.required_uplift_bps).toFixed(2))+" bps";
+      const action=document.createElement("span");
+      action.textContent=row.uplift_action||row.rationale||"awaiting uplift action";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(action);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No scanner uplift rows published.";
+      listEl.appendChild(div);
+    }
+  }
+  function loadScannerUplift(){
+    fetch("/pine-research/scanner-uplift",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderScannerUplift)
+      .catch(err=>{$("scannerUpliftAnswer").textContent=String(err);renderScannerUplift({});});
+  }
+  function renderAlphaArenaLite(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    text("aal_candidates",s.candidate_count);
+    text("aal_tasks",s.task_count);
+    text("aal_sample",s.sample_valid);
+    text("aal_judgment",s.ready_for_untouched_judgment);
+    text("alphaArenaAnswer",payload.operator_answer||"No Alpha Arena Lite artifact published yet.");
+    const listEl=$("alphaArenaTasks"); listEl.innerHTML="";
+    (payload.scorecards||[]).slice(0,6).forEach(card=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=(card.strategy_id||"--")+" "+(card.exchange||"--")+" "+(card.symbol||"--");
+      const score=document.createElement("div");
+      score.className="score";
+      const m=card.metrics||{};
+      score.textContent=m.top_avg_net_bps==null?"--":Number(m.top_avg_net_bps).toFixed(2)+" bps";
+      const meta=document.createElement("span");
+      const pf=m.best_profit_factor==null?"--":Number(m.best_profit_factor).toFixed(2);
+      meta.textContent=(card.arena_verdict||"--")+" | samples "+(m.max_samples??0)+"/"+(m.sample_required??20)+" | PF "+pf;
+      const action=document.createElement("span");
+      action.textContent=(card.next_action||"--")+" | task "+(card.task_id||"not synced");
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(action);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No Alpha Arena scorecards published.";
+      listEl.appendChild(div);
+    }
+  }
+  function loadAlphaArenaLite(){
+    fetch("/pine-research/alpha-arena-lite",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderAlphaArenaLite)
+      .catch(err=>{$("alphaArenaAnswer").textContent=String(err);renderAlphaArenaLite({});});
+  }
+  function renderQuantLoopGovernance(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    text("ql_score",s.readiness_score==null?"--":s.readiness_score+"/100");
+    text("ql_level",s.readiness_level||"loop level --");
+    text("ql_ok",(s.loops_ok??0)+" / "+(s.loops_total??0));
+    text("ql_wait","waiting "+(s.loops_waiting??0)+" | stale "+(s.loops_stale??0)+" | missing "+(s.loops_missing??0));
+    text("ql_collisions",s.collisions);
+    text("ql_budgets",s.budget_alerts);
+    text("quantLoopAnswer",payload.operator_answer||"No Quant Loop Governance artifact published yet.");
+    const listEl=$("quantLoopTasks"); listEl.innerHTML="";
+    (payload.loop_cards||[]).slice(0,6).forEach(card=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=card.loop_id||"--";
+      const score=document.createElement("div");
+      const status=String(card.status||"--");
+      score.className="score";
+      score.textContent=status;
+      if(status==="OK")score.style.color="var(--green)";
+      if(status==="STALE"||status==="WAITING")score.style.color="var(--amber)";
+      if(status==="BLOCKED"||status==="MISSING")score.style.color="var(--red)";
+      const meta=document.createElement("span");
+      meta.textContent=(card.reason||"--")+" | age "+(card.age_minutes==null?"--":Number(card.age_minutes).toFixed(1)+"m");
+      const action=document.createElement("span");
+      action.textContent=card.action||"review loop";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(action);
+      listEl.appendChild(div);
+    });
+    if((payload.collisions||[]).length){
+      const div=document.createElement("div");
+      div.className="task";
+      const c=payload.collisions[0];
+      div.innerHTML="<b></b><div class='score' style='color:var(--red)'></div><span></span><span></span>";
+      div.querySelector("b").textContent="candidate collision";
+      div.querySelector(".score").textContent=String((payload.collisions||[]).length);
+      div.children[2].textContent=c.lock_key||"--";
+      div.children[3].textContent=c.action||"serialize duplicate tasks";
+      listEl.prepend(div);
+    }
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No Quant Loop Governance rows published.";
+      listEl.appendChild(div);
+    }
+  }
+  function loadQuantLoopGovernance(){
+    fetch("/pine-research/quant-loop-governance",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderQuantLoopGovernance)
+      .catch(err=>{$("quantLoopAnswer").textContent=String(err);renderQuantLoopGovernance({});});
+  }
+  function renderUpliftExecutor(payload){
+    payload=payload||{};
+    const s=payload.summary||{};
+    text("ux_tasks",s.tasks_total);
+    text("ux_replay",s.ready_for_replay);
+    text("ux_judgment",s.ready_for_untouched_judgment);
+    text("ux_bank",s.feature_bank_only);
+    text("executorAnswer",payload.operator_answer||"No edge uplift executor artifact published yet.");
+    const listEl=$("executorTasks"); listEl.innerHTML="";
+    (payload.tasks||[]).slice(0,6).forEach(task=>{
+      const div=document.createElement("div");
+      div.className="task";
+      const title=document.createElement("b");
+      title.textContent=task.recommended_port||task.task_id||"--";
+      const score=document.createElement("div");
+      score.className="score";
+      score.textContent=(task.priority==null?"--":task.priority)+"/100";
+      const meta=document.createElement("span");
+      const support=(task.scanner_support||{}).state||"NO_SUPPORT";
+      meta.textContent=(task.status||"--")+" | "+support+" | scripts "+((task.source_script_ids||[]).length);
+      const action=document.createElement("span");
+      action.textContent=task.executor_action||"awaiting executor plan";
+      div.appendChild(title); div.appendChild(score); div.appendChild(meta); div.appendChild(action);
+      listEl.appendChild(div);
+    });
+    if(!listEl.children.length){
+      const div=document.createElement("div");
+      div.className="task";
+      div.textContent="No executable edge-uplift tasks published.";
+      listEl.appendChild(div);
+    }
+  }
+  function load(){
+    const chip=$("statusChip"); chip.textContent="loading"; chip.className="chip info";
+    fetch("/pine-research/kb",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(render)
+      .catch(err=>{chip.textContent="error";chip.className="chip bad";$("operatorAnswer").textContent=String(err);});
+    fetch("/pine-research/distiller",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderDistiller)
+      .catch(err=>{$("distillerAnswer").textContent=String(err);renderDistiller({});});
+    loadTVRuleAdapter();
+    loadProgress();
+    fetch("/pine-research/uplift-agent",{headers:{Authorization:"Bearer "+token},cache:"no-store"})
+      .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+      .then(renderUpliftAgent)
+      .catch(err=>{$("upliftAnswer").textContent=String(err);renderUpliftAgent({});});
+    loadScannerUplift();
+    loadAlphaArenaLite();
+    loadQuantLoopGovernance();
+    loadExecutor();
+    loadEvidenceIndex();
+    loadExecutionProfile();
+  }
+  $("searchBox").addEventListener("input",renderRows);
+  $("verdictFilter").addEventListener("change",renderRows);
+  $("refreshBtn").addEventListener("click",load);
+  load();
+  setInterval(loadProgress,10000);
+  setInterval(loadScannerUplift,30000);
+  setInterval(loadAlphaArenaLite,30000);
+  setInterval(loadQuantLoopGovernance,30000);
+  setInterval(loadExecutor,30000);
+  setInterval(loadEvidenceIndex,30000);
+  setInterval(loadExecutionProfile,30000);
+})();
+</script>
+</body>
+</html>

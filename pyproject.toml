@@ -1,0 +1,79 @@
+[project]
+name = "vnedge"
+version = "0.1.0"
+description = "Explainable, risk-controlled crypto F&O/perpetuals trading assistant"
+requires-python = ">=3.11"
+dependencies = [
+    "delta-rest-client>=1.0.14",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "ccxt>=4.3",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "pyarrow>=16.0",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "httpx>=0.27",
+    "scikit-learn>=1.5",
+    "joblib>=1.4",
+    "pyyaml>=6.0",
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "httpx>=0.27",
+]
+quant-research = [
+    "duckdb>=1.0",
+    "lightgbm>=4.3",
+    "matplotlib>=3.9",
+    "polars>=1.0",
+    "optuna>=3.6",
+    "river>=0.21",
+    "numba>=0.60",
+    "ruptures>=1.1",
+    "shap>=0.46",
+    "evidently>=0.4",
+    "statsmodels>=0.14",
+    "arch>=7.0",
+    "skfolio>=0.8",
+]
+foundation-forecast = [
+    "torch>=2.0",
+    "einops>=0.8.1",
+    "huggingface_hub>=0.33",
+    "safetensors>=0.6.2",
+    "tqdm>=4.67",
+]
+event-recorder = [
+    "websockets>=13.0",
+    "zstandard>=0.23",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# non-Python files that must ship in the installed package (the container
+# runs from site-packages, not the repo)
+vnedge = ["dashboard/static/*.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "network: constructs real exchange clients (ccxt / ccxt.pro / native ws); deselect with -m 'not network' for fully offline runs",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

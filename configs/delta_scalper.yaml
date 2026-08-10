@@ -1,0 +1,86 @@
+engine:
+  mode: research
+  symbols: [BTCUSD, ETHUSD]
+  primary_timeframes: [1m, 5m]
+  min_probability: 0.70
+  min_confidence: 0.60
+  min_expectancy_bps: 8.0
+  live_orders_enabled: false
+  can_promote: false
+
+fee_model:
+  deto_enabled: false
+  scalper_opted_in: false
+  maker_fee_bps_pre_tax: 2.0
+  taker_fee_bps_pre_tax: 5.0
+  gst_rate: 0.18
+  default_slippage_bps_per_leg: 1.5
+
+features:
+  max_bars_per_timeframe: 700
+  l2_imbalance_history: 240
+  trade_flow_window_seconds: 15
+  max_l2_age_seconds: 2.0
+  regime_fast_ema: 12
+  regime_slow_ema: 36
+  regime_efficiency_window: 12
+  regime_profile_timeframe: 5m
+  regime_profile_adx_window: 14
+  regime_profile_strong_trend_adx: 30.0
+  regime_profile_range_adx_max: 22.0
+  regime_profile_ema_fast: 20
+  regime_profile_ema_slow: 50
+  regime_profile_ema_separation_atr_min: 0.8
+  regime_profile_atr_window: 14
+  regime_profile_percentile_window: 200
+  regime_profile_high_vol_percentile: 0.75
+  regime_profile_low_vol_percentile: 0.30
+  regime_profile_bollinger_window: 20
+  change_point_timeframe: 5m
+  change_point_minimum_history_bars: 50
+  change_point_baseline_window_bars: 200
+  change_point_cusum_drift_z: 0.50
+  change_point_cusum_threshold_z: 8.0
+  change_point_cooldown_bars: 6
+
+scanners:
+  hierarchical_pullback:
+    # Rejected by the frozen 2025-01-01 through 2026-07-25 causal replay.
+    enabled: false
+    prefer_maker: false
+    min_four_hour_adx: 22.0
+    pullback_tolerance_atr: 0.35
+    min_five_minute_body_ratio: 0.55
+    min_five_minute_volume_z: 0.50
+    min_one_minute_body_ratio: 0.50
+    min_one_minute_volume_z: 0.75
+    reward_risk: 2.50
+    minimum_target_cost_multiple: 3.50
+    research_probability_prior: 0.75
+    research_confidence_prior: 0.65
+    cooldown_minutes: 240
+    time_stop_seconds: 1680
+  momentum_burst:
+    enabled: false
+    prefer_maker: true
+    min_volume_z: 0.75
+    min_body_ratio: 0.55
+    min_breakout_bps: 0.4
+    time_stop_seconds: 1680
+    enabled_regimes: [quiet, trending_up, trending_down, expanding, funding_extreme]
+  imbalance_fade:
+    enabled: false
+    prefer_maker: true
+    min_wick_ratio: 0.48
+    min_stretch_bps: 7.0
+    time_stop_seconds: 1680
+    enabled_regimes: [quiet, expanding]
+
+promotion:
+  paper_only_after_all_gates: true
+  minimum_positive_markets: 2
+  minimum_profit_factor_after_costs: 1.2
+  maximum_single_market_share: 0.70
+  require_multiple_months: true
+  require_closed_candles: true
+  require_no_repainting: true

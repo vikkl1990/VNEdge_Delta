@@ -1,0 +1,73 @@
+contract_id: htf_structure_break_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  symbols: [BTCUSD, ETHUSD]
+  source_timeframe: 1m
+  decision_timeframe: 1h
+  bias_timeframe: 4h
+  selection_start: "2025-01-01T00:00:00+00:00"
+  selection_end_exclusive: "2026-04-01T00:00:00+00:00"
+  embargo_hours: 48
+  untouched_start: "2026-04-03T00:00:00+00:00"
+  untouched_end_exclusive: "2026-08-06T00:00:00+00:00"
+  require_closed_candles: true
+
+structure:
+  swing_left_bars: 3
+  swing_right_bars: 3
+  minimum_swing_bps_1h: 20.0
+  minimum_swing_bps_4h: 35.0
+  trend_lookback_swings: 5
+  allowed_events: [bos, choch]
+  require_event_direction_matches_4h: true
+  target_level_sources: [1h, 4h]
+  target_rule: nearest_confirmed_swing_in_trade_direction_beyond_decision_close
+  stop_rule: latest_confirmed_opposite_1h_swing
+
+exit:
+  structural_stop_buffer_bps: 3.0
+  maximum_stop_bps: 350.0
+  minimum_reward_risk: 1.5
+  minimum_target_cost_multiple: 5.0
+  expected_hold_seconds: 86400
+  time_stop_seconds: 172800
+
+costs:
+  prefer_maker: false
+  scalper_opted_in: false
+  deto_enabled: false
+  maker_fee_bps_pre_tax: 2.0
+  taker_fee_bps_pre_tax: 5.0
+  gst_rate: 0.18
+  slippage_bps_per_leg: 1.5
+
+validation:
+  minimum_selection_trades: 80
+  minimum_selection_trades_per_half: 25
+  minimum_selection_trades_per_market: 25
+  minimum_selection_average_net_bps: 3.0
+  minimum_selection_profit_factor: 1.20
+  minimum_trades_per_day: 0.05
+  maximum_trades_per_day_per_market: 2.0
+  require_gross_expectancy_above_cost: true
+  require_positive_selection_halves: true
+  require_positive_selection_markets: true
+  open_untouched_only_after_selection_pass: true
+
+policy:
+  decision: completed causal 1h close only
+  entry: next 1h open, represented by the next closed 1m bar's open
+  same_bar_stop_and_target: stop_first
+  duplicate_policy: each confirmed swing may break once
+  active_observation_policy: one pending or open observation per market
+  missing_data_policy: reset all structure and discard pending/open observations
+  l2_role: unavailable_and_not_used
+  funding_role: unavailable_and_not_used
+  meta_model_role: unavailable_and_not_used
+  parameter_search: forbidden_on_this_selection_window
+  untouched_policy: do not load or score unless every selection gate passes
+
