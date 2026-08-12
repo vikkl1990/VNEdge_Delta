@@ -223,6 +223,8 @@ def test_dashboard_home_is_delta_research_sidecar(client):
     assert "Delta Research Lanes" in html
     assert "Signal Funnel" in html
     assert "Live Market Context" in html
+    assert 'localDemoHost?"vnedge-demo":""' in html
+    assert "Dashboard session unavailable" in html
     assert "System Health" in html
     assert "Multi-TF Coherence" in html
     assert "Observations &amp; Latest Decisions" in html

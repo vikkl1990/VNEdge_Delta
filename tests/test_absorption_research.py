@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from vnedge.execution.journal import DecisionJournal
 from vnedge.scalping.delta_engine.absorption import (
     AbsorptionInstrumentConfig,
     AbsorptionObservation,
@@ -18,7 +19,6 @@ from vnedge.scalping.delta_engine.absorption_research import (
     summarize_absorption_outcomes,
 )
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
-from vnedge.execution.journal import DecisionJournal
 
 NOW = datetime(2026, 8, 9, 8, 0, tzinfo=UTC)
 BASE_NS = 2_000_000_000
@@ -29,9 +29,7 @@ def observation(*, detected_ns: int = BASE_NS, direction: int = 1):
         symbol="BTCUSD",
         price=100.0,
         absorbed_side=(
-            "buy_limits_absorbing_sells"
-            if direction > 0
-            else "sell_limits_absorbing_buys"
+            "buy_limits_absorbing_sells" if direction > 0 else "sell_limits_absorbing_buys"
         ),
         reversal_direction=direction,
         aggressive_buy_volume=0.0 if direction > 0 else 10.0,
@@ -84,24 +82,33 @@ def test_next_trade_entry_tracks_mfe_mae_and_both_targets_to_horizon() -> None:
     event = observation()
     assert engine.register(event, decision_ts=NOW)
     assert not engine.register(event, decision_ts=NOW)
-    assert engine.on_trade(
-        "BTCUSD",
-        price=100.0,
-        received_at=NOW + timedelta(milliseconds=100),
-        monotonic_ns=BASE_NS + 100_000_000,
-    ) == ()
-    assert engine.on_trade(
-        "BTCUSD",
-        price=101.0,
-        received_at=NOW + timedelta(milliseconds=200),
-        monotonic_ns=BASE_NS + 200_000_000,
-    ) == ()
-    assert engine.on_trade(
-        "BTCUSD",
-        price=102.0,
-        received_at=NOW + timedelta(milliseconds=300),
-        monotonic_ns=BASE_NS + 300_000_000,
-    ) == ()
+    assert (
+        engine.on_trade(
+            "BTCUSD",
+            price=100.0,
+            received_at=NOW + timedelta(milliseconds=100),
+            monotonic_ns=BASE_NS + 100_000_000,
+        )
+        == ()
+    )
+    assert (
+        engine.on_trade(
+            "BTCUSD",
+            price=101.0,
+            received_at=NOW + timedelta(milliseconds=200),
+            monotonic_ns=BASE_NS + 200_000_000,
+        )
+        == ()
+    )
+    assert (
+        engine.on_trade(
+            "BTCUSD",
+            price=102.0,
+            received_at=NOW + timedelta(milliseconds=300),
+            monotonic_ns=BASE_NS + 300_000_000,
+        )
+        == ()
+    )
     outcomes = engine.on_trade(
         "BTCUSD",
         price=101.5,
@@ -121,6 +128,7 @@ def test_next_trade_entry_tracks_mfe_mae_and_both_targets_to_horizon() -> None:
     assert outcome.hit_target_1 and outcome.hit_target_2
     assert outcome.was_stacked and outcome.had_liquidation_confluence
     assert outcome.volume_percentile == pytest.approx(1.0)
+    assert outcome.horizon_returns_bps == {"1000": pytest.approx(150.0)}
     assert outcome.to_dict()["order_route"] == "absent"
 
 

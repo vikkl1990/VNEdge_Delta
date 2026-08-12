@@ -1,0 +1,123 @@
+contract_id: failed_auction_response_v1
+version: 1.0.0
+status: blocked_pending_data
+research_only: true
+can_trade: false
+can_promote: false
+scanner_implementation_authorized: false
+selection_authorized: false
+
+data:
+  symbols: [BTCUSD, ETHUSD]
+  required_channels: [trades, ob_updates]
+  minimum_continuous_days: 14
+  minimum_total_events: 5000000
+  minimum_events_per_symbol: 1000000
+  minimum_trade_events_per_symbol: 100000
+  minimum_book_events_per_symbol: 500000
+  minimum_hour_coverage_ratio: 0.95
+  maximum_book_interarrival_p95_ms: 500
+  minimum_snapshots_per_symbol: 1
+  maximum_sequence_gaps: 0
+  maximum_checksum_failures: 0
+  maximum_duplicate_event_ids: 0
+  maximum_receive_order_regressions: 0
+  require_manifest_verification: true
+  require_no_partial_files: true
+  incomplete_depth_policy: discard_until_verified_snapshot
+  integrity_fault_policy: reset_and_block_until_verified_snapshot
+  event_order: local_receive_then_monotonic_then_event_index
+  minimum_history_is_readiness_only: true
+
+detection:
+  attack_window_ms: 1200
+  minimum_attack_duration_ms: 100
+  minimum_aggression_share: 0.75
+  minimum_aggressive_notional_usd: 5000
+  maximum_price_progress_ticks: 2.0
+  replenish_to_pre_attack_ratio: 0.70
+  replenishment_deadline_ms: 400
+
+confirmation:
+  window_ms: 600
+  minimum_microprice_turn_ticks: 0.25
+  minimum_reversal_flow_share: 0.60
+  retest_window_ms: 1500
+  retest_band_ticks: 1.0
+  retest_hold_ms: 250
+  trade_through_tolerance_ticks: 0.0
+  require_failed_retest: true
+
+entry:
+  fill_style: taker_marketable_limit
+  signal_to_fill_latency_ms: 100
+  candidate_expiry_ms: 750
+  maximum_slippage_bps_per_leg: 1.5
+  long_fill: first_ask_after_latency
+  short_fill: first_bid_after_latency
+  revalidate_geometry_at_fill: true
+  same_event_fill_forbidden: true
+
+exit:
+  stop_noise_ticks: 3.0
+  stop_spread_multiple: 1.25
+  stop_recent_noise_window_ms: 2000
+  stop_recent_noise_percentile: 0.95
+  target_rule: opposite_bound_of_pre_attack_micro_range
+  target_lookback_ms: 10000
+  minimum_net_reward_risk: 1.50
+  vertical_barrier_seconds: 60
+  flow_invalidation_exit_enabled: false
+  trailing_stop_enabled: false
+  partial_targets_enabled: false
+  same_interval_ambiguity: stop_first
+  data_integrity_failure: close_counterfactual_at_last_tradable_quote
+
+costs:
+  entry_is_maker: false
+  exit_is_maker: false
+  scalper_opted_in: false
+  deto_enabled: false
+  maker_fee_bps_pre_tax: 2.0
+  taker_fee_bps_pre_tax: 5.0
+  gst_rate: 0.18
+  slippage_bps_per_leg: 1.5
+  baseline_round_trip_bps: 14.8
+  gate_formula: (gross_target_bps - cost_bps) / (stop_bps + cost_bps) >= minimum_net_reward_risk
+  apply_cost_once_in_realized_pnl: true
+  extra_cost_cushion_in_gate: false
+
+duplicates:
+  one_active_observation_per_symbol: true
+  same_level_cooldown_ms: 20000
+  minimum_distinct_level_ticks: 4.0
+  second_failure_after_cooldown_allowed: true
+  opposite_side_overlap_policy: reject_both
+  exactly_once_key: contract_id:symbol:side:absorption_level:first_hit_event_id
+
+validation:
+  chronological_selection_fraction: 0.80
+  sealed_untouched_fraction: 0.20
+  minimum_selection_detections: 500
+  minimum_selection_filled_trades: 200
+  minimum_filled_trades_per_half: 75
+  minimum_filled_trades_per_symbol: 50
+  maximum_single_symbol_trade_share: 0.75
+  minimum_selection_average_net_bps: 3.0
+  minimum_selection_profit_factor: 1.20
+  maximum_false_signal_rate: 0.70
+  require_positive_gross_expectancy: true
+  require_positive_net_expectancy: true
+  require_positive_chronological_halves: true
+  require_positive_each_symbol: true
+  open_untouched_only_after_all_selection_gates_pass: true
+
+policy:
+  parameter_search: forbidden_in_v1
+  regime_filter: forbidden_in_v1
+  session_filter: forbidden_in_v1
+  meta_labeling: forbidden_until_standalone_selection_pass
+  leverage_role: pnl_scaling_only_never_signal_or_edge
+  scanner_code_policy: do_not_implement_until_data_readiness_passes
+  selection_policy: do_not_run_until_live_replay_determinism_passes
+  untouched_policy: open_once_only_after_selection_pass

@@ -279,6 +279,111 @@ class ReplayResult:
 
 
 @dataclass(frozen=True)
+class ReplayDeterminismProof:
+    """Fail-closed proof that two independent replays produced equal state."""
+
+    config: ReplayConfig
+    code_version: str
+    generated_at: str
+    first_hash: str
+    second_hash: str
+    first_events: int
+    second_events: int
+    first_candidates: int
+    second_candidates: int
+    first_feature_snapshots: int
+    second_feature_snapshots: int
+    first_validation_hash: str
+    second_validation_hash: str
+    first_result_path: str | None
+    second_result_path: str | None
+    research_only: bool = True
+    can_trade: bool = False
+    can_promote: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.research_only or self.can_trade or self.can_promote:
+            raise ValueError("replay determinism proof must remain research-only")
+        if self.code_version != self.config.code_version:
+            raise ValueError("determinism proof code version must match replay config")
+        for value in (
+            self.first_events,
+            self.second_events,
+            self.first_candidates,
+            self.second_candidates,
+            self.first_feature_snapshots,
+            self.second_feature_snapshots,
+        ):
+            if value < 0:
+                raise ValueError("determinism proof counts cannot be negative")
+
+    @property
+    def hash_match(self) -> bool:
+        return self.first_hash == self.second_hash
+
+    @property
+    def events_match(self) -> bool:
+        return self.first_events == self.second_events
+
+    @property
+    def candidates_match(self) -> bool:
+        return self.first_candidates == self.second_candidates
+
+    @property
+    def feature_snapshots_match(self) -> bool:
+        return self.first_feature_snapshots == self.second_feature_snapshots
+
+    @property
+    def validation_match(self) -> bool:
+        return self.first_validation_hash == self.second_validation_hash
+
+    @property
+    def passed(self) -> bool:
+        feature_evidence_present = (
+            not self.config.enable_feature_engine or self.first_feature_snapshots > 0
+        )
+        return (
+            self.first_events > 0
+            and feature_evidence_present
+            and self.hash_match
+            and self.events_match
+            and self.candidates_match
+            and self.feature_snapshots_match
+            and self.validation_match
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": "vnedge.replay_determinism_proof.v1",
+            "generated_at": self.generated_at,
+            "config": self.config.canonical_dict(),
+            "code_version": self.code_version,
+            "passed": self.passed,
+            "hash_match": self.hash_match,
+            "events_match": self.events_match,
+            "candidates_match": self.candidates_match,
+            "feature_snapshots_match": self.feature_snapshots_match,
+            "validation_match": self.validation_match,
+            "first_hash": self.first_hash,
+            "second_hash": self.second_hash,
+            "first_events": self.first_events,
+            "second_events": self.second_events,
+            "first_candidates": self.first_candidates,
+            "second_candidates": self.second_candidates,
+            "first_feature_snapshots": self.first_feature_snapshots,
+            "second_feature_snapshots": self.second_feature_snapshots,
+            "first_validation_hash": self.first_validation_hash,
+            "second_validation_hash": self.second_validation_hash,
+            "first_result_path": self.first_result_path,
+            "second_result_path": self.second_result_path,
+            "research_only": True,
+            "can_trade": False,
+            "can_promote": False,
+            "order_route": "absent",
+        }
+
+
+@dataclass(frozen=True)
 class ReplayWindow:
     name: str
     start_ts_us: int

@@ -1,6 +1,7 @@
 """Dashboard bridge for the public-candle MTF/AMF scanner."""
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 from fastapi.testclient import TestClient
@@ -9,6 +10,22 @@ from vnedge.dashboard import scanner_live
 from vnedge.dashboard.app import SnapshotProvider, create_app
 from vnedge.dashboard.scanner_bridge import dashboard_scanner_payload
 from vnedge.dashboard.scanner_live import build_scanner_snapshot
+
+
+def test_combined_snapshot_publish_is_atomic_under_concurrency(
+    tmp_path, monkeypatch
+) -> None:
+    output = tmp_path / "combined.json"
+    monkeypatch.setattr(scanner_live, "COMBINED_SCANNER_PATH", output)
+
+    payloads = [{"writer": index, "can_trade": False} for index in range(20)]
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(scanner_live.publish_combined_payload, payloads))
+
+    published = json.loads(output.read_text())
+    assert published in payloads
+    assert published["can_trade"] is False
+    assert not list(tmp_path.glob("*.tmp"))
 
 
 def mtf_payload(now: datetime) -> dict:

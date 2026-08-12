@@ -74,6 +74,18 @@ def test_session_endpoint_mints_a_working_jwt():
     assert client.get(f"/state?token={jwt}").status_code == 200
 
 
+def test_session_endpoint_sets_http_only_cookie_for_sse_and_scrubbed_urls():
+    client = _client()
+    response = client.post("/auth/session?token=ot")
+
+    cookie = response.headers["set-cookie"]
+    assert "vnedge_session=" in cookie
+    assert "HttpOnly" in cookie
+    assert "SameSite=strict" in cookie
+    # TestClient keeps the cookie, so subsequent URLs need no credential query.
+    assert client.get("/state").status_code == 200
+
+
 def test_session_preserves_not_escalates_role():
     client = _client()
     jwt = client.post("/auth/session?token=vt").json()["token"]  # viewer root

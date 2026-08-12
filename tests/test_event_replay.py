@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import zlib
 from datetime import UTC, datetime
@@ -210,6 +211,48 @@ def test_feature_only_replay_runs_without_scanner_candidates(tmp_path: Path) -> 
     assert result.events_processed == 6
     assert result.candidates_emitted == 0
     assert result.journal_path is None
+    assert result.summary_metrics["feature_snapshots_hashed"] > 0
+    assert result.summary_metrics["events_hashed"] == 6
+    assert result.deterministic_hash != hashlib.sha256(b"").hexdigest()
+
+
+def test_determinism_proof_hashes_feature_state_and_is_persisted(tmp_path: Path) -> None:
+    event_root = tmp_path / "events"
+    write_fixture(event_root)
+    runner = engine(event_root, tmp_path / "outputs")
+    config = replay_config(enable_scanner=False, journal_mode="none")
+    proof_path = tmp_path / "proofs" / "latest.json"
+
+    proof = runner.verify_determinism(config, proof_path=proof_path)
+    persisted = json.loads(proof_path.read_text())
+
+    assert proof.passed is True
+    assert proof.first_events == proof.second_events == 6
+    assert proof.first_feature_snapshots > 0
+    assert proof.first_feature_snapshots == proof.second_feature_snapshots
+    assert proof.first_hash == proof.second_hash
+    assert persisted["passed"] is True
+    assert persisted["can_trade"] is False
+    assert persisted["can_promote"] is False
+    assert persisted["order_route"] == "absent"
+
+
+def test_empty_window_cannot_produce_determinism_pass(tmp_path: Path) -> None:
+    event_root = tmp_path / "events"
+    write_fixture(event_root)
+    runner = engine(event_root, tmp_path / "outputs")
+    config = replay_config(
+        start_ts_us=BASE_US + 2_000_000,
+        end_ts_us=BASE_US + 3_000_000,
+        enable_scanner=False,
+        journal_mode="none",
+        fail_on_integrity_error=False,
+    )
+
+    proof = runner.verify_determinism(config)
+
+    assert proof.first_events == 0
+    assert proof.passed is False
 
 
 def test_validation_detects_sequence_gap_and_blocks_replay(tmp_path: Path) -> None:

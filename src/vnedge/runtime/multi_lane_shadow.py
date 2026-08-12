@@ -1429,6 +1429,53 @@ async def _watch_lane_set(
             )
 
 
+async def _publish_paper_activation_forever(
+    lanes: list[LaneSpec],
+    journal_dir: Path,
+    *,
+    interval_seconds: float = 30.0,
+) -> None:
+    """Publish the paper-route truth board beside the running simulator.
+
+    This observer cannot start a lane or send an exchange order. It makes the
+    already-constructed paper broker route visible to the dashboard and keeps
+    live-capital permissions explicitly false.
+    """
+
+    from vnedge.research.paper_lane_activation import (
+        DEFAULT_FEED,
+        DEFAULT_OUT,
+        PaperLaneActivationConfig,
+        build_paper_lane_activation,
+        publish_paper_lane_activation,
+    )
+
+    config = PaperLaneActivationConfig(
+        requested_margin_usd=float(os.environ.get("PAPER_PLAN_MARGIN_USD", "100")),
+        requested_leverage=float(os.environ.get("PAPER_PLAN_LEVERAGE", "5")),
+        live_margin_usd=float(os.environ.get("LIVE_PLAN_MARGIN_USD", "100")),
+        live_leverage=float(os.environ.get("LIVE_PLAN_LEVERAGE", "5")),
+        high_leverage_ack=False,
+    )
+    while True:
+        try:
+            payload = await asyncio.to_thread(
+                build_paper_lane_activation,
+                desired_specs=lanes,
+                journal_dir=journal_dir,
+                config=config,
+            )
+            await asyncio.to_thread(
+                publish_paper_lane_activation,
+                payload,
+                DEFAULT_OUT,
+                DEFAULT_FEED,
+            )
+        except Exception:  # noqa: BLE001 - telemetry failure must not kill paper risk loop
+            logger.exception("paper activation truth publisher failed")
+        await asyncio.sleep(max(5.0, interval_seconds))
+
+
 async def main() -> int:
     shutdown_requested = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -1501,7 +1548,19 @@ async def main() -> int:
     logger.info("configured %d lanes (%s); primary=%s", len(lanes),
                 ", ".join(f"{n} {m}" for m, n in sorted(by_mode.items())), primary)
     runner = MultiLaneShadowRunner(lanes, journal_dir, provider)
-    tasks = [asyncio.create_task(runner.run(), name="multi-lane-runner")]
+    tasks = [
+        asyncio.create_task(runner.run(), name="multi-lane-runner"),
+        asyncio.create_task(
+            _publish_paper_activation_forever(
+                lanes,
+                journal_dir,
+                interval_seconds=float(
+                    os.environ.get("PAPER_ACTIVATION_REFRESH_SECONDS", "30")
+                ),
+            ),
+            name="paper-activation-publisher",
+        ),
+    ]
     if reload_enabled:
         tasks.append(asyncio.create_task(
             _watch_lane_set(

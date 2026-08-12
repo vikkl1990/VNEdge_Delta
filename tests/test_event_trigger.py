@@ -94,6 +94,11 @@ def layer(*, probability: float = 0.5, journal=None) -> EventDrivenTriggerLayer:
     )
 
 
+class BrokenIndicatorScorer:
+    def score_event_candidate(self, context, candidate):
+        raise RuntimeError("diagnostic scorer unavailable")
+
+
 def prime_sustained_flow(engine: EventDrivenTriggerLayer, *, final_at: datetime | None = None):
     assert engine.on_l2(l2(0)) is None
     assert engine.on_trade(trade(100)) is None
@@ -126,6 +131,11 @@ def test_sustained_confirmation_builds_immutable_event_snapshot() -> None:
     )
     assert decision.research_only and not decision.can_trade and not decision.can_promote
     assert decision.to_dict()["order_route"] == "absent"
+    score = decision.evaluated[0].metadata["indicator_family_score"]
+    assert score["policy_version"] == "indicator_family_v1.0.0"
+    assert score["research_only"] is True
+    assert score["can_trade"] is False
+    assert score["used_for_signal"] is False
 
 
 def test_calibrated_plugin_still_uses_shared_gates_and_journal(tmp_path: Path) -> None:
@@ -140,6 +150,25 @@ def test_calibrated_plugin_still_uses_shared_gates_and_journal(tmp_path: Path) -
     assert payload["selected"]["scanner_id"] == "event_sustained_flow_imbalance_v1"
     assert payload["can_trade"] is False
     assert payload["order_route"] == "absent"
+
+
+def test_advisory_score_failure_does_not_change_candidate_gates() -> None:
+    fee = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
+    engine = EventDrivenTriggerLayer(
+        (SustainedFlowImbalanceScanner(fee, probability_prior=0.9),),
+        config=config(),
+        gates=SignalGateConfig(
+            min_expectancy_bps=8.0,
+            min_probability=0.70,
+            min_confidence=0.60,
+            allowed_symbols=("BTCUSD", "ETHUSD"),
+        ),
+        indicator_scorer=BrokenIndicatorScorer(),  # type: ignore[arg-type]
+    )
+    decision = prime_sustained_flow(engine)
+    assert decision is not None and decision.selected is not None
+    assert decision.selected.metadata["indicator_family_score_error"] == "RuntimeError"
+    assert engine.telemetry()["counts"]["indicator_scoring_errors"] == 1
 
 
 def test_sequence_gap_invalidates_book_and_requires_new_snapshot() -> None:

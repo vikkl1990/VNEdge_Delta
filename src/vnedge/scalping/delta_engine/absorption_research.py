@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from statistics import fmean, median
 
@@ -29,11 +29,18 @@ class AbsorptionResearchConfig(BaseModel):
     stop_ticks: float = Field(default=6.0, gt=0)
     horizon_ms: int = Field(default=90_000, ge=1_000, le=3_600_000)
     entry_timeout_ms: int = Field(default=5_000, ge=100, le=60_000)
+    return_horizons_ms: tuple[int, ...] = (1_000, 5_000, 15_000, 30_000, 60_000)
 
     @model_validator(mode="after")
     def validate_targets(self) -> AbsorptionResearchConfig:
         if self.target_2_ticks < self.target_1_ticks:
             raise ValueError("target_2_ticks must be >= target_1_ticks")
+        if (
+            not self.return_horizons_ms
+            or any(value <= 0 for value in self.return_horizons_ms)
+            or tuple(sorted(set(self.return_horizons_ms))) != self.return_horizons_ms
+        ):
+            raise ValueError("return_horizons_ms must be positive, unique, and ascending")
         return self
 
 
@@ -61,6 +68,7 @@ class AbsorptionResearchOutcome:
     was_stacked: bool
     had_liquidation_confluence: bool
     volume_percentile: float
+    horizon_returns_bps: dict[str, float]
     research_only: bool = True
     can_trade: bool = False
 
@@ -68,6 +76,7 @@ class AbsorptionResearchOutcome:
         return {
             **self.__dict__,
             "event": self.event.to_dict(),
+            "horizon_returns_bps": dict(self.horizon_returns_bps),
             "research_only": True,
             "can_trade": False,
             "order_route": "absent",
@@ -97,6 +106,7 @@ class _Open:
     realized_exit_price: float | None = None
     realized_exit_ns: int | None = None
     realized_exit_reason: str | None = None
+    horizon_returns_bps: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -162,9 +172,7 @@ def summarize_absorption_outcomes(
         median_time_to_mfe_ms=(
             median(row.time_to_mfe_ms for row in completed) if completed else 0.0
         ),
-        false_absorption_rate=(
-            fmean(row.stopped_out for row in completed) if completed else 0.0
-        ),
+        false_absorption_rate=(fmean(row.stopped_out for row in completed) if completed else 0.0),
     )
 
 
@@ -311,11 +319,7 @@ class AbsorptionResearchTracker:
             "average_cost_ticks": self._cost_ticks / completed if completed else 0.0,
             "average_net_ticks": self._net_ticks / completed if completed else 0.0,
             "profit_factor": (
-                self._gains / self._losses
-                if self._losses
-                else None
-                if self._gains
-                else 0.0
+                self._gains / self._losses if self._losses else None if self._gains else 0.0
             ),
             "research_only": True,
             "can_trade": False,
@@ -334,6 +338,15 @@ class AbsorptionResearchTracker:
     ) -> AbsorptionResearchOutcome | None:
         direction = row.observation.reversal_direction
         favorable = direction * (price - row.entry_price) / tick_size
+        elapsed_ms = (now_ns - row.entry_ns) / 1_000_000.0
+        directional_return_bps = direction * (price / row.entry_price - 1.0) * 10_000.0
+        for horizon_ms in self.config.return_horizons_ms:
+            if horizon_ms > self.config.horizon_ms:
+                continue
+            key = str(horizon_ms)
+            if key not in row.horizon_returns_bps and elapsed_ms >= horizon_ms:
+                # First observed public trade at or after the fixed horizon.
+                row.horizon_returns_bps[key] = directional_return_bps
         adverse = max(0.0, -favorable)
         favorable = max(0.0, favorable)
         if favorable > row.mfe_ticks:
@@ -391,9 +404,7 @@ class AbsorptionResearchTracker:
             entry_ts=row.entry_ts.isoformat(),
             realized_exit_ts=(
                 row.entry_ts
-                + timedelta(
-                    seconds=(row.realized_exit_ns - row.entry_ns) / 1_000_000_000.0
-                )
+                + timedelta(seconds=(row.realized_exit_ns - row.entry_ns) / 1_000_000_000.0)
             ).isoformat(),
             resolved_ts=resolved_ts.isoformat(),
             entry_price=row.entry_price,
@@ -409,10 +420,9 @@ class AbsorptionResearchTracker:
             hit_target_2=row.hit_target_2,
             stopped_out=row.realized_exit_reason == "stop",
             was_stacked=row.observation.is_stacked,
-            had_liquidation_confluence=(
-                row.observation.liquidation_cluster_side is not None
-            ),
+            had_liquidation_confluence=(row.observation.liquidation_cluster_side is not None),
             volume_percentile=row.volume_percentile,
+            horizon_returns_bps=dict(row.horizon_returns_bps),
         )
 
     def _missed(
@@ -442,8 +452,7 @@ class AbsorptionResearchTracker:
             hit_target_2=False,
             stopped_out=False,
             was_stacked=row.observation.is_stacked,
-            had_liquidation_confluence=(
-                row.observation.liquidation_cluster_side is not None
-            ),
+            had_liquidation_confluence=(row.observation.liquidation_cluster_side is not None),
             volume_percentile=row.volume_percentile,
+            horizon_returns_bps={},
         )

@@ -11,12 +11,17 @@ export PYTHONPATH="${PYTHONPATH:-src}"
 export DASHBOARD_HOST="${DASHBOARD_HOST:-127.0.0.1}"
 export DASHBOARD_PORT="${DASHBOARD_PORT:-8080}"
 
-# Explicit paper/shadow boundary. Keep failed research families pruned and do
-# not manufacture fills by mirroring every experimental shadow lane.
+# Explicit paper/shadow boundary. Keep failed research families pruned. The
+# observation mirror is enabled locally so every retained Delta shadow lane has
+# an isolated simulated ledger; this is paper evidence only, never promotion.
 export MULTI_LANE_MODES="${MULTI_LANE_MODES:-paper,shadow}"
 export MULTI_LANE_EXCHANGES="${MULTI_LANE_EXCHANGES:-binanceusdm,bybit,delta_india}"
 export MULTI_LANE_PRUNE_DEAD="${MULTI_LANE_PRUNE_DEAD:-1}"
-export MULTI_LANE_PAPER_OBSERVE_ALL="${MULTI_LANE_PAPER_OBSERVE_ALL:-0}"
+export MULTI_LANE_PAPER_OBSERVE_ALL="${MULTI_LANE_PAPER_OBSERVE_ALL:-1}"
+export MULTI_LANE_DELTA_PAPER_OBSERVE="${MULTI_LANE_DELTA_PAPER_OBSERVE:-1}"
+# Velocity lanes are label-generation research and must never look like paper
+# candidates on the operator dashboard.
+export MULTI_LANE_VELOCITY="${MULTI_LANE_VELOCITY:-0}"
 export MULTI_LANE_CRYPTO_TREND_DOGE="${MULTI_LANE_CRYPTO_TREND_DOGE:-1}"
 export MULTI_LANE_CRYPTO_TREND_DOGE_PAPER="${MULTI_LANE_CRYPTO_TREND_DOGE_PAPER:-1}"
 export MULTI_LANE_EVIDENCE_PAPER_TRIAL="${MULTI_LANE_EVIDENCE_PAPER_TRIAL:-1}"

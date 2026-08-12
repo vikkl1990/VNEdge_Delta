@@ -18,8 +18,10 @@ import html
 import io
 import json
 import logging
+import math
 import os
 import re
+import shutil
 import socket
 import time
 from collections import Counter
@@ -94,6 +96,7 @@ def _build_sha() -> str:
             continue
     return "dev"
 
+
 # --- incident timeline --------------------------------------------------------
 # Journal kinds that are operator incidents (not routine order flow), mapped to
 # a severity and a runbook anchor in docs/RUNBOOKS.md.
@@ -136,7 +139,7 @@ def _safe_float(value: object) -> float | None:
         parsed = float(value)
     except (TypeError, ValueError):
         return None
-    if parsed != parsed:
+    if math.isnan(parsed):
         return None
     return parsed
 
@@ -153,18 +156,40 @@ def _read_json_dict(path: Path | None) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _file_age_seconds(path: Path | None) -> float | None:
+    if path is None or not path.is_file():
+        return None
+    try:
+        return max(0.0, time.time() - path.stat().st_mtime)
+    except OSError:
+        return None
+
+
+def _iso_age_seconds(value: object) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return max(0.0, (datetime.now(UTC) - moment.astimezone(UTC)).total_seconds())
+
+
 def event_research_infrastructure_payload(
     *,
     event_root: Path,
     event_trigger_telemetry_path: Path,
     absorption_dashboard_path: Path,
     event_replay_dir: Path,
+    replay_determinism_proof_path: Path | None = None,
+    event_continuity_path: Path | None = None,
     kronos_matrix_path: Path | None = None,
     kronos_confirmation_path: Path | None = None,
     forced_flow_dir: Path | None = None,
     tv_rule_adapter_path: Path | None = None,
     htf_structure_path: Path | None = None,
     htf_structure_v2_path: Path | None = None,
+    failed_auction_readiness_path: Path | None = None,
 ) -> dict[str, object]:
     """Truthful, read-only inventory of the new event-research stack.
 
@@ -182,7 +207,7 @@ def event_research_infrastructure_payload(
     updated_at = recorder_runtime.get("updated_at")
     if isinstance(updated_at, str):
         try:
-            updated = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+            updated = datetime.fromisoformat(updated_at)
             recorder_status_age_seconds = max(
                 0.0,
                 (datetime.now(UTC) - updated.astimezone(UTC)).total_seconds(),
@@ -195,6 +220,11 @@ def event_research_infrastructure_payload(
         and recorder_status_age_seconds <= max(90.0, stats_seconds * 3.0)
     )
     recorder_is_running = recorder_runtime_state == "RECORDING" and recorder_is_fresh
+    active_session_id = str(recorder_runtime.get("session_id") or "")
+    active_partials = [
+        path for path in partials if recorder_is_running and active_session_id in path.name
+    ]
+    orphan_partials = [path for path in partials if path not in active_partials]
     recorded_events = 0
     unreadable_manifests = 0
     for path in manifests:
@@ -217,6 +247,7 @@ def event_research_infrastructure_payload(
         recorder_status = "RECORDED"
 
     trigger = _read_json_dict(event_trigger_telemetry_path)
+    trigger_age_seconds = _file_age_seconds(event_trigger_telemetry_path)
     trigger_counts = trigger.get("counts") if isinstance(trigger.get("counts"), dict) else {}
     trigger_status = "OBSERVING" if trigger else "IMPLEMENTED_NOT_RUNNING"
     trigger_funnel = trigger.get("funnel") if isinstance(trigger.get("funnel"), dict) else {}
@@ -251,9 +282,39 @@ def event_research_infrastructure_payload(
         else []
     )
     replay = _read_json_dict(result_files[0]) if result_files else {}
+    determinism_proof = _read_json_dict(replay_determinism_proof_path)
+    proof_config = (
+        determinism_proof.get("config") if isinstance(determinism_proof.get("config"), dict) else {}
+    )
+    determinism_passed = (
+        determinism_proof.get("passed") is True
+        and determinism_proof.get("hash_match") is True
+        and determinism_proof.get("events_match") is True
+        and determinism_proof.get("feature_snapshots_match") is True
+        and determinism_proof.get("validation_match") is True
+        and determinism_proof.get("first_hash") == determinism_proof.get("second_hash")
+        and determinism_proof.get("first_validation_hash")
+        == determinism_proof.get("second_validation_hash")
+        and determinism_proof.get("first_events") == determinism_proof.get("second_events")
+        and determinism_proof.get("first_feature_snapshots")
+        == determinism_proof.get("second_feature_snapshots")
+        and determinism_proof.get("code_version") == proof_config.get("code_version")
+        and int(determinism_proof.get("first_events") or 0) > 0
+        and int(determinism_proof.get("first_feature_snapshots") or 0) > 0
+    )
+    continuity = _read_json_dict(event_continuity_path)
+    continuity_qualification = (
+        continuity.get("qualification") if isinstance(continuity.get("qualification"), dict) else {}
+    )
+    continuity_epochs = (
+        continuity.get("epochs") if isinstance(continuity.get("epochs"), dict) else {}
+    )
+    continuity_audit = continuity.get("audit") if isinstance(continuity.get("audit"), dict) else {}
     validation = replay.get("validation") if isinstance(replay.get("validation"), dict) else {}
     replay_status = (
-        "VALIDATED_RESULT"
+        "DETERMINISM_PROVEN"
+        if replay and validation.get("passed") is True and determinism_passed
+        else "VALIDATED_RESULT"
         if replay and validation.get("passed") is True
         else "ATTENTION"
         if replay
@@ -265,9 +326,7 @@ def event_research_infrastructure_payload(
     kronos_matrix = _read_json_dict(kronos_matrix_path)
     kronos_confirmation = _read_json_dict(kronos_confirmation_path)
     kronos_completion = (
-        kronos_matrix.get("completion")
-        if isinstance(kronos_matrix.get("completion"), dict)
-        else {}
+        kronos_matrix.get("completion") if isinstance(kronos_matrix.get("completion"), dict) else {}
     )
     confirmation_completion = (
         kronos_confirmation.get("completion")
@@ -293,20 +352,12 @@ def event_research_infrastructure_payload(
     tv_rule_adapter = _read_json_dict(tv_rule_adapter_path)
     htf_structure = _read_json_dict(htf_structure_path)
     htf_selection = (
-        htf_structure.get("selection")
-        if isinstance(htf_structure.get("selection"), dict)
-        else {}
+        htf_structure.get("selection") if isinstance(htf_structure.get("selection"), dict) else {}
     )
     htf_metrics = (
-        htf_selection.get("metrics")
-        if isinstance(htf_selection.get("metrics"), dict)
-        else {}
+        htf_selection.get("metrics") if isinstance(htf_selection.get("metrics"), dict) else {}
     )
-    htf_gate = (
-        htf_selection.get("gate")
-        if isinstance(htf_selection.get("gate"), dict)
-        else {}
-    )
+    htf_gate = htf_selection.get("gate") if isinstance(htf_selection.get("gate"), dict) else {}
     htf_structure_v2 = _read_json_dict(htf_structure_v2_path)
     htf_v2_selection = (
         htf_structure_v2.get("selection")
@@ -314,15 +365,266 @@ def event_research_infrastructure_payload(
         else {}
     )
     htf_v2_metrics = (
-        htf_v2_selection.get("metrics")
-        if isinstance(htf_v2_selection.get("metrics"), dict)
-        else {}
+        htf_v2_selection.get("metrics") if isinstance(htf_v2_selection.get("metrics"), dict) else {}
     )
     htf_v2_gate = (
-        htf_v2_selection.get("gate")
-        if isinstance(htf_v2_selection.get("gate"), dict)
+        htf_v2_selection.get("gate") if isinstance(htf_v2_selection.get("gate"), dict) else {}
+    )
+
+    readiness = _read_json_dict(failed_auction_readiness_path)
+    readiness_coverage = (
+        readiness.get("coverage") if isinstance(readiness.get("coverage"), dict) else {}
+    )
+    readiness_tree = (
+        readiness.get("tree_verification")
+        if isinstance(readiness.get("tree_verification"), dict)
         else {}
     )
+    readiness_semantic = (
+        readiness.get("semantic_validation")
+        if isinstance(readiness.get("semantic_validation"), dict)
+        else {}
+    )
+    readiness_blockers = (
+        readiness.get("blockers") if isinstance(readiness.get("blockers"), list) else []
+    )
+    continuity_blockers = (
+        continuity_qualification.get("blockers")
+        if isinstance(continuity_qualification.get("blockers"), list)
+        else []
+    )
+    effective_readiness_blockers = continuity_blockers if continuity else readiness_blockers
+    continuity_validation = (
+        continuity_qualification.get("semantic_validation")
+        if isinstance(continuity_qualification.get("semantic_validation"), dict)
+        else {}
+    )
+    effective_data_ready = (
+        continuity_qualification.get("data_ready") is True
+        if continuity
+        else readiness.get("data_ready") is True
+    )
+
+    connection = (
+        recorder_runtime.get("connection")
+        if isinstance(recorder_runtime.get("connection"), dict)
+        else {}
+    )
+    session_elapsed_seconds = _iso_age_seconds(recorder_runtime.get("started_at"))
+    connected_seconds = _iso_age_seconds(connection.get("connected_since"))
+    reconnects = int(connection.get("reconnects") or 0)
+    reconnect_rate_per_hour = (
+        reconnects / max(session_elapsed_seconds / 3600.0, 1 / 60)
+        if session_elapsed_seconds is not None
+        else None
+    )
+    delay_by_channel = (
+        recorder_runtime.get("feed_delay_by_channel")
+        if isinstance(recorder_runtime.get("feed_delay_by_channel"), dict)
+        else {}
+    )
+    critical_latency: dict[str, object] = {}
+    latency_attention = False
+    for channel in ("ob_updates", "trades"):
+        metrics = delay_by_channel.get(channel)
+        if not isinstance(metrics, dict):
+            critical_latency[channel] = {"status": "UNAVAILABLE"}
+            latency_attention = True
+            continue
+        p95_us = _safe_float(metrics.get("p95_us"))
+        p99_us = _safe_float(metrics.get("p99_us"))
+        status = "HEALTHY" if p95_us is not None and p95_us <= 500_000 else "ATTENTION"
+        latency_attention = latency_attention or status != "HEALTHY"
+        critical_latency[channel] = {
+            "status": status,
+            "p50_us": _safe_float(metrics.get("p50_us")),
+            "p95_us": p95_us,
+            "p99_us": p99_us,
+            "negative_samples": int(metrics.get("negative_samples") or 0),
+            "sample_count": int(metrics.get("count") or 0),
+            "p95_sla_us": 500_000,
+        }
+
+    try:
+        storage_root = event_root if event_root.exists() else event_root.parent
+        disk = shutil.disk_usage(storage_root)
+        stored_bytes = sum(path.stat().st_size for path in (*shards, *partials) if path.is_file())
+        bytes_per_day = (
+            stored_bytes / max(session_elapsed_seconds / 86_400.0, 1 / 24)
+            if session_elapsed_seconds is not None and stored_bytes > 0
+            else None
+        )
+        retention_days = disk.free / bytes_per_day if bytes_per_day else None
+        storage = {
+            "status": "HEALTHY" if disk.free / disk.total >= 0.10 else "ATTENTION",
+            "stored_bytes": stored_bytes,
+            "disk_free_bytes": disk.free,
+            "disk_total_bytes": disk.total,
+            "disk_free_pct": disk.free / disk.total * 100.0,
+            "estimated_days_remaining": retention_days,
+            "writer_queue_depth": recorder_runtime.get("writer_queue_depth"),
+            "writer_queue_high_water": recorder_runtime.get("writer_queue_high_water"),
+            "note": "Retention estimate uses this recorder session's observed byte rate.",
+        }
+    except OSError:
+        storage = {"status": "UNAVAILABLE"}
+
+    gap_guard = (
+        recorder_runtime.get("gap_guard")
+        if isinstance(recorder_runtime.get("gap_guard"), dict)
+        else {}
+    )
+    incident_reasons: list[str] = []
+    if not recorder_is_running or connection.get("connected") is not True:
+        incident_reasons.append("event recorder is not freshly connected")
+    if gap_guard.get("healthy") is False:
+        incident_reasons.append("gap guard reports an integrity fault")
+    if orphan_partials:
+        incident_reasons.append(f"{len(orphan_partials)} orphan partial shard(s)")
+    if latency_attention:
+        incident_reasons.append("critical event channel exceeds latency SLA or is unavailable")
+    if storage.get("status") == "ATTENTION":
+        incident_reasons.append("event storage has less than 10% free space")
+    incident_status = "ATTENTION" if incident_reasons else "CLEAR"
+
+    counter_open = int(counterfactual.get("open") or 0)
+    counter_pending = int(counterfactual.get("pending") or 0)
+    counter_outcomes = int(trigger_funnel.get("counterfactual_outcomes") or 0)
+    observation_state = {
+        "tradeable": {
+            "active": 0,
+            "pending": 0,
+            "status": "DISABLED",
+            "reason": "No primary scanner is enabled and no order route exists.",
+        },
+        "event_research": {
+            "active": counter_open,
+            "pending": counter_pending,
+            "resolved": counter_outcomes,
+            "status": "COUNTERFACTUAL_ONLY" if trigger else "NOT_RUNNING",
+            "profit_factor": _safe_float(counterfactual.get("profit_factor")),
+            "average_net_ticks": _safe_float(counterfactual.get("average_net_ticks")),
+        },
+    }
+
+    readiness_target_events = 5_000_000
+    readiness_target_days = 14.0
+    failed_auction = {
+        "implementation": "continuity_qualification_active",
+        "artifact_present": bool(continuity or readiness),
+        "contract_id": (
+            continuity.get("contract_id")
+            if continuity
+            else readiness.get("contract_id")
+            if readiness
+            else None
+        ),
+        "data_ready": effective_data_ready,
+        "scanner_implementation_authorized": False,
+        "selection_authorized": False,
+        "events": int(readiness_coverage.get("total_events") or 0),
+        "target_events": readiness_target_events,
+        "requested_days": _safe_float(readiness_coverage.get("requested_days")) or 0.0,
+        "target_days": readiness_target_days,
+        "blocker_count": len(effective_readiness_blockers),
+        "blockers": effective_readiness_blockers,
+        "tree_passed": (
+            not continuity_audit.get("failed_shards")
+            and int(continuity_audit.get("orphan_partial_files") or 0) == 0
+            if continuity
+            else readiness_tree.get("passed") is True
+        ),
+        "semantic_passed": (
+            continuity_validation.get("passed") is True
+            if continuity
+            else readiness_semantic.get("passed") is True
+        ),
+        "replay_determinism_passed": determinism_passed,
+        "replay_determinism_events": int(determinism_proof.get("first_events") or 0),
+        "replay_feature_snapshots": int(determinism_proof.get("first_feature_snapshots") or 0),
+        "continuity": {
+            "artifact_present": bool(continuity),
+            "qualified_events": int(continuity_qualification.get("qualified_events") or 0),
+            "target_events": int(
+                continuity_qualification.get("target_events") or readiness_target_events
+            ),
+            "qualified_days": _safe_float(continuity_qualification.get("qualified_days")) or 0.0,
+            "target_days": _safe_float(continuity_qualification.get("target_days"))
+            or readiness_target_days,
+            "events_remaining": int(
+                continuity_qualification.get("events_remaining") or readiness_target_events
+            ),
+            "days_remaining": _safe_float(continuity_qualification.get("days_remaining"))
+            or readiness_target_days,
+            "estimated_ready_at": continuity_qualification.get("estimated_ready_at"),
+            "estimate_status": continuity_qualification.get("estimate_status"),
+            "epoch_count": int(continuity_epochs.get("count") or 0),
+            "latest_epoch": continuity_epochs.get("latest"),
+            "longest_epoch": continuity_epochs.get("longest"),
+            "last_reset": continuity_epochs.get("last_reset"),
+            "verified_shards": int(continuity_audit.get("verified_shards") or 0),
+            "failed_shards": len(continuity_audit.get("failed_shards") or []),
+            "active_partial_files": int(continuity_audit.get("active_partial_files") or 0),
+            "orphan_partial_files": int(continuity_audit.get("orphan_partial_files") or 0),
+            "can_trade": False,
+            "can_promote": False,
+        },
+        "raw_absorption_observations": int(trigger_funnel.get("absorption_observations") or 0),
+        "counterfactual_outcomes": counter_outcomes,
+        "stages": [
+            {
+                "id": "record",
+                "label": "Record integrity epoch",
+                "value": int(continuity_qualification.get("qualified_events") or 0),
+                "target": readiness_target_events,
+                "state": "IN_PROGRESS" if recorder_is_running else "BLOCKED",
+            },
+            {
+                "id": "validate",
+                "label": "Validate causal tape",
+                "value": len(effective_readiness_blockers),
+                "target": 0,
+                "state": "PASSED" if effective_data_ready else "BLOCKED",
+            },
+            {
+                "id": "determinism",
+                "label": "Prove deterministic replay",
+                "value": int(determinism_proof.get("first_feature_snapshots") or 0),
+                "target": 1,
+                "state": "PASSED" if determinism_passed else "BLOCKED",
+            },
+            {
+                "id": "implement",
+                "label": "Implement failed-auction scanner",
+                "value": 0,
+                "target": 1,
+                "state": "NOT_AUTHORIZED",
+            },
+            {
+                "id": "selection",
+                "label": "Run chronological selection",
+                "value": 0,
+                "target": 1,
+                "state": "NOT_REACHED",
+            },
+            {
+                "id": "holdout",
+                "label": "Open sealed holdout once",
+                "value": 0,
+                "target": 1,
+                "state": "SEALED",
+            },
+            {
+                "id": "paper",
+                "label": "Paper eligibility proof",
+                "value": 0,
+                "target": 1,
+                "state": "LOCKED",
+            },
+        ],
+        "can_trade": False,
+        "can_promote": False,
+    }
 
     return {
         "schema_version": "vnedge.event_research_infrastructure.v1",
@@ -334,17 +636,18 @@ def event_research_infrastructure_payload(
             "finalized_shards": len(shards),
             "manifest_files": len(manifests),
             "partial_files": len(partials),
+            "active_partial_files": len(active_partials),
+            "orphan_partial_files": len(orphan_partials),
             "recorded_events_from_manifests": recorded_events,
             "live_events": int(recorder_runtime.get("events") or 0),
-            "active_session": (
-                recorder_runtime.get("session_id") if recorder_is_running else None
-            ),
+            "active_session": (recorder_runtime.get("session_id") if recorder_is_running else None),
             "runtime_state": recorder_runtime_state,
             "runtime_status_age_seconds": recorder_status_age_seconds,
             "runtime": recorder_runtime,
             "unreadable_manifests": unreadable_manifests,
             "integrity_note": "inventory only; full sequence/checksum validation runs before replay",
-            "connection": recorder_runtime.get("connection") or {
+            "connection": recorder_runtime.get("connection")
+            or {
                 "connected": None,
                 "attempts": int(recorder_runtime.get("connections") or 0),
                 "reconnects": None,
@@ -355,6 +658,15 @@ def event_research_infrastructure_payload(
                 recorder_runtime.get("feed_delay_corrected_by_channel") or {}
             ),
             "timestamp_quality": recorder_runtime.get("feed_timestamp_quality") or {},
+            "operations": {
+                "session_elapsed_seconds": session_elapsed_seconds,
+                "current_connection_seconds": connected_seconds,
+                "reconnect_rate_per_hour": reconnect_rate_per_hour,
+                "last_disconnect": connection.get("last_disconnect"),
+                "critical_latency": critical_latency,
+                "trigger_telemetry_age_seconds": trigger_age_seconds,
+            },
+            "storage": storage,
         },
         "event_trigger": {
             "implementation": "available",
@@ -380,11 +692,16 @@ def event_research_infrastructure_payload(
             "counterfactual_observations": int(
                 trigger_counts.get("counterfactual_observations") or 0
             ),
-            "counterfactual_outcomes": int(
-                trigger_counts.get("counterfactual_outcomes") or 0
-            ),
+            "counterfactual_outcomes": int(trigger_counts.get("counterfactual_outcomes") or 0),
             "latest": absorption.get("latest") if absorption else None,
             "liquidation_strength_applied_to_signal": False,
+        },
+        "observation_state": observation_state,
+        "failed_auction_readiness": failed_auction,
+        "operations": {
+            "incident_status": incident_status,
+            "incident_reasons": incident_reasons,
+            "generated_at": datetime.now(UTC).isoformat(),
         },
         "replay": {
             "implementation": "available",
@@ -401,6 +718,14 @@ def event_research_infrastructure_payload(
                 if isinstance(replay.get("summary_metrics"), dict)
                 else None
             ),
+            "determinism_proof": {
+                **determinism_proof,
+                "passed": determinism_passed,
+                "can_trade": False,
+                "can_promote": False,
+            }
+            if determinism_proof
+            else {},
         },
         "research_modules": {
             "htf_structure_break": {
@@ -431,15 +756,9 @@ def event_research_infrastructure_payload(
                 ),
                 "selection_trades": int(htf_v2_metrics.get("trades") or 0),
                 "selection_net_bps": float(htf_v2_metrics.get("net_bps") or 0.0),
-                "average_gross_bps": float(
-                    htf_v2_metrics.get("average_gross_bps") or 0.0
-                ),
-                "average_cost_bps": float(
-                    htf_v2_metrics.get("average_total_cost_bps") or 0.0
-                ),
-                "average_net_bps": float(
-                    htf_v2_metrics.get("average_net_bps") or 0.0
-                ),
+                "average_gross_bps": float(htf_v2_metrics.get("average_gross_bps") or 0.0),
+                "average_cost_bps": float(htf_v2_metrics.get("average_total_cost_bps") or 0.0),
+                "average_net_bps": float(htf_v2_metrics.get("average_net_bps") or 0.0),
                 "profit_factor": float(htf_v2_metrics.get("profit_factor") or 0.0),
                 "markets": htf_v2_metrics.get("markets") or {},
                 "untouched": htf_structure_v2.get("untouched") or {},
@@ -454,9 +773,7 @@ def event_research_infrastructure_payload(
                 "matrix_complete": kronos_completion.get("complete") is True,
                 "base_runs": kronos_completion.get("completed_base_runs", 0),
                 "permutations": kronos_completion.get("scored_permutations", 0),
-                "confirmation_base_runs": confirmation_completion.get(
-                    "completed_base_runs", 0
-                ),
+                "confirmation_base_runs": confirmation_completion.get("completed_base_runs", 0),
                 "eligible_selection_candidates": eligible_count,
                 "holdback_evaluated": False,
                 "operator_answer": (
@@ -468,9 +785,7 @@ def event_research_infrastructure_payload(
             "forced_flow_panel": {
                 "implementation": "available",
                 "status": (
-                    "PANEL_READY_PROXY_ONLY"
-                    if forced_flow_manifests
-                    else "READY_NO_ARTIFACT"
+                    "PANEL_READY_PROXY_ONLY" if forced_flow_manifests else "READY_NO_ARTIFACT"
                 ),
                 "symbols": sorted(set(forced_flow_symbols)),
                 "manifests": len(forced_flow_manifests),
@@ -531,7 +846,10 @@ def _agent_job_adapter(job: dict) -> str:
     adapter = str(params.get("adapter") or params.get("job_adapter") or "")
     if strategy_id.startswith("ai_"):
         return "ai_candidate"
-    if "candidate_replay" in {strategy_id, adapter} or strategy_id == "candidate_replay_executor_v1":
+    if (
+        "candidate_replay" in {strategy_id, adapter}
+        or strategy_id == "candidate_replay_executor_v1"
+    ):
         return "candidate_replay"
     return "registered_backtest"
 
@@ -661,13 +979,15 @@ def _alert_incidents(paths: list[Path]) -> list[dict]:
             if rule_id in _NON_INCIDENT_ALERTS:
                 continue
             anchor = _ALERT_RUNBOOKS.get(rule_id, _GENERAL_RUNBOOK)
-            out.append({
-                "ts": str(record.get("ts", "")),
-                "severity": str(record.get("severity", "info")),
-                "source": f"alert:{rule_id or 'unknown'}",
-                "message": str(record.get("message", "")),
-                "runbook": f"/runbooks#{anchor}",
-            })
+            out.append(
+                {
+                    "ts": str(record.get("ts", "")),
+                    "severity": str(record.get("severity", "info")),
+                    "source": f"alert:{rule_id or 'unknown'}",
+                    "message": str(record.get("message", "")),
+                    "runbook": f"/runbooks#{anchor}",
+                }
+            )
     return out
 
 
@@ -685,13 +1005,15 @@ def _journal_incidents(journal_dir: Path | None) -> list[dict]:
             severity, anchor = mapped
             payload = record.get("payload")
             summary = _summarize_payload(payload) if isinstance(payload, dict) else ""
-            out.append({
-                "ts": str(record.get("ts", "")),
-                "severity": severity,
-                "source": f"journal:{lane}",
-                "message": kind + (f" — {summary}" if summary else ""),
-                "runbook": f"/runbooks#{anchor}",
-            })
+            out.append(
+                {
+                    "ts": str(record.get("ts", "")),
+                    "severity": severity,
+                    "source": f"journal:{lane}",
+                    "message": kind + (f" — {summary}" if summary else ""),
+                    "runbook": f"/runbooks#{anchor}",
+                }
+            )
     return out
 
 
@@ -720,11 +1042,13 @@ def _render_runbooks_html(markdown: str) -> str:
     everything else is escaped verbatim inside <pre> blocks."""
     parts: list[str] = [
         "<!doctype html><meta charset='utf-8'><title>VNEDGE runbooks</title>",
-        "<style>body{background:#05070a;color:#e8eef6;font:14px/1.55 ui-monospace,"
-        "SFMono-Regular,Menlo,Consolas,monospace;max-width:860px;margin:24px auto;"
-        "padding:0 16px}h1,h2,h3{color:#4cb7ff;scroll-margin-top:12px}"
-        "h2{border-top:1px solid #263241;padding-top:18px}"
-        "pre{white-space:pre-wrap;margin:4px 0}:target{color:#f7bd54}</style>",
+        (
+            "<style>body{background:#05070a;color:#e8eef6;font:14px/1.55 ui-monospace,"
+            "SFMono-Regular,Menlo,Consolas,monospace;max-width:860px;margin:24px auto;"
+            "padding:0 16px}h1,h2,h3{color:#4cb7ff;scroll-margin-top:12px}"
+            "h2{border-top:1px solid #263241;padding-top:18px}"
+            "pre{white-space:pre-wrap;margin:4px 0}:target{color:#f7bd54}</style>"
+        ),
     ]
     buffer: list[str] = []
 
@@ -739,9 +1063,7 @@ def _render_runbooks_html(markdown: str) -> str:
             flush()
             level = len(heading.group(1))
             title = heading.group(2).strip()
-            parts.append(
-                f"<h{level} id='{_slug(title)}'>{html.escape(title)}</h{level}>"
-            )
+            parts.append(f"<h{level} id='{_slug(title)}'>{html.escape(title)}</h{level}>")
         else:
             buffer.append(line)
     flush()
@@ -775,16 +1097,18 @@ def _cost_model_payload() -> dict:
     # never a number hardcoded in the UI.
     exchanges = []
     for name, prof in sorted(_registry.exchange_fees.items()):
-        exchanges.append({
-            "exchange": prof.exchange,
-            "label": _EXCHANGE_LABELS.get(prof.exchange, prof.exchange),
-            "maker_bps": prof.maker_bps,
-            "taker_bps": prof.taker_bps,
-            "slippage_bps": prof.slippage_bps,
-            "safety_buffer_bps": prof.safety_buffer_bps,
-            "maker_first_cost_bps": round(prof.maker_first_cost_bps, 2),
-            "taker_round_trip_cost_bps": round(prof.taker_round_trip_cost_bps, 2),
-        })
+        exchanges.append(
+            {
+                "exchange": prof.exchange,
+                "label": _EXCHANGE_LABELS.get(prof.exchange, prof.exchange),
+                "maker_bps": prof.maker_bps,
+                "taker_bps": prof.taker_bps,
+                "slippage_bps": prof.slippage_bps,
+                "safety_buffer_bps": prof.safety_buffer_bps,
+                "maker_first_cost_bps": round(prof.maker_first_cost_bps, 2),
+                "taker_round_trip_cost_bps": round(prof.taker_round_trip_cost_bps, 2),
+            }
+        )
     return {
         "exchange": fee.exchange,
         "source": "scalper_replay_diagnostics + paper.fill_model constants",
@@ -840,6 +1164,7 @@ def create_app(
     realtime_scanner_path: Path | None = None,
     delta_scalper_path: Path | None = None,
     delta_active_cost_evidence_path: Path | None = None,
+    indicator_score_calibration_path: Path | None = None,
     scanner_forward_evidence_path: Path | None = None,
     lane_firing_causality_path: Path | None = None,
     paper_lane_activation_path: Path | None = None,
@@ -879,11 +1204,14 @@ def create_app(
     event_trigger_telemetry_path: Path | None = None,
     absorption_dashboard_path: Path | None = None,
     event_replay_dir: Path | None = None,
+    replay_determinism_proof_path: Path | None = None,
+    event_continuity_path: Path | None = None,
     kronos_matrix_path: Path | None = None,
     kronos_confirmation_path: Path | None = None,
     forced_flow_dir: Path | None = None,
     htf_structure_path: Path | None = None,
     htf_structure_v2_path: Path | None = None,
+    failed_auction_readiness_path: Path | None = None,
     token_store: TokenStore | None = None,
     agent_token_store: AgentTokenStore | None = None,
     agent_audit_path: Path | None = None,
@@ -914,6 +1242,21 @@ def create_app(
     app = FastAPI(title="VNEDGE dashboard", docs_url=None, redoc_url=None)
     ws_connections: dict[str, int] = {}  # user name -> live socket count (never tokens)
 
+    @app.middleware("http")
+    async def dashboard_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("Cache-Control", "no-store")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "script-src 'self' 'unsafe-inline'; connect-src 'self'; "
+            "img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'",
+        )
+        return response
+
     @app.get("/health")
     async def health() -> JSONResponse:
         """Unauthenticated liveness probe for container healthchecks + the TLS
@@ -942,8 +1285,11 @@ def create_app(
     # _REPO_ROOT/docs works) and the container (pip-installed package, where
     # __file__ points into site-packages but docs/ is COPYed to the WORKDIR).
     runbooks_file = runbooks_path or next(
-        (c for c in (_REPO_ROOT / "docs" / "RUNBOOKS.md",
-                     Path.cwd() / "docs" / "RUNBOOKS.md") if c.exists()),
+        (
+            c
+            for c in (_REPO_ROOT / "docs" / "RUNBOOKS.md", Path.cwd() / "docs" / "RUNBOOKS.md")
+            if c.exists()
+        ),
         _REPO_ROOT / "docs" / "RUNBOOKS.md",
     )
 
@@ -980,6 +1326,8 @@ def create_app(
         candidate = header.removeprefix("Bearer ").strip()
         if not candidate:
             candidate = request.query_params.get("token", "")
+        if not candidate:
+            candidate = request.cookies.get("vnedge_session", "")
         # A short-lived session JWT is honored first; anything that isn't one of
         # ours (verify -> None) falls through to the long-lived token store, so
         # existing tokens keep working unchanged.
@@ -990,9 +1338,7 @@ def create_app(
             return session
         result = store.authenticate(candidate)
         if not result.authorized:
-            raise HTTPException(
-                status_code=401, detail=result.reason or "missing or invalid token"
-            )
+            raise HTTPException(status_code=401, detail=result.reason or "missing or invalid token")
         return result
 
     def _identity(user: AuthResult) -> dict[str, str]:
@@ -1008,6 +1354,7 @@ def create_app(
         promotion, kill-switch) attach to when they land — no second auth
         migration. Enforcement is server-side and cannot be spoofed by a header.
         """
+
         def _dep(request: Request) -> AuthResult:
             user = _authorized(request)
             if not has_permission(user.role, permission):
@@ -1016,6 +1363,7 @@ def create_app(
                     detail=f"role {user.role!r} lacks permission {permission!r}",
                 )
             return user
+
         return _dep
 
     def _read_json_payload(path: Path | None, fallback: dict) -> dict:
@@ -1027,90 +1375,65 @@ def create_app(
             return fallback  # mid-write race: serve a safe empty payload
         return payload if isinstance(payload, dict) else fallback
 
-    pine_alpha_distiller_file = (
-        pine_alpha_distiller_path
-        or Path("research/live_research/pine_alpha_distiller_latest.json")
+    pine_alpha_distiller_file = pine_alpha_distiller_path or Path(
+        "research/live_research/pine_alpha_distiller_latest.json"
     )
-    tv_rule_spec_file = (
-        tv_rule_spec_path
-        or Path("research/live_research/tv_rule_adapter_latest.json")
+    tv_rule_spec_file = tv_rule_spec_path or Path(
+        "research/live_research/tv_rule_adapter_latest.json"
     )
-    quantified_strategy_lab_file = (
-        quantified_strategy_lab_path
-        or Path("research/live_research/quantified_strategy_lab_latest.json")
+    quantified_strategy_lab_file = quantified_strategy_lab_path or Path(
+        "research/live_research/quantified_strategy_lab_latest.json"
     )
-    quantified_port_factory_file = (
-        quantified_port_factory_path
-        or Path("research/live_research/quantified_port_factory_latest.json")
+    quantified_port_factory_file = quantified_port_factory_path or Path(
+        "research/live_research/quantified_port_factory_latest.json"
     )
-    quantified_blueprint_proof_file = (
-        quantified_blueprint_proof_path
-        or Path("research/live_research/quantified_blueprint_proof_latest.json")
+    quantified_blueprint_proof_file = quantified_blueprint_proof_path or Path(
+        "research/live_research/quantified_blueprint_proof_latest.json"
     )
-    quantified_proof_arbiter_file = (
-        quantified_proof_arbiter_path
-        or Path("research/live_research/quantified_proof_result_arbiter_latest.json")
+    quantified_proof_arbiter_file = quantified_proof_arbiter_path or Path(
+        "research/live_research/quantified_proof_result_arbiter_latest.json"
     )
-    quantified_pullback_proof_file = (
-        quantified_pullback_proof_path
-        or Path("research/live_research/quantified_pullback_reversion_proof_latest.json")
+    quantified_pullback_proof_file = quantified_pullback_proof_path or Path(
+        "research/live_research/quantified_pullback_reversion_proof_latest.json"
     )
-    pine_backtest_progress_file = (
-        backtest_progress_path
-        or Path("research/live_research/scanner_tournament_progress.json")
+    pine_backtest_progress_file = backtest_progress_path or Path(
+        "research/live_research/scanner_tournament_progress.json"
     )
-    pine_edge_uplift_file = (
-        pine_edge_uplift_path
-        or Path("research/live_research/pine_edge_uplift_agent_latest.json")
+    pine_edge_uplift_file = pine_edge_uplift_path or Path(
+        "research/live_research/pine_edge_uplift_agent_latest.json"
     )
-    edge_uplift_executor_file = (
-        edge_uplift_executor_path
-        or Path("research/live_research/edge_uplift_experiments_latest.json")
+    edge_uplift_executor_file = edge_uplift_executor_path or Path(
+        "research/live_research/edge_uplift_experiments_latest.json"
     )
-    scanner_backtest_uplift_file = (
-        scanner_backtest_uplift_path
-        or Path("research/live_research/scanner_backtest_uplift_latest.json")
+    scanner_backtest_uplift_file = scanner_backtest_uplift_path or Path(
+        "research/live_research/scanner_backtest_uplift_latest.json"
     )
-    delta_5m_event_clock_file = (
-        delta_5m_event_clock_path
-        or Path("research/live_research/delta_5m_event_clock_latest.json")
+    delta_5m_event_clock_file = delta_5m_event_clock_path or Path(
+        "research/live_research/delta_5m_event_clock_latest.json"
     )
-    lane_firing_causality_file = (
-        lane_firing_causality_path
-        or Path("research/live_research/lane_firing_causality_latest.json")
+    lane_firing_causality_file = lane_firing_causality_path or Path(
+        "research/live_research/lane_firing_causality_latest.json"
     )
-    alpha_arena_lite_file = (
-        alpha_arena_lite_path
-        or Path("research/live_research/alpha_arena_lite_latest.json")
+    alpha_arena_lite_file = alpha_arena_lite_path or Path(
+        "research/live_research/alpha_arena_lite_latest.json"
     )
-    quant_loop_governance_file = (
-        quant_loop_governance_path
-        or Path("research/live_research/quant_loop_governance_latest.json")
+    quant_loop_governance_file = quant_loop_governance_path or Path(
+        "research/live_research/quant_loop_governance_latest.json"
     )
-    agentic_research_os_file = (
-        agentic_research_os_path
-        or Path("research/live_research/agentic_research_os_latest.json")
+    agentic_research_os_file = agentic_research_os_path or Path(
+        "research/live_research/agentic_research_os_latest.json"
     )
-    scanner_forward_evidence_file = (
-        scanner_forward_evidence_path
-        or Path("research/live_research/mtf_amf_forward_evidence_latest.json")
+    scanner_forward_evidence_file = scanner_forward_evidence_path or Path(
+        "research/live_research/mtf_amf_forward_evidence_latest.json"
     )
-    fee_wall_forensics_file = Path(
-        "research/live_research/fee_wall_forensics_latest.json"
+    fee_wall_forensics_file = Path("research/live_research/fee_wall_forensics_latest.json")
+    fee_wall_probes_file = Path("research/live_research/fee_wall_paper_probes.json")
+    fee_wall_probe_actuals_file = Path("research/live_research/fee_wall_probe_actuals_latest.json")
+    evidence_index_file = evidence_index_path or Path(
+        "research/live_research/evidence_index_latest.json"
     )
-    fee_wall_probes_file = Path(
-        "research/live_research/fee_wall_paper_probes.json"
-    )
-    fee_wall_probe_actuals_file = Path(
-        "research/live_research/fee_wall_probe_actuals_latest.json"
-    )
-    evidence_index_file = (
-        evidence_index_path
-        or Path("research/live_research/evidence_index_latest.json")
-    )
-    execution_replay_profile_file = (
-        execution_replay_profile_path
-        or Path("research/live_research/execution_replay_profile_latest.json")
+    execution_replay_profile_file = execution_replay_profile_path or Path(
+        "research/live_research/execution_replay_profile_latest.json"
     )
     # The Delta product homepage has its own source of truth.  Keep the
     # realtime-scanner fallback for callers that still publish the historical
@@ -1122,6 +1445,9 @@ def create_app(
         or Path("research/live_research/delta_scalper_engine_latest.json")
     )
     delta_active_cost_evidence_file = delta_active_cost_evidence_path
+    indicator_score_calibration_file = indicator_score_calibration_path or Path(
+        "research/live_research/indicator_score_calibration_latest.json"
+    )
     delta_event_root_dir = delta_event_root or Path("data/delta_events")
     event_trigger_telemetry_file = event_trigger_telemetry_path or Path(
         "research/live_research/delta_event_trigger_telemetry_latest.json"
@@ -1130,6 +1456,12 @@ def create_app(
         "research/live_research/delta_absorption_dashboard_latest.json"
     )
     event_replay_output_dir = event_replay_dir or Path("research/event_replay")
+    replay_determinism_proof_file = replay_determinism_proof_path or Path(
+        "research/event_replay/replay_determinism_latest.json"
+    )
+    event_continuity_file = event_continuity_path or Path(
+        "research/live_research/delta_event_continuity_latest.json"
+    )
     kronos_matrix_file = kronos_matrix_path or Path(
         "research/live_research/kronos_permutation_matrix_latest.json"
     )
@@ -1145,73 +1477,59 @@ def create_app(
     htf_structure_v2_file = htf_structure_v2_path or Path(
         "research/live_research/htf_structure_break_v2_latest.json"
     )
-    paper_lane_activation_file = (
-        paper_lane_activation_path
-        or Path("research/live_research/paper_lane_activation_latest.json")
+    failed_auction_readiness_file = failed_auction_readiness_path or Path(
+        "research/live_research/failed_auction_response_v1_readiness_latest.json"
     )
-    promotion_review_runbook_file = (
-        promotion_review_runbook_path
-        or Path("research/live_research/promotion_review_runbook_latest.json")
+    paper_lane_activation_file = paper_lane_activation_path or Path(
+        "research/live_research/paper_lane_activation_latest.json"
     )
-    paper_route_doctor_file = (
-        paper_route_doctor_path
-        or Path("research/live_research/paper_route_doctor_latest.json")
+    promotion_review_runbook_file = promotion_review_runbook_path or Path(
+        "research/live_research/promotion_review_runbook_latest.json"
     )
-    paper_lane_cadence_file = (
-        paper_lane_cadence_path
-        or Path("research/live_research/paper_lane_cadence_latest.json")
+    paper_route_doctor_file = paper_route_doctor_path or Path(
+        "research/live_research/paper_route_doctor_latest.json"
     )
-    paper_lane_performance_file = (
-        paper_lane_performance_path
-        or Path("research/live_research/paper_lane_performance_latest.json")
+    paper_lane_cadence_file = paper_lane_cadence_path or Path(
+        "research/live_research/paper_lane_cadence_latest.json"
     )
-    paper_trade_entry_autopsy_file = (
-        paper_trade_entry_autopsy_path
-        or Path("research/live_research/paper_trade_entry_autopsy_latest.json")
+    paper_lane_performance_file = paper_lane_performance_path or Path(
+        "research/live_research/paper_lane_performance_latest.json"
     )
-    paper_trade_exit_autopsy_file = (
-        paper_trade_exit_autopsy_path
-        or Path("research/live_research/paper_trade_exit_autopsy_latest.json")
+    paper_trade_entry_autopsy_file = paper_trade_entry_autopsy_path or Path(
+        "research/live_research/paper_trade_entry_autopsy_latest.json"
     )
-    trade_analyzer_os_file = (
-        trade_analyzer_os_path
-        or Path("research/live_research/trade_analyzer_os_latest.json")
+    paper_trade_exit_autopsy_file = paper_trade_exit_autopsy_path or Path(
+        "research/live_research/paper_trade_exit_autopsy_latest.json"
     )
-    paper_lane_root_cause_file = (
-        paper_lane_root_cause_path
-        or Path("research/live_research/paper_lane_root_cause_latest.json")
+    trade_analyzer_os_file = trade_analyzer_os_path or Path(
+        "research/live_research/trade_analyzer_os_latest.json"
     )
-    maker_quote_lifecycle_file = (
-        maker_quote_lifecycle_path
-        or Path("research/live_research/maker_quote_lifecycle_latest.json")
+    paper_lane_root_cause_file = paper_lane_root_cause_path or Path(
+        "research/live_research/paper_lane_root_cause_latest.json"
     )
-    paper_trade_contract_reconciler_file = (
-        paper_trade_contract_reconciler_path
-        or Path("research/live_research/paper_trade_contract_reconciler_latest.json")
+    maker_quote_lifecycle_file = maker_quote_lifecycle_path or Path(
+        "research/live_research/maker_quote_lifecycle_latest.json"
     )
-    paper_promotion_bridge_file = (
-        paper_promotion_bridge_path
-        or Path("research/live_research/paper_promotion_bridge_latest.json")
+    paper_trade_contract_reconciler_file = paper_trade_contract_reconciler_path or Path(
+        "research/live_research/paper_trade_contract_reconciler_latest.json"
     )
-    lane_survival_file = (
-        lane_survival_path
-        or Path("research/live_research/lane_survival_latest.json")
+    paper_promotion_bridge_file = paper_promotion_bridge_path or Path(
+        "research/live_research/paper_promotion_bridge_latest.json"
     )
-    paper_lane_governor_file = (
-        paper_lane_governor_path
-        or Path("research/live_research/paper_lane_governor_latest.json")
+    lane_survival_file = lane_survival_path or Path(
+        "research/live_research/lane_survival_latest.json"
     )
-    paper_roster_drift_file = (
-        paper_roster_drift_path
-        or Path("research/live_research/paper_roster_drift_latest.json")
+    paper_lane_governor_file = paper_lane_governor_path or Path(
+        "research/live_research/paper_lane_governor_latest.json"
     )
-    darwinian_agent_survival_file = (
-        darwinian_agent_survival_path
-        or Path("research/live_research/darwinian_agent_survival_latest.json")
+    paper_roster_drift_file = paper_roster_drift_path or Path(
+        "research/live_research/paper_roster_drift_latest.json"
     )
-    ml_pipeline_status_file = (
-        ml_pipeline_status_path
-        or Path("research/live_research/ml_pipeline_status.json")
+    darwinian_agent_survival_file = darwinian_agent_survival_path or Path(
+        "research/live_research/darwinian_agent_survival_latest.json"
+    )
+    ml_pipeline_status_file = ml_pipeline_status_path or Path(
+        "research/live_research/ml_pipeline_status.json"
     )
 
     @app.get("/")
@@ -1295,7 +1613,7 @@ def create_app(
         this grants no new capability — the session's role equals the token's."""
         user = _authorized(request)
         session = issuer.issue(user.name or "", user.role or "viewer")
-        return JSONResponse(
+        response = JSONResponse(
             {
                 "token": session.token,
                 "expires_at": session.expires_at.isoformat(),
@@ -1304,6 +1622,16 @@ def create_app(
             },
             headers=_identity(user),
         )
+        response.set_cookie(
+            key="vnedge_session",
+            value=session.token,
+            max_age=issuer.ttl_seconds,
+            httponly=True,
+            secure=request.url.scheme == "https",
+            samesite="strict",
+            path="/",
+        )
+        return response
 
     def _query_lane(request: Request) -> str:
         lane = request.query_params.get("lane", "").strip()
@@ -1374,35 +1702,56 @@ def create_app(
             lane_label = history_path.name.removesuffix(".equity.jsonl")
         lane_label = lane_label or "primary"
 
-        fields = ["record_type", "ts", "lane", "equity", "event", "detail",
-                  "symbol", "side", "quantity", "price", "fee_usd",
-                  "realized_pnl_usd", "client_order_id"]
+        fields = [
+            "record_type",
+            "ts",
+            "lane",
+            "equity",
+            "event",
+            "detail",
+            "symbol",
+            "side",
+            "quantity",
+            "price",
+            "fee_usd",
+            "realized_pnl_usd",
+            "client_order_id",
+        ]
 
         def rows():
             for point in _equity_points(lane, since):
-                yield {"record_type": "equity", "ts": point.get("ts", ""),
-                       "equity": point.get("equity", "")}
+                yield {
+                    "record_type": "equity",
+                    "ts": point.get("ts", ""),
+                    "equity": point.get("equity", ""),
+                }
             for event in _snapshot_trade_log(provider.latest(), lane):
                 ts = str(event.get("ts", ""))
                 if since is not None and ts < since:
                     continue
-                yield {"record_type": "trade_log", "ts": ts,
-                       "event": event.get("event", ""),
-                       "detail": event.get("detail", "")}
+                yield {
+                    "record_type": "trade_log",
+                    "ts": ts,
+                    "event": event.get("event", ""),
+                    "detail": event.get("detail", ""),
+                }
             fills_path = _lane_file(lane, ".fills.jsonl")
             if fills_path is not None and fills_path.exists():
                 for fill in _iter_jsonl(fills_path, max_bytes=4_000_000):
                     ts = str(fill.get("ts", ""))
                     if since is not None and ts < since:
                         continue
-                    yield {"record_type": "fill", "ts": ts,
-                           "symbol": fill.get("symbol", ""),
-                           "side": fill.get("side", ""),
-                           "quantity": fill.get("quantity", ""),
-                           "price": fill.get("price", ""),
-                           "fee_usd": fill.get("fee_usd", ""),
-                           "realized_pnl_usd": fill.get("realized_pnl_usd", ""),
-                           "client_order_id": fill.get("client_order_id", "")}
+                    yield {
+                        "record_type": "fill",
+                        "ts": ts,
+                        "symbol": fill.get("symbol", ""),
+                        "side": fill.get("side", ""),
+                        "quantity": fill.get("quantity", ""),
+                        "price": fill.get("price", ""),
+                        "fee_usd": fill.get("fee_usd", ""),
+                        "realized_pnl_usd": fill.get("realized_pnl_usd", ""),
+                        "client_order_id": fill.get("client_order_id", ""),
+                    }
 
         def stream():
             buffer = io.StringIO()
@@ -1419,9 +1768,10 @@ def create_app(
         return StreamingResponse(
             stream(),
             media_type="text/csv",
-            headers={"Content-Disposition":
-                     f'attachment; filename="vnedge_{lane_label}.csv"',
-                     **_identity(user)},
+            headers={
+                "Content-Disposition": f'attachment; filename="vnedge_{lane_label}.csv"',
+                **_identity(user),
+            },
         )
 
     @app.get("/trade-journal")
@@ -1704,7 +2054,12 @@ def create_app(
                 {
                     "stage": "COLLECTING_LABELS",
                     "stages": [],
-                    "dataset": {"samples": 0, "min_to_train": 200, "progress_pct": 0.0, "by_strategy": {}},
+                    "dataset": {
+                        "samples": 0,
+                        "min_to_train": 200,
+                        "progress_pct": 0.0,
+                        "by_strategy": {},
+                    },
                     "foundation": {},
                     "gates": {
                         "deflated_sharpe_min": 0.95,
@@ -2385,9 +2740,7 @@ def create_app(
         _authorized(request)
         forensics = _read_json_payload(fee_wall_forensics_file, {"reports": []})
         probes = _read_json_payload(fee_wall_probes_file, {"paper_probes": []})
-        probe_actuals = _read_json_payload(
-            fee_wall_probe_actuals_file, {"rows": [], "summary": {}}
-        )
+        probe_actuals = _read_json_payload(fee_wall_probe_actuals_file, {"rows": [], "summary": {}})
         by: dict = {}
         for r in forensics.get("reports", []):
             strat = r.get("strategy")
@@ -2398,9 +2751,13 @@ def create_app(
             g = by.setdefault(
                 strat,
                 {
-                    "strategy": strat, "best_net_bps": None, "verdict": None,
-                    "profit_factor": None, "break_rate_pct": None,
-                    "samples": 0, "venues": set(),
+                    "strategy": strat,
+                    "best_net_bps": None,
+                    "verdict": None,
+                    "profit_factor": None,
+                    "break_rate_pct": None,
+                    "samples": 0,
+                    "venues": set(),
                 },
             )
             if r.get("exchange"):
@@ -2516,18 +2873,43 @@ def create_app(
         else:
             embedded_panels = dict(embedded_panels)
 
+        indicator_calibration = _read_json_payload(
+            indicator_score_calibration_file,
+            {
+                "verdict": "NOT_RUN",
+                "source": {"trades": 0},
+                "deciles": [],
+                "policy": {},
+            },
+        )
+        indicator_policy = (
+            indicator_calibration.get("policy")
+            if isinstance(indicator_calibration.get("policy"), dict)
+            else {}
+        )
+        indicator_calibration = {
+            **indicator_calibration,
+            "policy": {
+                **indicator_policy,
+                "advisory_only": True,
+                "used_for_signal": False,
+                "used_for_execution": False,
+                "can_trade": False,
+                "can_promote": False,
+            },
+            "can_trade": False,
+            "can_promote": False,
+        }
+        embedded_panels["indicator_score_calibration"] = indicator_calibration
+
         active_cost_evidence = embedded_panels.get("active_cost_evidence")
         if (
             not isinstance(active_cost_evidence, dict)
             and delta_active_cost_evidence_file is not None
         ):
-            active_cost_evidence = _read_json_payload(
-                delta_active_cost_evidence_file, {}
-            )
+            active_cost_evidence = _read_json_payload(delta_active_cost_evidence_file, {})
         active_cost_metrics = (
-            active_cost_evidence.get("metrics")
-            if isinstance(active_cost_evidence, dict)
-            else None
+            active_cost_evidence.get("metrics") if isinstance(active_cost_evidence, dict) else None
         )
         if isinstance(active_cost_metrics, dict):
             source_backtest = embedded_panels.get("backtest_summary")
@@ -2535,16 +2917,12 @@ def create_app(
                 source_backtest = {}
             active_backtest = dict(source_backtest)
             active_backtest.update(active_cost_metrics)
-            active_backtest["positive_markets"] = active_cost_evidence.get(
-                "positive_markets", 0
-            )
+            active_backtest["positive_markets"] = active_cost_evidence.get("positive_markets", 0)
             active_backtest["markets"] = active_cost_evidence.get("markets", {})
             active_backtest["profit_factor_note"] = (
                 "recomputed from per-trade gross returns under the active fee model"
             )
-            active_backtest["active_cost_scenario"] = active_cost_evidence.get(
-                "fee_model", {}
-            )
+            active_backtest["active_cost_scenario"] = active_cost_evidence.get("fee_model", {})
             active_backtest["source_data_quality_pass"] = bool(
                 source_backtest.get("data_quality_pass")
             )
@@ -2569,8 +2947,7 @@ def create_app(
                     row
                     for row in fee_rows
                     if isinstance(row, dict)
-                    and bool(row.get("deto_enabled"))
-                    == bool(fee_model_view.get("deto_enabled"))
+                    and bool(row.get("deto_enabled")) == bool(fee_model_view.get("deto_enabled"))
                     and bool(row.get("scalper_opted_in"))
                     == bool(fee_model_view.get("scalper_opted_in"))
                 ),
@@ -2581,13 +2958,13 @@ def create_app(
                 active_backtest = dict(source_backtest)
                 active_backtest["average_net_bps"] = active_fee_row.get("average_net_bps")
                 active_backtest["net_bps"] = active_fee_row.get("net_bps")
-                source_average = (
-                    float(source_backtest.get("net_bps") or 0.0)
-                    / int(source_backtest.get("trades") or 1)
+                source_average = float(source_backtest.get("net_bps") or 0.0) / int(
+                    source_backtest.get("trades") or 1
                 )
-                cost_mismatch = abs(
-                    float(active_fee_row.get("average_net_bps") or 0.0) - source_average
-                ) > 1e-12
+                cost_mismatch = (
+                    abs(float(active_fee_row.get("average_net_bps") or 0.0) - source_average)
+                    > 1e-12
+                )
                 active_backtest["source_profit_factor"] = source_backtest.get("profit_factor")
                 active_backtest["profit_factor"] = (
                     None if cost_mismatch else source_backtest.get("profit_factor")
@@ -2747,9 +3124,7 @@ def create_app(
         }
 
         latest_eval_times = [
-            str(lane["last_eval_ts"])
-            for lane in lanes
-            if lane.get("last_eval_ts")
+            str(lane["last_eval_ts"]) for lane in lanes if lane.get("last_eval_ts")
         ]
         latest_eval_ts = max(latest_eval_times, default=None)
         journal_states = [
@@ -2803,7 +3178,8 @@ def create_app(
             "count": 0,
             "status": "none",
             "reason": (
-                "No scanner is enabled, so no research observation can be opened."
+                "No primary scanner is enabled, so no tradeable scanner observation "
+                "can be opened. Event research observations are reported separately."
                 if scanner_count == 0
                 else "No active or pending observation is present in the snapshot."
             ),
@@ -2863,6 +3239,39 @@ def create_app(
             headers=_identity(user),
         )
 
+    @app.get("/indicator-score-calibration")
+    async def indicator_score_calibration(request: Request) -> JSONResponse:
+        """Read-only score/outcome attribution; never an execution gate."""
+
+        user = _authorized(request)
+        payload = _read_json_payload(
+            indicator_score_calibration_file,
+            {
+                "schema_version": "vnedge.indicator_score_calibration.v1",
+                "verdict": "NOT_RUN",
+                "source": {"trades": 0},
+                "deciles": [],
+                "policy": {},
+            },
+        )
+        policy = payload.get("policy") if isinstance(payload.get("policy"), dict) else {}
+        return JSONResponse(
+            {
+                **payload,
+                "policy": {
+                    **policy,
+                    "advisory_only": True,
+                    "used_for_signal": False,
+                    "used_for_execution": False,
+                    "can_trade": False,
+                    "can_promote": False,
+                },
+                "can_trade": False,
+                "can_promote": False,
+            },
+            headers=_identity(user),
+        )
+
     @app.get("/event-research-infrastructure")
     async def event_research_infrastructure(request: Request) -> JSONResponse:
         """Installed-vs-running truth for event recorder, trigger, absorption and replay."""
@@ -2874,12 +3283,15 @@ def create_app(
                 event_trigger_telemetry_path=event_trigger_telemetry_file,
                 absorption_dashboard_path=absorption_dashboard_file,
                 event_replay_dir=event_replay_output_dir,
+                replay_determinism_proof_path=replay_determinism_proof_file,
+                event_continuity_path=event_continuity_file,
                 kronos_matrix_path=kronos_matrix_file,
                 kronos_confirmation_path=kronos_confirmation_file,
                 forced_flow_dir=forced_flow_output_dir,
                 tv_rule_adapter_path=tv_rule_spec_file,
                 htf_structure_path=htf_structure_file,
                 htf_structure_v2_path=htf_structure_v2_file,
+                failed_auction_readiness_path=failed_auction_readiness_file,
             ),
             headers=_identity(user),
         )
@@ -2890,9 +3302,7 @@ def create_app(
 
         user = _authorized(request)
 
-        def snapshot_supplier() -> tuple[
-            dict[str, object], dict[str, object], dict[str, object]
-        ]:
+        def snapshot_supplier() -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
             return (
                 _read_json_payload(delta_scalper_file, {}),
                 _read_json_payload(delta_event_root_dir / "_recorder_status.json", {}),
@@ -3014,9 +3424,7 @@ def create_app(
         """Research-only proof queue for the first Quantified pullback port."""
         user = _authorized(request)
         return JSONResponse(
-            load_quantified_pullback_reversion_proof_payload(
-                quantified_pullback_proof_file
-            ),
+            load_quantified_pullback_reversion_proof_payload(quantified_pullback_proof_file),
             headers=_identity(user),
         )
 
@@ -3284,9 +3692,7 @@ def create_app(
         logger.info("dashboard ws connected: user=%s role=%s", name, result.role)
         try:
             while True:
-                if result.expires_at is not None and (
-                    datetime.now(UTC) >= result.expires_at
-                ):
+                if result.expires_at is not None and (datetime.now(UTC) >= result.expires_at):
                     # A token that expires mid-session loses the stream too.
                     await websocket.close(code=4401, reason="token expired")
                     return

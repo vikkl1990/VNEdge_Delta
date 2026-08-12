@@ -112,6 +112,12 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="run the same replay twice and fail unless deterministic hashes match",
     )
+    parser.add_argument(
+        "--determinism-proof-path",
+        type=Path,
+        default=Path("research/event_replay/replay_determinism_latest.json"),
+        help="atomic JSON proof written when --verify-determinism is enabled",
+    )
     return parser
 
 
@@ -194,18 +200,14 @@ def main() -> int:
     result = engine.replay(config)
     payload = result.to_dict()
     if args.verify_determinism:
-        repeated = engine.replay(config)
-        matched = result.deterministic_hash == repeated.deterministic_hash
-        payload["determinism_verification"] = {
-            "matched": matched,
-            "first_hash": result.deterministic_hash,
-            "second_hash": repeated.deterministic_hash,
-            "events_match": result.events_processed == repeated.events_processed,
-            "research_only": True,
-            "can_trade": False,
-        }
-        if not matched:
-            raise RuntimeError("deterministic replay hash mismatch")
+        proof = engine.verify_determinism(
+            config,
+            baseline=result,
+            proof_path=args.determinism_proof_path,
+        )
+        payload["determinism_verification"] = proof.to_dict()
+        if not proof.passed:
+            raise RuntimeError("deterministic replay proof failed")
     print(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False))
     return 0
 

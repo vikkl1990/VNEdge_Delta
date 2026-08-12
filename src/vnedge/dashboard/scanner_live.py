@@ -12,6 +12,7 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 import uvicorn
@@ -22,10 +23,17 @@ from vnedge.dashboard.app import (
     event_research_infrastructure_payload,
 )
 from vnedge.dashboard.scanner_bridge import dashboard_scanner_payload
+from vnedge.research.event_continuity import qualify_event_continuity
 
 HOST = os.environ.get("DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.environ.get("DASHBOARD_PORT", "8080"))
-TOKEN = os.environ.get("DASHBOARD_TOKEN", "vnedge-demo")
+TOKEN = os.environ.get("DASHBOARD_TOKEN", "").strip()
+if not TOKEN and os.environ.get("VNEDGE_ALLOW_DEMO_TOKEN", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}:
+    TOKEN = "vnedge-demo"
 SCANNER_PATH = Path(
     os.environ.get(
         "DASHBOARD_SCANNER_PATH",
@@ -129,13 +137,47 @@ ABSORPTION_DASHBOARD_PATH = Path(
         "research/live_research/delta_absorption_dashboard_latest.json",
     )
 )
-EVENT_REPLAY_DIR = Path(
-    os.environ.get("DASHBOARD_EVENT_REPLAY_DIR", "research/event_replay")
+EVENT_REPLAY_DIR = Path(os.environ.get("DASHBOARD_EVENT_REPLAY_DIR", "research/event_replay"))
+REPLAY_DETERMINISM_PROOF_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_REPLAY_DETERMINISM_PROOF_PATH",
+        "research/event_replay/replay_determinism_latest.json",
+    )
+)
+EVENT_CONTINUITY_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_EVENT_CONTINUITY_PATH",
+        "research/live_research/delta_event_continuity_latest.json",
+    )
+)
+EVENT_CONTINUITY_CACHE_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_EVENT_CONTINUITY_CACHE_PATH",
+        "research/live_research/delta_event_continuity_shard_cache.json",
+    )
+)
+EVENT_CONTINUITY_CONTRACT_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_EVENT_CONTINUITY_CONTRACT_PATH",
+        "configs/research/failed_auction_response_v1.yaml",
+    )
+)
+EVENT_CONTINUITY_REFRESH_SECONDS = max(
+    60.0, float(os.environ.get("DASHBOARD_EVENT_CONTINUITY_REFRESH_SECONDS", "300"))
+)
+EVENT_CONTINUITY_CODE_VERSION = os.environ.get(
+    "DASHBOARD_EVENT_CONTINUITY_CODE_VERSION", "local-runtime"
 )
 HTF_STRUCTURE_V2_PATH = Path(
     os.environ.get(
         "DASHBOARD_HTF_STRUCTURE_V2_PATH",
         "research/live_research/htf_structure_break_v2_latest.json",
+    )
+)
+FAILED_AUCTION_READINESS_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_FAILED_AUCTION_READINESS_PATH",
+        "research/live_research/failed_auction_response_v1_readiness_latest.json",
     )
 )
 KRONOS_MATRIX_PATH = Path(
@@ -244,9 +286,20 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
 
 def publish_combined_payload(payload: dict[str, Any]) -> None:
     COMBINED_SCANNER_PATH.parent.mkdir(parents=True, exist_ok=True)
-    temporary = COMBINED_SCANNER_PATH.with_suffix(".tmp")
-    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    temporary.replace(COMBINED_SCANNER_PATH)
+    with NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=COMBINED_SCANNER_PATH.parent,
+        prefix=f".{COMBINED_SCANNER_PATH.name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True, allow_nan=False)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+        temporary = Path(handle.name)
+    os.replace(temporary, COMBINED_SCANNER_PATH)
 
 
 def build_scanner_snapshot(
@@ -370,6 +423,11 @@ def build_scanner_snapshot(
 
 
 async def main() -> None:
+    if not TOKEN:
+        raise RuntimeError(
+            "DASHBOARD_TOKEN is required. For an explicit local demo only, set "
+            "VNEDGE_ALLOW_DEMO_TOKEN=true."
+        )
     provider = SnapshotProvider()
     initial = read_scanner_payload()
     publish_combined_payload(initial)
@@ -378,10 +436,13 @@ async def main() -> None:
         event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
         absorption_dashboard_path=ABSORPTION_DASHBOARD_PATH,
         event_replay_dir=EVENT_REPLAY_DIR,
+        replay_determinism_proof_path=REPLAY_DETERMINISM_PROOF_PATH,
+        event_continuity_path=EVENT_CONTINUITY_PATH,
         kronos_matrix_path=KRONOS_MATRIX_PATH,
         kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
         forced_flow_dir=FORCED_FLOW_DIR,
         htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
+        failed_auction_readiness_path=FAILED_AUCTION_READINESS_PATH,
     )
     provider.publish(build_scanner_snapshot(initial, research_infrastructure=infrastructure))
     app = create_app(
@@ -396,10 +457,13 @@ async def main() -> None:
         event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
         absorption_dashboard_path=ABSORPTION_DASHBOARD_PATH,
         event_replay_dir=EVENT_REPLAY_DIR,
+        replay_determinism_proof_path=REPLAY_DETERMINISM_PROOF_PATH,
+        event_continuity_path=EVENT_CONTINUITY_PATH,
         kronos_matrix_path=KRONOS_MATRIX_PATH,
         kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
         forced_flow_dir=FORCED_FLOW_DIR,
         htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
+        failed_auction_readiness_path=FAILED_AUCTION_READINESS_PATH,
     )
     server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT, log_level="warning"))
 
@@ -412,18 +476,36 @@ async def main() -> None:
                 event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
                 absorption_dashboard_path=ABSORPTION_DASHBOARD_PATH,
                 event_replay_dir=EVENT_REPLAY_DIR,
+                replay_determinism_proof_path=REPLAY_DETERMINISM_PROOF_PATH,
+                event_continuity_path=EVENT_CONTINUITY_PATH,
                 kronos_matrix_path=KRONOS_MATRIX_PATH,
                 kronos_confirmation_path=KRONOS_CONFIRMATION_PATH,
                 forced_flow_dir=FORCED_FLOW_DIR,
                 htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
+                failed_auction_readiness_path=FAILED_AUCTION_READINESS_PATH,
             )
             provider.publish(
                 build_scanner_snapshot(payload, research_infrastructure=infrastructure)
             )
             await asyncio.sleep(2.0)
 
+    async def refresh_continuity_forever() -> None:
+        while True:
+            try:
+                await asyncio.to_thread(
+                    qualify_event_continuity,
+                    DELTA_EVENT_ROOT,
+                    contract_path=EVENT_CONTINUITY_CONTRACT_PATH,
+                    output_path=EVENT_CONTINUITY_PATH,
+                    cache_path=EVENT_CONTINUITY_CACHE_PATH,
+                    code_version=EVENT_CONTINUITY_CODE_VERSION,
+                )
+            except Exception as exc:  # noqa: BLE001 - dashboard stays fail-closed
+                print(f"Continuity qualification refresh failed: {exc!r}")
+            await asyncio.sleep(EVENT_CONTINUITY_REFRESH_SECONDS)
+
     print(f"VNEDGE scanner dashboard: http://{HOST}:{PORT}/?token={TOKEN}")
-    await asyncio.gather(server.serve(), publish_forever())
+    await asyncio.gather(server.serve(), publish_forever(), refresh_continuity_forever())
 
 
 if __name__ == "__main__":

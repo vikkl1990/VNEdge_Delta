@@ -7,6 +7,7 @@ import json
 import os
 import time
 from collections.abc import Callable, Iterator, Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from time import perf_counter_ns
@@ -17,6 +18,7 @@ from vnedge.replay.models import (
     HoldoutManifest,
     RecordingValidationReport,
     ReplayConfig,
+    ReplayDeterminismProof,
     ReplayResult,
     ReplayTick,
 )
@@ -137,11 +139,35 @@ class EventReplayEngine:
         feature_latencies: list[int] = []
         decision_latencies: list[int] = []
         selected_payloads: list[dict[str, object]] = []
+        deterministic_state_hash = hashlib.sha256()
+        feature_snapshots_hashed = 0
         events = 0
         decisions = 0
         evaluated = 0
         for tick in self._iterate(config, journal, forward):
             events += 1
+            self._hash_record(
+                deterministic_state_hash,
+                "event",
+                {
+                    "event_id": tick.event.event_id,
+                    "symbol": tick.event.symbol,
+                    "event_type": tick.event.event_type,
+                    "exchange_timestamp_us": tick.event.exchange_timestamp_us,
+                    "local_recv_ns": tick.event.local_recv_ns,
+                    "event_index": tick.event.event_index,
+                },
+            )
+            if tick.features is not None:
+                feature_snapshots_hashed += 1
+                self._hash_record(
+                    deterministic_state_hash,
+                    "feature_snapshot",
+                    {
+                        "event_id": tick.event.event_id,
+                        "features": dict(tick.features),
+                    },
+                )
             feature_latencies.append(tick.feature_latency_ns)
             if tick.decision_latency_ns:
                 decision_latencies.append(tick.decision_latency_ns)
@@ -150,17 +176,8 @@ class EventReplayEngine:
             if tick.selected is not None:
                 selected_payloads.append(tick.selected.to_dict())
         forward.finalize()
-        candidate_hash = hashlib.sha256()
         for payload in selected_payloads:
-            candidate_hash.update(
-                json.dumps(
-                    payload,
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                ).encode("utf-8")
-            )
-            candidate_hash.update(b"\n")
+            self._hash_record(deterministic_state_hash, "selected_candidate", payload)
         records = journal.read_all() if journal is not None else []
         # Counterfactual observations/outcomes are deterministic research
         # products even when safety gates select zero scanner candidates. Keep
@@ -176,15 +193,11 @@ class EventReplayEngine:
             }
         ]
         for record in deterministic_research_records:
-            candidate_hash.update(
-                json.dumps(
-                    {"kind": record.get("kind"), "payload": record.get("payload")},
-                    sort_keys=True,
-                    separators=(",", ":"),
-                    allow_nan=False,
-                ).encode("utf-8")
+            self._hash_record(
+                deterministic_state_hash,
+                str(record.get("kind")),
+                record.get("payload") if isinstance(record.get("payload"), dict) else {},
             )
-            candidate_hash.update(b"\n")
         summary = replay_economic_summary(
             records,
             decisions=decisions,
@@ -203,9 +216,11 @@ class EventReplayEngine:
         summary["deterministic_research_records"] = len(
             deterministic_research_records
         )
+        summary["events_hashed"] = events
+        summary["feature_snapshots_hashed"] = feature_snapshots_hashed
         summary["deterministic_hash_scope"] = (
-            "selected candidates plus counterfactual absorption observations/outcomes; "
-            "wall-runtime telemetry excluded"
+            "ordered event identities, incremental feature snapshots, selected candidates, "
+            "and counterfactual absorption observations/outcomes; wall-runtime telemetry excluded"
         )
         summary["l2_warmup_events"] = max(0, validation.events - events)
         result_path = self._result_path(config)
@@ -218,12 +233,57 @@ class EventReplayEngine:
             summary_metrics=summary,
             latency_percentiles=latency,
             code_version=self.current_code_version,
-            deterministic_hash=candidate_hash.hexdigest(),
+            deterministic_hash=deterministic_state_hash.hexdigest(),
             validation=validation,
             result_path=str(result_path),
         )
         self._atomic_json(result_path, result.to_dict())
         return result
+
+    def verify_determinism(
+        self,
+        config: ReplayConfig,
+        *,
+        baseline: ReplayResult | None = None,
+        proof_path: Path | str | None = None,
+    ) -> ReplayDeterminismProof:
+        """Replay twice and persist a proof over event and feature state.
+
+        Runtime latency measurements and result file names are deliberately not
+        part of the compared hash. An empty event stream or a feature-enabled
+        run with zero feature snapshots can never pass.
+        """
+
+        first = baseline or self.replay(config)
+        if first.config != config:
+            raise ValueError("determinism baseline config does not match requested replay")
+        second = self.replay(config)
+        first_validation_hash = self._payload_hash(first.validation.to_dict())
+        second_validation_hash = self._payload_hash(second.validation.to_dict())
+        proof = ReplayDeterminismProof(
+            config=config,
+            code_version=self.current_code_version,
+            generated_at=datetime.now(UTC).isoformat(),
+            first_hash=first.deterministic_hash,
+            second_hash=second.deterministic_hash,
+            first_events=first.events_processed,
+            second_events=second.events_processed,
+            first_candidates=first.candidates_emitted,
+            second_candidates=second.candidates_emitted,
+            first_feature_snapshots=int(
+                first.summary_metrics.get("feature_snapshots_hashed") or 0
+            ),
+            second_feature_snapshots=int(
+                second.summary_metrics.get("feature_snapshots_hashed") or 0
+            ),
+            first_validation_hash=first_validation_hash,
+            second_validation_hash=second_validation_hash,
+            first_result_path=first.result_path,
+            second_result_path=second.result_path,
+        )
+        if proof_path is not None:
+            self._atomic_json(Path(proof_path), proof.to_dict())
+        return proof
 
     def _iterate(
         self,
@@ -283,6 +343,31 @@ class EventReplayEngine:
             )
         self.holdout_manifest.guard(config)
 
+    @staticmethod
+    def _hash_record(
+        digest: hashlib._Hash,
+        kind: str,
+        payload: Mapping[str, object],
+    ) -> None:
+        digest.update(kind.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(
+            json.dumps(
+                dict(payload),
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+                default=str,
+            ).encode("utf-8")
+        )
+        digest.update(b"\n")
+
+    @staticmethod
+    def _payload_hash(payload: Mapping[str, object]) -> str:
+        digest = hashlib.sha256()
+        EventReplayEngine._hash_record(digest, "payload", payload)
+        return digest.hexdigest()
+
     def _journal(
         self,
         config: ReplayConfig,
@@ -315,6 +400,7 @@ class EventReplayEngine:
 
     @staticmethod
     def _atomic_json(path: Path, payload: Mapping[str, object]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
         with NamedTemporaryFile(
             "w",
             dir=path.parent,

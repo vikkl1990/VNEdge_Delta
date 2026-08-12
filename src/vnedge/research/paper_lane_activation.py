@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import time
 from collections import Counter
 from collections.abc import Iterable, Mapping
@@ -138,6 +139,7 @@ def build_paper_lane_activation(
     rows.sort(key=_row_sort_key)
     rows = rows[: max(1, int(config.max_rows))]
     summary = _summary(rows, manifest_candidates=manifest_candidates, route_errors=route_errors)
+    paper_route_open = int(summary.get("paper_online") or 0) > 0
     return {
         "generated_at": now.isoformat(),
         "report_id": "paper_lane_activation_v1",
@@ -151,6 +153,7 @@ def build_paper_lane_activation(
             "requires_runtime_route": True,
             "requires_journal_evidence_for_active": True,
             "dashboard_inputs_are_plan_only": True,
+            "simulated_paper_orders_allowed": paper_route_open,
         },
         "risk_limits": {
             "high_leverage_threshold": HIGH_LEVERAGE_THRESHOLD,
@@ -167,6 +170,8 @@ def build_paper_lane_activation(
         "boards": _boards(rows),
         "rows": rows,
         "operator_answer": _operator_answer(summary),
+        "paper_simulation_route_open": paper_route_open,
+        "live_trade_route_open": False,
         "can_trade": False,
         "can_promote": False,
     }
@@ -175,14 +180,30 @@ def build_paper_lane_activation(
 def publish_paper_lane_activation(
     payload: Mapping[str, Any], out: Path, feed: Path | None = None
 ) -> None:
+    safe_payload = _json_safe(payload)
     out.parent.mkdir(parents=True, exist_ok=True)
     tmp = out.with_suffix(out.suffix + ".tmp")
-    tmp.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    tmp.write_text(
+        json.dumps(safe_payload, indent=2, default=str, allow_nan=False),
+        encoding="utf-8",
+    )
     tmp.replace(out)
     if feed is not None:
         feed.parent.mkdir(parents=True, exist_ok=True)
         with open(feed, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, default=str) + "\n")
+            handle.write(json.dumps(safe_payload, default=str, allow_nan=False) + "\n")
+
+
+def _json_safe(value: Any) -> Any:
+    """Replace non-finite telemetry floats before dashboard publication."""
+
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def render_report(payload: Mapping[str, Any], *, limit: int = 40) -> str:

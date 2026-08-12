@@ -9,6 +9,7 @@ from vnedge.research.paper_lane_activation import (
     PaperLaneActivationConfig,
     _parse_args,
     build_paper_lane_activation,
+    publish_paper_lane_activation,
 )
 
 
@@ -91,6 +92,9 @@ max_leverage: 5
     assert row["sizing_profiles"]["live"]["can_apply_from_dashboard"] is False
     assert payload["can_trade"] is False
     assert payload["can_promote"] is False
+    assert payload["paper_simulation_route_open"] is True
+    assert payload["live_trade_route_open"] is False
+    assert payload["policy"]["simulated_paper_orders_allowed"] is True
 
 
 def test_paper_activation_marks_heartbeat_only_lane_online_waiting(tmp_path):
@@ -187,6 +191,20 @@ def test_paper_activation_surfaces_paper_review_ready_without_manifest(tmp_path)
         "create a locked paper-trial manifest after human approval"
     )
     assert payload["summary"]["needs_human_approval"] == 1
+    assert payload["paper_simulation_route_open"] is False
+    assert payload["live_trade_route_open"] is False
+
+
+def test_paper_activation_publication_replaces_non_finite_telemetry(tmp_path):
+    out = tmp_path / "activation.json"
+    feed = tmp_path / "activation.jsonl"
+
+    publish_paper_lane_activation(
+        {"rows": [{"feed_staleness_seconds": float("inf")}]}, out, feed
+    )
+
+    assert json.loads(out.read_text())["rows"][0]["feed_staleness_seconds"] is None
+    assert json.loads(feed.read_text())["rows"][0]["feed_staleness_seconds"] is None
 
 
 def test_paper_activation_blocks_manifest_not_wired_to_paper_route(tmp_path):

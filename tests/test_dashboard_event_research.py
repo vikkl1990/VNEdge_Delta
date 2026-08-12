@@ -33,13 +33,12 @@ def test_event_research_endpoint_distinguishes_installed_from_running(tmp_path: 
     assert payload["event_trigger"]["status"] == "IMPLEMENTED_NOT_RUNNING"
     assert payload["absorption"]["status"] == "AWAITING_EVENT_TAPE"
     assert payload["replay"]["status"] == "WAITING_FOR_TAPE"
-    assert payload["research_modules"]["governance"]["status"] == (
-        "SIGNED_PROOF_MIGRATION_PENDING"
-    )
+    assert payload["research_modules"]["governance"]["status"] == ("SIGNED_PROOF_MIGRATION_PENDING")
     assert payload["research_modules"]["governance"]["paper_manifest_signature_required"] is False
-    assert payload["research_modules"]["delta_execution_safety"][
-        "dashboard_runtime_connected"
-    ] is False
+    assert (
+        payload["research_modules"]["delta_execution_safety"]["dashboard_runtime_connected"]
+        is False
+    )
     assert payload["research_modules"]["tv_rule_adapter"]["implementation"] == "available"
     assert payload["research_modules"]["tv_rule_adapter"]["can_trade"] is False
     assert payload["safety"] == {
@@ -57,9 +56,7 @@ def test_event_research_endpoint_reads_runtime_artifacts_without_promoting(
     event_root = tmp_path / "events"
     event_root.mkdir()
     (event_root / "BTCUSD.jsonl.gz").write_bytes(b"")
-    (event_root / "BTCUSD.jsonl.gz.manifest.json").write_text(
-        json.dumps({"records": 123})
-    )
+    (event_root / "BTCUSD.jsonl.gz.manifest.json").write_text(json.dumps({"records": 123}))
     trigger = tmp_path / "trigger.json"
     trigger.write_text(
         json.dumps(
@@ -109,6 +106,7 @@ def test_event_research_endpoint_reads_runtime_artifacts_without_promoting(
             event_trigger_telemetry_path=trigger,
             absorption_dashboard_path=absorption,
             event_replay_dir=replay_dir,
+            replay_determinism_proof_path=tmp_path / "missing-proof.json",
         )
     )
 
@@ -127,10 +125,51 @@ def test_event_research_endpoint_reads_runtime_artifacts_without_promoting(
     assert payload["can_promote"] is False
 
 
+def test_indicator_calibration_is_read_only_and_embedded_in_delta_home(tmp_path: Path) -> None:
+    calibration = tmp_path / "indicator.json"
+    calibration.write_text(
+        json.dumps(
+            {
+                "verdict": "NO_CALIBRATED_EDGE",
+                "source": {"trades": 19_521},
+                "top_score_band": {"average_net_bps": -8.99, "profit_factor": 0.32},
+                "deciles": [{"decile": 10, "historical_tail": {"trades": 268}}],
+                "policy": {"can_trade": True, "used_for_signal": True},
+                "can_trade": True,
+                "can_promote": True,
+            }
+        )
+    )
+    delta = tmp_path / "delta.json"
+    delta.write_text(json.dumps({"rows": [], "delta_scalper": {}}))
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="token",
+            delta_scalper_path=delta,
+            indicator_score_calibration_path=calibration,
+        )
+    )
+
+    assert client.get("/indicator-score-calibration").status_code == 401
+    payload = client.get("/indicator-score-calibration?token=token").json()
+    assert payload["source"]["trades"] == 19_521
+    assert payload["can_trade"] is False
+    assert payload["can_promote"] is False
+    assert payload["policy"]["used_for_signal"] is False
+    embedded = client.get("/delta-scalper?token=token").json()["panels"][
+        "indicator_score_calibration"
+    ]
+    assert embedded["verdict"] == "NO_CALIBRATED_EDGE"
+    assert embedded["can_trade"] is False
+
+
 def test_event_research_endpoint_reports_fresh_active_recorder(tmp_path: Path) -> None:
     event_root = tmp_path / "events"
     event_root.mkdir()
-    (event_root / ".active.jsonl.gz.partial").write_bytes(b"live")
+    (event_root / ".trades_rec_live_0001.jsonl.gz.partial").write_bytes(b"live")
     (event_root / "_recorder_status.json").write_text(
         json.dumps(
             {
@@ -148,17 +187,209 @@ def test_event_research_endpoint_reports_fresh_active_recorder(tmp_path: Path) -
     )
     provider = SnapshotProvider()
     provider.publish({"mode": "research"})
-    client = TestClient(
-        create_app(provider, token="token", delta_event_root=event_root)
-    )
+    client = TestClient(create_app(provider, token="token", delta_event_root=event_root))
 
-    recorder = client.get("/event-research-infrastructure?token=token").json()[
-        "recorder"
-    ]
+    recorder = client.get("/event-research-infrastructure?token=token").json()["recorder"]
     assert recorder["status"] == "RECORDING"
     assert recorder["live_events"] == 456
     assert recorder["active_session"] == "rec_live"
     assert recorder["partial_files"] == 1
+    assert recorder["active_partial_files"] == 1
+    assert recorder["orphan_partial_files"] == 0
+    assert recorder["storage"]["disk_free_bytes"] > 0
+
+
+def test_event_research_surfaces_failed_auction_readiness_without_authority(
+    tmp_path: Path,
+) -> None:
+    readiness = tmp_path / "readiness.json"
+    readiness.write_text(
+        json.dumps(
+            {
+                "contract_id": "failed_auction_response_v1",
+                "data_ready": False,
+                "scanner_implementation_authorized": False,
+                "selection_authorized": False,
+                "blockers": ["total_events:100<5000000"],
+                "coverage": {"total_events": 100, "requested_days": 1.0},
+                "tree_verification": {"passed": True},
+                "semantic_validation": {"passed": True},
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="token",
+            failed_auction_readiness_path=readiness,
+            replay_determinism_proof_path=tmp_path / "missing-proof.json",
+            event_continuity_path=tmp_path / "missing-continuity.json",
+        )
+    )
+
+    payload = client.get("/event-research-infrastructure?token=token").json()
+    proof = payload["failed_auction_readiness"]
+
+    assert proof["events"] == 100
+    assert proof["target_events"] == 5_000_000
+    assert proof["blocker_count"] == 1
+    assert proof["data_ready"] is False
+    assert proof["scanner_implementation_authorized"] is False
+    assert proof["can_trade"] is False
+    assert proof["stages"][2]["id"] == "determinism"
+    assert proof["stages"][2]["state"] == "BLOCKED"
+    assert proof["stages"][3]["state"] == "NOT_AUTHORIZED"
+
+
+def test_continuity_qualification_replaces_legacy_coverage_without_authority(
+    tmp_path: Path,
+) -> None:
+    readiness = tmp_path / "legacy-readiness.json"
+    readiness.write_text(
+        json.dumps(
+            {
+                "contract_id": "failed_auction_response_v1",
+                "data_ready": True,
+                "scanner_implementation_authorized": True,
+                "selection_authorized": True,
+                "coverage": {"total_events": 9_999_999, "requested_days": 99.0},
+                "blockers": [],
+                "can_trade": True,
+                "can_promote": True,
+            }
+        )
+    )
+    continuity = tmp_path / "continuity.json"
+    continuity.write_text(
+        json.dumps(
+            {
+                "contract_id": "failed_auction_response_v1",
+                "qualification": {
+                    "data_ready": False,
+                    "blockers": ["minimum_total_events:2074<5000000"],
+                    "qualified_events": 2_074,
+                    "target_events": 5_000_000,
+                    "qualified_days": 0.02,
+                    "target_days": 14.0,
+                    "events_remaining": 4_997_926,
+                    "days_remaining": 13.98,
+                    "estimated_ready_at": None,
+                    "estimate_status": "AWAITING_STABLE_OPEN_EPOCH",
+                    "semantic_validation": {"passed": True},
+                },
+                "epochs": {
+                    "count": 3,
+                    "latest": {"provisional": True, "end_reason": "open"},
+                    "longest": {"duration_days": 0.02},
+                    "last_reset": {"reason": "__ob_sequence_gap__"},
+                },
+                "audit": {
+                    "verified_shards": 12,
+                    "failed_shards": [],
+                    "active_partial_files": 2,
+                    "orphan_partial_files": 0,
+                },
+                "scanner_implementation_authorized": True,
+                "selection_authorized": True,
+                "can_trade": True,
+                "can_promote": True,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="token",
+            failed_auction_readiness_path=readiness,
+            event_continuity_path=continuity,
+        )
+    )
+
+    proof = client.get("/event-research-infrastructure?token=token").json()[
+        "failed_auction_readiness"
+    ]
+
+    assert proof["data_ready"] is False
+    assert proof["blockers"] == ["minimum_total_events:2074<5000000"]
+    assert proof["continuity"]["qualified_events"] == 2_074
+    assert proof["continuity"]["active_partial_files"] == 2
+    assert proof["tree_passed"] is True
+    assert proof["semantic_passed"] is True
+    assert proof["scanner_implementation_authorized"] is False
+    assert proof["selection_authorized"] is False
+    assert proof["stages"][0]["value"] == 2_074
+    assert proof["can_trade"] is False
+    assert proof["can_promote"] is False
+
+
+def test_dashboard_surfaces_verified_feature_replay_without_granting_authority(
+    tmp_path: Path,
+) -> None:
+    determinism = tmp_path / "determinism.json"
+    config = {
+        "symbols": ["BTCUSD", "ETHUSD"],
+        "channels": ["ob_updates", "trades"],
+        "start_ts_us": 1,
+        "end_ts_us": 2,
+        "speed_multiplier": 0.0,
+        "enable_feature_engine": True,
+        "enable_scanner": False,
+        "journal_mode": "none",
+        "sealed_holdout": False,
+        "random_seed": 42,
+        "signal_to_fill_latency_ms": 100,
+        "code_version": "tree-hash",
+        "fail_on_integrity_error": True,
+    }
+    determinism.write_text(
+        json.dumps(
+            {
+                "passed": True,
+                "hash_match": True,
+                "events_match": True,
+                "feature_snapshots_match": True,
+                "validation_match": True,
+                "first_hash": "a" * 64,
+                "second_hash": "a" * 64,
+                "first_validation_hash": "b" * 64,
+                "second_validation_hash": "b" * 64,
+                "first_events": 2_074,
+                "second_events": 2_074,
+                "first_feature_snapshots": 2_070,
+                "second_feature_snapshots": 2_070,
+                "code_version": "tree-hash",
+                "config": config,
+                "can_trade": True,
+                "can_promote": True,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="token",
+            replay_determinism_proof_path=determinism,
+        )
+    )
+
+    payload = client.get("/event-research-infrastructure?token=token").json()
+    readiness = payload["failed_auction_readiness"]
+    proof = payload["replay"]["determinism_proof"]
+
+    assert readiness["replay_determinism_passed"] is True
+    assert readiness["replay_feature_snapshots"] == 2_070
+    assert readiness["stages"][2]["state"] == "PASSED"
+    assert proof["passed"] is True
+    assert proof["can_trade"] is False
+    assert proof["can_promote"] is False
 
 
 def test_scanner_state_can_carry_same_event_research_truth() -> None:
@@ -200,9 +431,9 @@ def test_dashboard_surfaces_rejected_htf_selection_without_opening_tail(tmp_path
     provider = SnapshotProvider()
     provider.publish({"mode": "research"})
     client = TestClient(create_app(provider, token="token", htf_structure_path=artifact))
-    htf = client.get("/event-research-infrastructure?token=token").json()[
-        "research_modules"
-    ]["htf_structure_break"]
+    htf = client.get("/event-research-infrastructure?token=token").json()["research_modules"][
+        "htf_structure_break"
+    ]
     assert htf["status"] == "SELECTION_REJECTED"
     assert htf["scanner_funnel"]["target_below_5x_cost"] == 8
     assert htf["untouched"] == {"status": "sealed", "loaded": False}
@@ -237,9 +468,9 @@ def test_dashboard_surfaces_htf_v2_economics_with_tail_sealed(tmp_path: Path) ->
     provider.publish({"mode": "research"})
     client = TestClient(create_app(provider, token="token", htf_structure_v2_path=artifact))
 
-    htf = client.get("/event-research-infrastructure?token=token").json()[
-        "research_modules"
-    ]["htf_structure_break_v2"]
+    htf = client.get("/event-research-infrastructure?token=token").json()["research_modules"][
+        "htf_structure_break_v2"
+    ]
 
     assert htf["status"] == "SELECTION_REJECTED"
     assert htf["selection_trades"] == 100

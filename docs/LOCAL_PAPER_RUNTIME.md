@@ -55,3 +55,9 @@ The process is still paper-only even when an entry fires:
 - fills occur inside `SimulatedExchange`;
 - every intent still passes `PreTradeRiskGateway`;
 - journals and account state are persisted per lane.
+
+The local launcher also enables an isolated Delta paper-observation mirror for
+every retained Delta shadow lane. These mirrors exercise the simulated-fill
+and risk path but are not promotion evidence. Retired/negative scanners remain
+pruned, and the dashboard truth board always reports
+`live_trade_route_open=false`.

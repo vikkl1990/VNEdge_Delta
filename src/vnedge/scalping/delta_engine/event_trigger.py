@@ -38,6 +38,7 @@ from vnedge.scalping.delta_engine.absorption import (
 )
 from vnedge.scalping.delta_engine.absorption_research import AbsorptionResearchTracker
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
+from vnedge.scalping.delta_engine.indicator_scoring import IndicatorFamilyScorer
 from vnedge.scalping.delta_engine.signal_generator import (
     PipelineStage,
     SignalGateConfig,
@@ -561,12 +562,14 @@ class EventDrivenTriggerLayer:
         gates: SignalGateConfig | None = None,
         journal: DecisionJournal | None = None,
         absorption_research: AbsorptionResearchTracker | None = None,
+        indicator_scorer: IndicatorFamilyScorer | None = None,
     ) -> None:
         self.config = config or EventTriggerConfig()
         self.gates = gates or SignalGateConfig(allowed_symbols=self.config.enabled_symbols)
         self.scanners = scanners
         self.journal = journal
         self.absorption_research = absorption_research
+        self.indicator_scorer = indicator_scorer or IndicatorFamilyScorer()
         self._states: dict[str, _SymbolState] = {}
         self._seen: set[str] = set()
         self._last_selected_ns: dict[tuple[str, str, str], int] = {}
@@ -584,6 +587,7 @@ class EventDrivenTriggerLayer:
             "counterfactual_outcomes": 0,
             "context_errors": 0,
             "scanner_errors": 0,
+            "indicator_scoring_errors": 0,
             "scanner_no_signal": 0,
             "gate_rejected": 0,
         }
@@ -1031,6 +1035,25 @@ class EventDrivenTriggerLayer:
                 )
                 continue
             if candidate is not None:
+                try:
+                    score = self.indicator_scorer.score_event_candidate(context, candidate)
+                except Exception as exc:  # noqa: BLE001 - advisory boundary
+                    self._counts["indicator_scoring_errors"] += 1
+                    candidate = replace(
+                        candidate,
+                        metadata={
+                            **dict(candidate.metadata),
+                            "indicator_family_score_error": type(exc).__name__,
+                        },
+                    )
+                else:
+                    candidate = replace(
+                        candidate,
+                        metadata={
+                            **dict(candidate.metadata),
+                            "indicator_family_score": score.to_dict(),
+                        },
+                    )
                 candidates.append(candidate)
             else:
                 self._counts["scanner_no_signal"] += 1

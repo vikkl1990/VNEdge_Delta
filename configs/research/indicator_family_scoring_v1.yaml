@@ -1,0 +1,48 @@
+schema_version: vnedge.indicator_scoring.v1
+policy_version: indicator_family_v1.0.0
+
+# Advisory research score only. It cannot enable routing or promotion.
+minimum_composite_score: 72.0
+minimum_total_coverage: 0.55
+minimum_total_confidence: 0.55
+
+book_imbalance_full_scale: 0.75
+flow_imbalance_full_scale: 0.85
+vwap_full_scale_bps: 35.0
+maximum_spread_bps: 8.0
+target_depth_usd: 250000.0
+maximum_book_age_ms: 1000.0
+maximum_feed_delay_ms: 750.0
+excellent_target_cost_multiple: 5.0
+excellent_reward_risk: 3.0
+
+families:
+  - family: structure
+    weight: 20
+    required: true
+    minimum_evidence: 1
+    minimum_score: 50
+  - family: momentum
+    weight: 12
+  - family: volatility
+    weight: 8
+  - family: participation
+    weight: 8
+  - family: order_flow
+    weight: 18
+  - family: liquidity
+    weight: 10
+  - family: economics
+    weight: 18
+    required: true
+    minimum_evidence: 3
+    minimum_score: 65
+  - family: data_quality
+    weight: 6
+    required: true
+    minimum_evidence: 2
+    minimum_score: 85
+
+research_only: true
+can_trade: false
+can_promote: false
