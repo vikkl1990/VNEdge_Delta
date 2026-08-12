@@ -213,3 +213,39 @@ def test_dashboard_exposes_forward_evidence_read_only(tmp_path):
     assert response.json()["policy"]["l2_is_confirmation_only"] is True
     assert response.json()["can_trade"] is False
     assert response.json()["can_promote"] is False
+
+
+def test_dashboard_embeds_revived_scanner_without_execution_authority(tmp_path):
+    revived = {
+        "schema_version": "vnedge.mtf_amf_confirmed_rejection.v2",
+        "selection": {
+            "metrics": {"trades": 12, "average_net_bps": 43.3, "profit_factor": 2.03},
+            "gate": {"passed": False},
+        },
+        "untouched": {"status": "sealed", "eligible_to_open": False},
+        "policy": {"can_trade": True, "order_route": "forged"},
+    }
+    revived_path = tmp_path / "revived.json"
+    revived_path.write_text(json.dumps(revived))
+    delta_path = tmp_path / "delta.json"
+    delta_path.write_text(json.dumps({"rows": [], "can_trade": False}))
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="dashboard-token",
+            delta_scalper_path=delta_path,
+            revived_scanner_evidence_path=revived_path,
+        )
+    )
+
+    payload = client.get("/delta-scalper?token=dashboard-token").json()
+    panel = payload["panels"]["revived_scanner_evidence"]
+    assert panel["selection"]["metrics"]["trades"] == 12
+    assert panel["untouched"]["status"] == "sealed"
+    assert panel["policy"]["registered_strategy"] is False
+    assert panel["policy"]["paper_route"] == "absent"
+    assert panel["policy"]["order_route"] == "absent"
+    assert panel["can_trade"] is False
+    assert panel["can_promote"] is False

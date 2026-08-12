@@ -1165,6 +1165,7 @@ def create_app(
     delta_scalper_path: Path | None = None,
     delta_active_cost_evidence_path: Path | None = None,
     indicator_score_calibration_path: Path | None = None,
+    revived_scanner_evidence_path: Path | None = None,
     scanner_forward_evidence_path: Path | None = None,
     lane_firing_causality_path: Path | None = None,
     paper_lane_activation_path: Path | None = None,
@@ -1447,6 +1448,9 @@ def create_app(
     delta_active_cost_evidence_file = delta_active_cost_evidence_path
     indicator_score_calibration_file = indicator_score_calibration_path or Path(
         "research/live_research/indicator_score_calibration_latest.json"
+    )
+    revived_scanner_evidence_file = revived_scanner_evidence_path or Path(
+        "research/live_research/mtf_amf_confirmed_rejection_v2_latest.json"
     )
     delta_event_root_dir = delta_event_root or Path("data/delta_events")
     event_trigger_telemetry_file = event_trigger_telemetry_path or Path(
@@ -2901,6 +2905,34 @@ def create_app(
             "can_promote": False,
         }
         embedded_panels["indicator_score_calibration"] = indicator_calibration
+        revived_evidence = _read_json_payload(
+            revived_scanner_evidence_file,
+            {
+                "schema_version": "vnedge.mtf_amf_confirmed_rejection.v2",
+                "selection": {"metrics": {}, "gate": {"passed": False}},
+                "untouched": {"status": "sealed", "eligible_to_open": False},
+                "policy": {},
+            },
+        )
+        revived_policy = (
+            revived_evidence.get("policy")
+            if isinstance(revived_evidence.get("policy"), dict)
+            else {}
+        )
+        embedded_panels["revived_scanner_evidence"] = {
+            **revived_evidence,
+            "policy": {
+                **revived_policy,
+                "research_only": True,
+                "registered_strategy": False,
+                "paper_route": "absent",
+                "order_route": "absent",
+                "can_trade": False,
+                "can_promote": False,
+            },
+            "can_trade": False,
+            "can_promote": False,
+        }
 
         active_cost_evidence = embedded_panels.get("active_cost_evidence")
         if (

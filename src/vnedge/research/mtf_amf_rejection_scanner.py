@@ -30,7 +30,7 @@ from vnedge.strategy.indicators import atr, prior_high, prior_low
 SCANNER_ID = "mtf_amf_rejection_scanner_v1"
 DEFAULT_OUT = Path("research/live_research/mtf_amf_rejection_scanner_latest.json")
 DELTA_INDIA_CANDLES_URL = "https://api.india.delta.exchange/v2/history/candles"
-_RESOLUTION_SECONDS = {"1h": 3_600, "4h": 14_400}
+_RESOLUTION_SECONDS = {"15m": 900, "1h": 3_600, "4h": 14_400}
 _DELTA_PAGE_BARS = 1_500
 Side = Literal["long", "short"]
 
@@ -274,7 +274,7 @@ def publish_scanner_payload(payload: dict[str, Any], out: Path | str) -> Path:
 
 def fetch_delta_public_candles(
     symbol: str,
-    resolution: Literal["1h", "4h"],
+    resolution: Literal["15m", "1h", "4h"],
     *,
     days: int = 120,
     now: datetime | None = None,
