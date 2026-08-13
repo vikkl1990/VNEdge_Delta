@@ -12,6 +12,10 @@ from vnedge.research.mtf_amf_confirmed_rejection_v2 import (
     replay_selection,
 )
 from vnedge.research import mtf_amf_confirmed_rejection_v2 as scanner_v2
+from vnedge.research.mtf_amf_revival_experiments import (
+    _direction_permission,
+    _directional_feature_enricher,
+)
 
 
 def candles(hours: int = 700) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -186,3 +190,112 @@ def test_entry_is_next_15m_open_and_same_bar_ambiguity_resolves_stop_first(
     assert trade.same_bar_ambiguous is True
     assert trade.gross_bps == pytest.approx(-110.0)
     assert trade.net_bps == pytest.approx(-124.8)
+
+
+def test_short_permission_requires_completed_bearish_structure():
+    base = {
+        "direction_bearish": True,
+        "direction_ema20": 101.0,
+        "direction_last_swing_high": 103.0,
+        "upper_level": 102.0,
+        "close": 100.0,
+    }
+
+    assert _direction_permission(pd.Series(base), "long") is True
+    assert _direction_permission(pd.Series(base), "short") is True
+    assert _direction_permission(
+        pd.Series({**base, "direction_bearish": False}), "short"
+    ) is False
+    assert _direction_permission(
+        pd.Series({**base, "close": 102.0}), "short"
+    ) is False
+    assert _direction_permission(
+        pd.Series({**base, "upper_level": 104.0}), "short"
+    ) is False
+
+
+def test_direction_features_do_not_change_when_future_4h_bars_are_appended():
+    one, four, _ = candles(hours=900)
+    feature = pd.DataFrame({"timestamp": one["timestamp"]})
+    cutoff = pd.Timestamp("2025-01-25T00:00:00Z")
+    short_four = four.loc[four["timestamp"] + pd.Timedelta(hours=4) <= cutoff]
+    short_feature = feature.loc[feature["timestamp"] <= cutoff]
+
+    before = _directional_feature_enricher(one, short_four, short_feature)
+    after = _directional_feature_enricher(one, four, short_feature)
+
+    columns = [
+        "direction_ema20",
+        "direction_ema50",
+        "direction_ema20_slope_3",
+        "direction_last_swing_high",
+        "direction_previous_swing_high",
+        "direction_lower_high",
+        "direction_bearish",
+    ]
+    pd.testing.assert_frame_equal(before[columns], after[columns])
+
+
+def test_protected_stop_arms_only_after_completed_close(monkeypatch):
+    warmup = scanner_v2.BASE_CONFIG.warmup_bars
+    setup_ts = pd.Timestamp("2025-02-01T00:00:00Z")
+    frame = pd.DataFrame(
+        {
+            "timestamp": pd.date_range(
+                setup_ts - pd.Timedelta(hours=warmup),
+                periods=warmup + 1,
+                freq="1h",
+                tz=UTC,
+            ),
+            "open": np.full(warmup + 1, 100.0),
+            "high": np.full(warmup + 1, 100.4),
+            "low": np.full(warmup + 1, 99.6),
+            "close": np.full(warmup + 1, 100.0),
+            "atr": np.full(warmup + 1, 1.0),
+            "amf_histogram": np.zeros(warmup + 1),
+            "amf_regime": np.ones(warmup + 1),
+            "upper_distance_atr": np.full(warmup + 1, 10.0),
+            "lower_distance_atr": np.full(warmup + 1, 10.0),
+            "upper_level": np.full(warmup + 1, 101.0),
+            "lower_level": np.full(warmup + 1, 99.0),
+        }
+    )
+    frame.loc[warmup, [
+        "open", "high", "low", "close", "amf_histogram", "amf_regime",
+        "lower_distance_atr", "lower_level",
+    ]] = [99.8, 100.4, 99.0, 100.2, 1.0, 0.1, 0.0, 99.5]
+    monkeypatch.setattr(
+        scanner_v2, "build_mtf_amf_feature_frame", lambda *_args, **_kwargs: frame
+    )
+    stamps = pd.date_range(setup_ts + pd.Timedelta(hours=1), periods=60, freq="15min", tz=UTC)
+    fifteen = pd.DataFrame(
+        {
+            "timestamp": stamps,
+            "open": np.full(60, 100.0),
+            "high": np.full(60, 100.2),
+            "low": np.full(60, 99.8),
+            "close": np.full(60, 100.0),
+            "volume": np.full(60, 100.0),
+        }
+    )
+    fifteen.loc[0, ["open", "high", "low", "close"]] = [100.0, 101.0, 99.5, 100.8]
+    # Entry bar closes above +1R without hitting 2R. Protection arms only at close.
+    fifteen.loc[1, ["open", "high", "low", "close"]] = [100.0, 101.3, 99.8, 101.2]
+    # A later bar retraces through entry + costs.
+    fifteen.loc[2, ["open", "high", "low", "close"]] = [100.9, 101.0, 100.0, 100.2]
+
+    trades, funnel = replay_selection(
+        pd.DataFrame(),
+        pd.DataFrame(),
+        fifteen,
+        symbol="BTCUSD",
+        decision_end_exclusive=datetime(2025, 2, 3, tzinfo=UTC),
+        protection_trigger_r=1.0,
+        protection_lock_bps=14.8,
+    )
+
+    assert funnel["protection_armed"] == 1
+    assert trades[0].hold_bars == 2
+    assert trades[0].exit_reason == "protected_stop"
+    assert trades[0].gross_bps == pytest.approx(14.8)
+    assert trades[0].net_bps == pytest.approx(0.0)

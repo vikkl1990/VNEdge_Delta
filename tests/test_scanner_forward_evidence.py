@@ -249,3 +249,43 @@ def test_dashboard_embeds_revived_scanner_without_execution_authority(tmp_path):
     assert panel["policy"]["order_route"] == "absent"
     assert panel["can_trade"] is False
     assert panel["can_promote"] is False
+
+
+def test_dashboard_embeds_revival_matrix_without_execution_authority(tmp_path):
+    matrix = {
+        "schema_version": "vnedge.mtf_amf_revival_matrix.v1",
+        "experiments": {
+            "mtf_amf_directional_rejection_v3": {
+                "selection": {
+                    "metrics": {"trades": 15, "average_net_bps": 55.7},
+                    "gate": {"passed": False},
+                },
+                "policy": {"can_trade": True, "order_route": "forged"},
+            }
+        },
+        "policy": {"registered_strategies": ["forged"]},
+    }
+    matrix_path = tmp_path / "matrix.json"
+    matrix_path.write_text(json.dumps(matrix))
+    delta_path = tmp_path / "delta.json"
+    delta_path.write_text(json.dumps({"rows": [], "can_trade": False}))
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="dashboard-token",
+            delta_scalper_path=delta_path,
+            revival_experiment_matrix_path=matrix_path,
+        )
+    )
+
+    payload = client.get("/delta-scalper?token=dashboard-token").json()
+    panel = payload["panels"]["revival_experiment_matrix"]
+    experiment = panel["experiments"]["mtf_amf_directional_rejection_v3"]
+    assert panel["policy"]["registered_strategies"] == []
+    assert panel["policy"]["paper_route"] == "absent"
+    assert experiment["policy"]["registered_strategy"] is False
+    assert experiment["policy"]["order_route"] == "absent"
+    assert experiment["can_trade"] is False
+    assert panel["can_promote"] is False

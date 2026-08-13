@@ -1166,6 +1166,7 @@ def create_app(
     delta_active_cost_evidence_path: Path | None = None,
     indicator_score_calibration_path: Path | None = None,
     revived_scanner_evidence_path: Path | None = None,
+    revival_experiment_matrix_path: Path | None = None,
     scanner_forward_evidence_path: Path | None = None,
     lane_firing_causality_path: Path | None = None,
     paper_lane_activation_path: Path | None = None,
@@ -1451,6 +1452,9 @@ def create_app(
     )
     revived_scanner_evidence_file = revived_scanner_evidence_path or Path(
         "research/live_research/mtf_amf_confirmed_rejection_v2_latest.json"
+    )
+    revival_experiment_matrix_file = revival_experiment_matrix_path or Path(
+        "research/live_research/mtf_amf_revival_matrix_latest.json"
     )
     delta_event_root_dir = delta_event_root or Path("data/delta_events")
     event_trigger_telemetry_file = event_trigger_telemetry_path or Path(
@@ -2925,6 +2929,55 @@ def create_app(
                 **revived_policy,
                 "research_only": True,
                 "registered_strategy": False,
+                "paper_route": "absent",
+                "order_route": "absent",
+                "can_trade": False,
+                "can_promote": False,
+            },
+            "can_trade": False,
+            "can_promote": False,
+        }
+        revival_matrix = _read_json_payload(
+            revival_experiment_matrix_file,
+            {
+                "schema_version": "vnedge.mtf_amf_revival_matrix.v1",
+                "experiments": {},
+                "policy": {},
+            },
+        )
+        raw_experiments = revival_matrix.get("experiments")
+        safe_experiments: dict[str, object] = {}
+        if isinstance(raw_experiments, dict):
+            for experiment_id, raw_experiment in raw_experiments.items():
+                if not isinstance(raw_experiment, dict):
+                    continue
+                experiment_policy = raw_experiment.get("policy")
+                safe_experiments[str(experiment_id)] = {
+                    **raw_experiment,
+                    "policy": {
+                        **(
+                            experiment_policy
+                            if isinstance(experiment_policy, dict)
+                            else {}
+                        ),
+                        "research_only": True,
+                        "registered_strategy": False,
+                        "paper_route": "absent",
+                        "order_route": "absent",
+                        "can_trade": False,
+                        "can_promote": False,
+                    },
+                    "can_trade": False,
+                    "can_promote": False,
+                }
+        matrix_policy = revival_matrix.get("policy")
+        embedded_panels["revival_experiment_matrix"] = {
+            **revival_matrix,
+            "experiments": safe_experiments,
+            "policy": {
+                **(matrix_policy if isinstance(matrix_policy, dict) else {}),
+                "research_only": True,
+                "registered_strategies": [],
                 "paper_route": "absent",
                 "order_route": "absent",
                 "can_trade": False,

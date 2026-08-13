@@ -26,7 +26,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Literal, Mapping
+from typing import Any, Callable, Literal, Mapping
 
 import pandas as pd
 
@@ -44,6 +44,8 @@ DEFAULT_SELECTION_END = datetime(2026, 4, 1, tzinfo=UTC)
 DEFAULT_UNTOUCHED_START = datetime(2026, 4, 3, tzinfo=UTC)
 DEFAULT_SYMBOLS = ("BTCUSD", "ETHUSD")
 Side = Literal["long", "short"]
+SetupPermission = Callable[[pd.Series, Side], bool]
+FeatureEnricher = Callable[[pd.DataFrame, pd.DataFrame, pd.DataFrame], pd.DataFrame]
 
 
 @dataclass(frozen=True)
@@ -198,6 +200,11 @@ def replay_selection(
     symbol: str,
     decision_end_exclusive: datetime,
     config: ConfirmedRejectionV2Config = DEFAULT_CONFIG,
+    scanner_id: str = SCANNER_ID,
+    feature_enricher: FeatureEnricher | None = None,
+    setup_permission: SetupPermission | None = None,
+    protection_trigger_r: float | None = None,
+    protection_lock_bps: float | None = None,
 ) -> tuple[tuple[ConfirmedRejectionTrade, ...], dict[str, int]]:
     """Replay only decisions before ``decision_end_exclusive``.
 
@@ -208,7 +215,13 @@ def replay_selection(
 
     if decision_end_exclusive.tzinfo is None:
         raise ValueError("decision_end_exclusive must be timezone-aware")
+    if protection_trigger_r is not None and protection_trigger_r <= 0:
+        raise ValueError("protection_trigger_r must be positive")
+    if protection_lock_bps is not None and protection_lock_bps < 0:
+        raise ValueError("protection_lock_bps cannot be negative")
     frame = build_mtf_amf_feature_frame(one_hour, four_hour, config=BASE_CONFIG)
+    if feature_enricher is not None:
+        frame = feature_enricher(one_hour, four_hour, frame)
     confirmation_frame = fifteen_minute.copy()
     confirmation_frame["timestamp"] = pd.to_datetime(
         confirmation_frame["timestamp"], utc=True
@@ -239,6 +252,10 @@ def replay_selection(
         side = _setup_side(setup, config)
         if side is None:
             counters["setup_rejected"] += 1
+            pos += 1
+            continue
+        if setup_permission is not None and not setup_permission(setup, side):
+            counters[f"{side}_direction_rejected"] += 1
             pos += 1
             continue
         counters["setups"] += 1
@@ -303,6 +320,8 @@ def replay_selection(
         # Re-anchor the stop to the exact distance used by the resolver.  This
         # avoids tiny asymmetry from division when the side is short.
         stop = entry * (1.0 - direction * stop_bps / 10_000.0)
+        managed_stop = stop
+        protection_armed = False
         mfe = 0.0
         mae = 0.0
         resolved: tuple[int, pd.Series, float, str, bool] | None = None
@@ -324,18 +343,54 @@ def replay_selection(
             )
             mfe = max(mfe, favorable)
             mae = max(mae, adverse)
-            stop_hit = float(bar["low"]) <= stop if side == "long" else float(bar["high"]) >= stop
+            stop_hit = (
+                float(bar["low"]) <= managed_stop
+                if side == "long"
+                else float(bar["high"]) >= managed_stop
+            )
             target_hit = (
                 float(bar["high"]) >= target
                 if side == "long"
                 else float(bar["low"]) <= target
             )
             if stop_hit:
-                resolved = (path_pos, bar, stop, "stop", target_hit)
+                bar_open = float(bar["open"])
+                stop_fill = (
+                    min(managed_stop, bar_open)
+                    if side == "long"
+                    else max(managed_stop, bar_open)
+                )
+                resolved = (
+                    path_pos,
+                    bar,
+                    stop_fill,
+                    "protected_stop" if protection_armed else "stop",
+                    target_hit,
+                )
                 break
             if target_hit:
                 resolved = (path_pos, bar, target, "target", False)
                 break
+            # Protection may only arm after this candle has completed and can
+            # therefore affect subsequent candles, never the arming candle.
+            if protection_trigger_r is not None and not protection_armed:
+                close_bps = _directional_bps(side, entry, float(bar["close"]))
+                if close_bps >= stop_bps * protection_trigger_r:
+                    lock_bps = (
+                        config.round_trip_cost_bps
+                        if protection_lock_bps is None
+                        else protection_lock_bps
+                    )
+                    candidate_stop = entry * (
+                        1.0 + direction * lock_bps / 10_000.0
+                    )
+                    managed_stop = (
+                        max(managed_stop, candidate_stop)
+                        if side == "long"
+                        else min(managed_stop, candidate_stop)
+                    )
+                    protection_armed = True
+                    counters["protection_armed"] += 1
         if resolved is None:
             bar = confirmation_frame.iloc[last]
             resolved = (last, bar, float(bar["close"]), "time_stop", False)
@@ -343,7 +398,7 @@ def replay_selection(
         gross = _directional_bps(side, entry, exit_price)
         trades.append(
             ConfirmedRejectionTrade(
-                scanner_id=SCANNER_ID,
+                scanner_id=scanner_id,
                 symbol=symbol.upper(),
                 side=side,
                 setup_ts=pd.Timestamp(setup["timestamp"]).isoformat(),
@@ -417,6 +472,13 @@ def build_selection_report(
     untouched_start: datetime = DEFAULT_UNTOUCHED_START,
     config: ConfirmedRejectionV2Config = DEFAULT_CONFIG,
     generated_at: datetime | None = None,
+    scanner_id: str = SCANNER_ID,
+    schema_version: str = "vnedge.mtf_amf_confirmed_rejection.v2",
+    feature_enricher: FeatureEnricher | None = None,
+    setup_permission: SetupPermission | None = None,
+    protection_trigger_r: float | None = None,
+    protection_lock_bps: float | None = None,
+    experiment_notes: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     if selection_end_exclusive >= untouched_start:
         raise ValueError("selection must end before untouched starts")
@@ -430,6 +492,11 @@ def build_selection_report(
             symbol=symbol,
             decision_end_exclusive=selection_end_exclusive,
             config=config,
+            scanner_id=scanner_id,
+            feature_enricher=feature_enricher,
+            setup_permission=setup_permission,
+            protection_trigger_r=protection_trigger_r,
+            protection_lock_bps=protection_lock_bps,
         )
         all_trades.extend(trades)
         funnels[symbol.upper()] = funnel
@@ -457,21 +524,31 @@ def build_selection_report(
         "positive_halves": all((row["average_net_bps"] or -math.inf) > 0 for row in halves),
     }
     contract = {
-        "scanner_id": SCANNER_ID,
+        "scanner_id": scanner_id,
         "config": asdict(config),
         "entry": (
-            "first qualifying completed 15m candle within 1h confirms failed retest; "
+            "first qualifying completed 15m candle within "
+            f"{15 * config.confirmation_window_bars}m confirms failed retest; "
             "enter following 15m open"
         ),
-        "exit": "stop beyond rejection extreme; 2R target; 12h vertical barrier; stop-first",
+        "exit": (
+            "stop beyond rejection extreme; 2R target; 12h vertical barrier; stop-first; "
+            + (
+                f"after a completed close at +{protection_trigger_r}R, tighten stop to "
+                f"{config.round_trip_cost_bps if protection_lock_bps is None else protection_lock_bps} bps"
+                if protection_trigger_r is not None
+                else "no dynamic protection"
+            )
+        ),
         "decision_data": "completed 15m, completed 1h, and completed 4h candles only",
+        "experiment_notes": dict(experiment_notes or {}),
     }
     contract_sha = hashlib.sha256(
         json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
     passed = all(checks.values())
     return {
-        "schema_version": "vnedge.mtf_amf_confirmed_rejection.v2",
+        "schema_version": schema_version,
         "generated_at": (generated_at or datetime.now(UTC)).isoformat(),
         "contract": contract,
         "contract_sha256": contract_sha,
