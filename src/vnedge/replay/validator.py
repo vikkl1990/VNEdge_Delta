@@ -6,7 +6,11 @@ import json
 from collections import Counter, defaultdict
 from collections.abc import Iterable
 
-from vnedge.exchange.delta_event_recorder import BookIntegrityError, DeltaBookIntegrityValidator
+from vnedge.exchange.delta_event_recorder import (
+    BookIntegrityError,
+    DeltaBookIntegrityValidator,
+    classify_corrected_feed_delay,
+)
 from vnedge.replay.models import RecordedEvent, RecordingValidationReport
 
 
@@ -35,6 +39,7 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
     delays: list[int] = []
     delays_by_channel: dict[str, list[int]] = defaultdict(list)
     channel_regressions: Counter[str] = Counter()
+    delay_classes: dict[str, Counter[str]] = defaultdict(Counter)
     issues: list[str] = []
     issue_count = 0
     issue_limit = 100
@@ -88,6 +93,13 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
         delay = (event.local_recv_ns - latency_exchange_us * 1_000) // 1_000
         delays.append(delay)
         delays_by_channel[event.channel].append(delay)
+        corrected_delay = event.envelope.get("corrected_feed_delay_us")
+        classified_delay = (
+            int(corrected_delay) if isinstance(corrected_delay, int) else delay
+        )
+        delay_classes[event.channel][
+            classify_corrected_feed_delay(classified_delay)
+        ] += 1
         if event.channel != "ob_updates":
             continue
         book_events += 1
@@ -124,5 +136,16 @@ def validate_recorded_events(events: Iterable[RecordedEvent]) -> RecordingValida
             channel: _percentiles(values)
             for channel, values in sorted(delays_by_channel.items())
         },
+        source_delay_classification_by_channel={
+            channel: dict(counts)
+            for channel, counts in sorted(delay_classes.items())
+        },
+        ordering_policy="local_receive_availability_order",
+        exchange_timestamp_regressions_blocking=False,
+        latency_interpretation=(
+            "Exchange timestamps are diagnostic source-time metadata. Cross-stream "
+            "regressions do not imply lookahead; replay order is the local receive "
+            "availability order. Sequence/checksum/local receive regressions remain blocking."
+        ),
         issues=tuple(issues),
     )

@@ -25,7 +25,10 @@ def architecture_manifest() -> dict[str, object]:
         "components": {
             "public_websocket": "active",
             "rest_backfill": "active",
-            "multi_timeframe_candles": "active",
+            "multi_timeframe_closed_candles": "active_proven_close_only",
+            "multi_timeframe_forming_candles": (
+                "active_tick_driven_context_only_1m_3m_5m_15m_30m_1h_4h"
+            ),
             "l2_trade_flow_store": "active_confirmation_only",
             "context_and_regime": "active",
             "move_predictor": "legacy_benchmark_only",
@@ -44,9 +47,20 @@ def architecture_manifest() -> dict[str, object]:
             "exactly_once_research_journal",
             "next_bar_forward_measurement",
         ],
+        "forming_context_flow": [
+            "exchange_timestamped_trade",
+            "local_receive_timestamp_captured_for_latency_only",
+            "incremental_forming_ohlcv_update",
+            "immutable_point_in_time_snapshot",
+            "candidate_time_snapshot_journal_and_dashboard_context_only",
+            "not_consumed_by_current_primary_scanners",
+        ],
         "safety": {
             "research_only": True,
             "closed_candles_only": True,
+            "primary_scanners_completed_candles_only": True,
+            "forming_candles_context_only": True,
+            "forming_candles_used_for_execution": False,
             "l2_confirmation_only": True,
             "risk_gateway_bypass": False,
             "order_route_present": False,

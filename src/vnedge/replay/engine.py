@@ -25,6 +25,9 @@ from vnedge.replay.models import (
 from vnedge.replay.outcomes import ReplayForwardTracker
 from vnedge.replay.store import EventStore
 from vnedge.replay.validator import validate_recorded_events
+from vnedge.scalping.delta_engine.event_market_truth import (
+    EventHigherTimeframeContextService,
+)
 from vnedge.scalping.delta_engine.event_trigger import (
     DeltaVerifiedEventBridge,
     EventDrivenTriggerLayer,
@@ -213,9 +216,7 @@ class EventReplayEngine:
                 "event layer's internal receive-to-decision runtime"
             ),
         }
-        summary["deterministic_research_records"] = len(
-            deterministic_research_records
-        )
+        summary["deterministic_research_records"] = len(deterministic_research_records)
         summary["events_hashed"] = events
         summary["feature_snapshots_hashed"] = feature_snapshots_hashed
         summary["deterministic_hash_scope"] = (
@@ -270,9 +271,7 @@ class EventReplayEngine:
             second_events=second.events_processed,
             first_candidates=first.candidates_emitted,
             second_candidates=second.candidates_emitted,
-            first_feature_snapshots=int(
-                first.summary_metrics.get("feature_snapshots_hashed") or 0
-            ),
+            first_feature_snapshots=int(first.summary_metrics.get("feature_snapshots_hashed") or 0),
             second_feature_snapshots=int(
                 second.summary_metrics.get("feature_snapshots_hashed") or 0
             ),
@@ -292,7 +291,11 @@ class EventReplayEngine:
         forward: ReplayForwardTracker,
     ) -> Iterator[ReplayTick]:
         trigger = self.trigger_factory(journal, config.enable_scanner, config.random_seed)
-        bridge = DeltaVerifiedEventBridge(trigger)
+        market_truth = EventHigherTimeframeContextService(trigger, config.symbols)
+        bridge = DeltaVerifiedEventBridge(
+            trigger,
+            trade_observer=market_truth.on_trade,
+        )
         previous_receive_ns: int | None = None
         for event in self.store.iter_events(config):
             if event.envelope.get("replay_warmup") is True:
@@ -384,9 +387,9 @@ class EventReplayEngine:
 
     def _unique_path(self, config: ReplayConfig, *, suffix: str) -> Path:
         fingerprint = hashlib.sha256(
-            json.dumps(
-                config.canonical_dict(), sort_keys=True, separators=(",", ":")
-            ).encode("utf-8")
+            json.dumps(config.canonical_dict(), sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
         ).hexdigest()[:16]
         base = self.output_dir / f"replay_{fingerprint}{suffix}"
         if not base.exists():

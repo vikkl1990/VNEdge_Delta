@@ -404,7 +404,7 @@ def test_paper_observation_flag_off_is_a_no_op_on_desired_set():
     assert lane_specs_fingerprint(base) == lane_specs_fingerprint(off)
 
 
-def test_governor_paper_roster_filter_keeps_only_proposed_paper_lanes(tmp_path):
+def test_governor_cannot_override_canonical_paper_lock(tmp_path):
     governor = {
         "proposed_roster": {
             "paper_lanes": [
@@ -427,12 +427,12 @@ def test_governor_paper_roster_filter_keeps_only_proposed_paper_lanes(tmp_path):
     })
 
     paper_ids = [spec.lane_id for spec in specs if spec.mode is RunnerMode.PAPER]
-    assert paper_ids == ["funding_mr_btc_v1_20260703"]
-    assert next(spec for spec in specs if spec.is_primary).lane_id == "funding_mr_btc_v1_20260703"
+    assert paper_ids == []
+    assert next(spec for spec in specs if spec.is_primary).mode is RunnerMode.SHADOW
     assert any(spec.mode is RunnerMode.SHADOW for spec in specs)
 
 
-def test_governor_paper_roster_filter_can_match_by_signature_and_reassign_primary(tmp_path):
+def test_governor_signature_match_still_cannot_override_canonical_lock(tmp_path):
     governor = {
         "proposed_roster": {
             "paper_lanes": [
@@ -455,8 +455,8 @@ def test_governor_paper_roster_filter_can_match_by_signature_and_reassign_primar
     })
 
     paper_ids = [spec.lane_id for spec in specs if spec.mode is RunnerMode.PAPER]
-    assert paper_ids == ["funding_mr_bybit_20260704"]
-    assert next(spec for spec in specs if spec.is_primary).lane_id == "funding_mr_bybit_20260704"
+    assert paper_ids == []
+    assert next(spec for spec in specs if spec.is_primary).mode is RunnerMode.SHADOW
 
 
 def test_governor_paper_roster_filter_fails_open_when_report_is_missing(tmp_path):
@@ -469,30 +469,28 @@ def test_governor_paper_roster_filter_fails_open_when_report_is_missing(tmp_path
     assert [spec.lane_id for spec in filtered] == [spec.lane_id for spec in base]
 
 
-def test_paper_observation_mirrors_shadow_only_lanes_without_duplicate_trials():
+def test_canonical_registry_blocks_all_ad_hoc_paper_observation_mirrors():
     # PRUNE_DEAD off: this exercises the MIRRORING logic against the full roster,
     # independent of which strategies the evidence-prune removes.
     specs = desired_lane_specs({"MULTI_LANE_PAPER_OBSERVE_ALL": "1", "MULTI_LANE_PRUNE_DEAD": "0"})
     ids = {spec.lane_id for spec in specs}
 
-    # Governed BTC/Bybit paper-trial ledgers stay canonical and are not mirrored.
-    assert "funding_mr_btc_v1_20260703" in ids
-    assert "funding_mr_bybit_20260704" in ids
+    # Historical trials and ad-hoc observation mirrors are all withheld while
+    # global paper authority is false in the canonical registry.
+    assert "funding_mr_btc_v1_20260703" not in ids
+    assert "funding_mr_bybit_20260704" not in ids
     assert "funding_mr_binanceusdm_btc_usdt_usdt_paper_observation" not in ids
     assert "funding_mr_bybit_btc_usdt_usdt_paper_observation" not in ids
 
-    # Shadow-only lanes (no equivalent paper trial) get isolated paper ledgers.
-    assert "trend_continuation_delta_india_btc_usd_usd_paper_observation" in ids
-    assert "funding_mr_delta_india_btc_usd_usd_paper_observation" in ids
-    assert "trend_continuation_xrp_bybit_paper_observation" in ids
+    assert "trend_continuation_delta_india_btc_usd_usd_paper_observation" not in ids
+    assert "funding_mr_delta_india_btc_usd_usd_paper_observation" not in ids
+    assert "trend_continuation_xrp_bybit_paper_observation" not in ids
 
     observed = [
         spec for spec in specs if spec.lane_id.endswith("_paper_observation")
     ]
-    assert observed
-    assert all(spec.mode is RunnerMode.PAPER for spec in observed)
-    assert all(not spec.is_primary for spec in observed)
-    # isolated ledgers: every observation id is unique across the runtime set
+    assert observed == []
+    assert all(spec.mode is not RunnerMode.PAPER for spec in specs)
     assert len(ids) == len(specs)
 
 
@@ -509,7 +507,7 @@ def test_delta_paper_observation_can_be_disabled_without_blocking_other_mirrors(
     })
     ids = {spec.lane_id for spec in specs}
 
-    assert "trend_continuation_xrp_bybit_paper_observation" in ids
+    assert "trend_continuation_xrp_bybit_paper_observation" not in ids
     assert not any(
         spec.exchange == "delta_india" and spec.mode is RunnerMode.PAPER
         for spec in specs
@@ -1017,9 +1015,24 @@ def test_prune_toggle_and_roster_effect():
     on = desired_lane_specs({**env, "MULTI_LANE_PRUNE_DEAD": "1"})
     off = desired_lane_specs({**env, "MULTI_LANE_PRUNE_DEAD": "0"})
     assert len(on) <= len(off)  # prune never adds lanes
-    # no pruned strategy survives when the filter is on
-    assert not any(s.strategy_id in {"alpha_stack_confluence_v1", "luxy_ut_bot_forecast_v1",
-                                     "trend_continuation_v1"} for s in on)
+    # Family cuts remain in force except for exact preregistered Delta PAPER
+    # evidence cells; those cannot leak into shadow or another venue.
+    assert not any(
+        s.strategy_id in {
+            "alpha_stack_confluence_v1",
+            "luxy_ut_bot_forecast_v1",
+            "trend_continuation_v1",
+        }
+        and not (
+            s.strategy_id == "luxy_ut_bot_forecast_v1"
+            and s.exchange == "delta_india"
+            and s.symbol == "XRP/USD:USD"
+            and s.timeframe == "1h"
+            and s.mode is RunnerMode.PAPER
+            and s.strategy_params == {}
+        )
+        for s in on
+    )
     # ...but they can be brought back with the toggle (if present in the base set)
     assert any(s.strategy_id == "trend_continuation_v1" for s in off)
 

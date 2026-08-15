@@ -311,7 +311,32 @@ class CascadeCostModel:
 
 def cost_models_for(exchange: str) -> dict[str, CascadeCostModel]:
     """Both cost models from the registry fee profile for the venue."""
-    fee = DEFAULT_SCALPER_PARAMETER_REGISTRY.fee_profile(exchange.removesuffix("_hist"))
+    venue = exchange.removesuffix("_hist")
+    fee = DEFAULT_SCALPER_PARAMETER_REGISTRY.fee_profile(venue)
+    if venue == "delta_india":
+        # DeltaFeeModel is the canonical GST-aware venue contract. Keep the
+        # replay's explicit adverse price adjustment, but source every rate
+        # from the same model used by the live/replay Delta engine.
+        from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
+
+        delta = DeltaFeeModel(default_slippage_bps_per_leg=fee.slippage_bps)
+        return {
+            "taker_taker": CascadeCostModel(
+                label="taker_taker",
+                entry_fee_bps=delta.taker_bps,
+                exit_fee_bps=delta.taker_bps,
+                entry_slippage_bps=delta.default_slippage_bps_per_leg,
+                exit_slippage_bps=delta.default_slippage_bps_per_leg,
+            ),
+            "maker_first": CascadeCostModel(
+                label="maker_first",
+                entry_fee_bps=delta.maker_bps,
+                exit_fee_bps=delta.taker_bps,
+                entry_slippage_bps=0.0,
+                exit_slippage_bps=delta.default_slippage_bps_per_leg,
+                assumed_maker_fill=True,
+            ),
+        }
     return {
         "taker_taker": CascadeCostModel(
             label="taker_taker",

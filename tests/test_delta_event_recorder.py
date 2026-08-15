@@ -546,6 +546,10 @@ async def test_book_integrity_failure_forces_reconnect_and_fresh_snapshot(
     assert "__ob_sequence_gap__" in markers
     assert markers.count("__ob_snapshot_valid__") >= 2
     status = json.loads((tmp_path / "_recorder_status.json").read_text())
-    assert status["gap_guard"]["healthy"] is False
+    assert status["gap_guard"]["healthy"] is True
+    assert status["gap_guard"]["active_fault"] is False
+    assert status["gap_guard"]["recovered"] is True
     assert status["gap_guard"]["integrity_faults"] >= 1
+    assert status["gap_guard"]["historical_integrity_faults"] >= 1
+    assert status["gap_guard"]["valid_book_symbols"] == ["BTCUSD"]
     assert status["gap_guard"]["markers"]["__ob_sequence_gap__"] >= 1

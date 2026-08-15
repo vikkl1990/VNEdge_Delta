@@ -210,10 +210,10 @@ def test_dashboard_home_is_delta_research_sidecar(client):
     assert "VNEDGE · Delta India Research Sidecar" in html
     assert 'value !== null && value !== undefined && value !== ""' in html
     assert "Paper &amp; Live Trading Locked" in html
-    assert "All primary scanners disabled" in html
+    assert "Checking Delta publisher freshness" in html
     assert "No validated after-cost edge" in html
-    assert "Event hypotheses remain feature-only until deterministic causal replay is proven" in html
-    assert "No active scanners. No research candidates. System is monitoring only." in html
+    assert "Historical values are never presented as live" in html
+    assert "Provisional event scanner is collecting simulated outcomes." in html
     assert 'fetch("/delta-scalper"' in html
     assert 'fetch("/event-research-infrastructure"' in html
     assert 'href="/research-lab"' in html
@@ -292,6 +292,30 @@ def test_delta_endpoint_reports_locked_identity_and_unproven_edge(tmp_path):
     }
 
 
+def test_delta_endpoint_downgrades_old_snapshot_and_nested_l2(tmp_path):
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    path = tmp_path / "delta.json"
+    path.write_text(json.dumps({
+        "generated_at": "2020-01-01T00:00:00+00:00",
+        "rows": [{
+            "strategy_id": "delta_scalper_engine_v1",
+            "symbol": "ETHUSD",
+            "state": "WAITING",
+            "latest_eval": {"l2_confirmation": {"status": "fresh"}},
+        }],
+        "architecture": {"components": {"scanner_engine": "disabled"}},
+    }))
+    app = create_app(provider, token="t3st-token", delta_scalper_path=path)
+
+    payload = TestClient(app).get("/delta-scalper?token=t3st-token").json()
+
+    assert payload["freshness"]["fresh"] is False
+    assert payload["rows"][0]["state"] == "DATA_STALE"
+    assert payload["lanes"][0]["l2_status"] == "snapshot_stale"
+    assert payload["system_health"]["snapshot_fresh"] is False
+
+
 def test_multi_venue_perps_desk_is_secondary_research_lab(client):
     r = client.get("/research-lab")
     assert r.status_code == 200
@@ -351,28 +375,61 @@ def test_cost_model_route_auth_gated_and_real_numbers(client):
     assert r.headers["X-Dashboard-User"] == "operator"
     payload = r.json()
     # Numbers come from the same source the engines use.
-    from vnedge.paper.fill_model import FillModel
+    from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
     from vnedge.scalping.parameter_registry import (
         DEFAULT_SCALPER_PARAMETER_REGISTRY as registry,
     )
 
-    fee = registry.fee_profile("binanceusdm")
-    paper = FillModel()
+    fee = registry.fee_profile("delta_india")
+    paper = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
+    assert payload["exchange"] == "delta_india"
     assert payload["maker_bps"] == fee.maker_bps
     assert payload["taker_bps"] == fee.taker_bps
     assert payload["slippage_bps"] == fee.slippage_bps
-    # maker-first RT (~8 bps) = maker entry + taker exit + slippage
-    assert payload["maker_first_rt_bps"] == fee.maker_bps + fee.taker_bps + fee.slippage_bps
-    # taker RT (~11 bps) = both legs taker + slippage
-    assert payload["taker_rt_bps"] == 2 * fee.taker_bps + fee.slippage_bps
-    assert payload["maker_first_rt_bps"] == 8.0
-    assert payload["taker_rt_bps"] == 11.0
-    # paper broker's own pessimistic model is reported alongside
-    assert payload["paper_fill_model"]["taker_fee_bps"] == paper.taker_fee_bps
-    assert payload["paper_fill_model"]["slippage_bps"] == paper.slippage_bps
-    assert payload["paper_fill_model"]["taker_rt_bps"] == 2 * (
-        paper.taker_fee_bps + paper.slippage_bps
+    # Maker entry is passive; only the taker exit pays modeled impact.
+    assert payload["maker_first_rt_bps"] == pytest.approx(
+        paper.maker_bps + paper.taker_bps + paper.default_slippage_bps_per_leg
     )
+    # Both taker legs pay GST-inclusive fees and adverse slippage.
+    assert payload["taker_rt_bps"] == pytest.approx(
+        2 * paper.taker_bps + 2 * paper.default_slippage_bps_per_leg
+    )
+    assert payload["maker_first_rt_bps"] == 9.76
+    assert payload["taker_rt_bps"] == 14.8
+    assert payload["paper_fill_model"]["taker_fee_bps"] == paper.taker_bps
+    assert payload["paper_fill_model"]["maker_fee_bps"] == paper.maker_bps
+    assert payload["paper_fill_model"]["slippage_bps_per_leg"] == 1.5
+    assert payload["paper_fill_model"]["taker_rt_bps"] == 14.8
+    assert payload["paper_fill_model"]["includes_gst"] is True
+
+
+def test_stale_paper_activation_is_not_reported_online(tmp_path):
+    provider = SnapshotProvider()
+    provider.publish({"mode": "shadow"})
+    artifact = tmp_path / "paper_activation.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "generated_at": "2020-01-01T00:00:00+00:00",
+                "summary": {"paper_online": 1, "paper_running": 1, "paper_waiting": 0},
+                "rows": [{"activation_state": "PAPER_RUNNING", "route_status": "RUNNING"}],
+                "paper_simulation_route_open": True,
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    app = create_app(
+        provider,
+        token="t3st-token",
+        paper_lane_activation_path=artifact,
+    )
+    payload = TestClient(app).get("/paper-lane-activation?token=t3st-token").json()
+    assert payload["freshness"]["status"] == "STALE"
+    assert payload["summary"]["reported_paper_online"] == 1
+    assert payload["summary"]["paper_online"] == 0
+    assert payload["rows"][0]["activation_state"] == "RUNTIME_EVIDENCE_STALE"
+    assert payload["paper_simulation_route_open"] is False
 
 
 def test_pine_research_page_and_kb_are_auth_gated(tmp_path):
@@ -1659,14 +1716,16 @@ def test_alpha_council_and_workbench_missing_files_are_safe(tmp_path):
         "can_trade": False,
         "can_promote": False,
     }
-    assert scanner == {
-        "summary": {},
-        "rows": [],
-        "operator_answer": "real-time scanner report unavailable",
-        "mode": "live_observation_not_replay",
-        "can_trade": False,
-        "can_promote": False,
-    }
+    assert scanner["summary"] == {}
+    assert scanner["rows"] == []
+    assert scanner["operator_answer"] == "real-time scanner report unavailable"
+    assert scanner["mode"] == "live_observation_not_replay"
+    assert scanner["strategy_evidence_registry"]["registry_id"] == (
+        "vnedge_canonical_strategy_evidence_registry"
+    )
+    assert scanner["withheld_lanes"] == []
+    assert scanner["can_trade"] is False
+    assert scanner["can_promote"] is False
     assert causality == {
         "summary": {},
         "promotion_board": {},

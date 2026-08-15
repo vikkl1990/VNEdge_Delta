@@ -502,7 +502,8 @@ def build_forward_evidence_payload(
         "report_id": "mtf_amf_forward_evidence_v1",
         "scanner_id": SCANNER_ID,
         "mode": "research_observation_only",
-        "cost_model": {"round_trip_cost_bps": ROUND_TRIP_COST_BPS},
+        "cost_contract": "taker_full_14_8",
+        "round_trip_cost_bps": ROUND_TRIP_COST_BPS,
         "summary": {
             "journaled_alerts": len(alerts),
             "resolved_outcomes": len(outcomes),
@@ -791,7 +792,8 @@ def build_expanded_backtest_payload(
         "markets": sorted(candles_by_symbol),
         "errors": errors,
         "config": asdict(config),
-        "cost_model": {"round_trip_cost_bps": cost_bps},
+        "cost_contract": "taker_full_14_8" if abs(cost_bps - 14.8) < 1e-9 else None,
+        "round_trip_cost_bps": cost_bps,
         "summary": {
             "outcome_rows": len(rows),
             "alerts": len({row["alert_id"] for row in rows}),

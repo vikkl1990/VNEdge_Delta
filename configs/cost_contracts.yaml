@@ -1,0 +1,57 @@
+# VNEDGE canonical route-cost contracts.
+# Fee components are explicit so GST is never double-counted or silently omitted.
+schema_version: vnedge.cost_contracts.v1
+version: "1.0"
+updated: "2026-08-14T16:30:00Z"
+
+cost_contracts:
+  taker_full_14_8:
+    description: "Delta India taker entry + taker exit; GST included; 1.5 bps adverse slippage per leg"
+    route: taker_taker
+    entry_liquidity: taker
+    exit_liquidity: taker
+    base_entry_fee_bps: 5.0
+    base_exit_fee_bps: 5.0
+    gst_bps: 1.8
+    slippage_bps: 3.0
+    safety_buffer_bps: 0.0
+    total_roundtrip_bps: 14.8
+    maker_fee_bps: 2.36
+    taker_fee_bps: 5.90
+    slippage_bps_per_leg: 1.5
+    includes_gst: true
+    calibration_status: verified_fee_schedule_plus_conservative_slippage_reserve
+
+  maker_entry_11_26:
+    description: "Delta India maker entry + taker exit; GST included; 1.5 bps adverse slippage per leg"
+    route: maker_taker
+    entry_liquidity: maker
+    exit_liquidity: taker
+    base_entry_fee_bps: 2.0
+    base_exit_fee_bps: 5.0
+    gst_bps: 1.26
+    slippage_bps: 3.0
+    safety_buffer_bps: 0.0
+    total_roundtrip_bps: 11.26
+    maker_fee_bps: 2.36
+    taker_fee_bps: 5.90
+    slippage_bps_per_leg: 1.5
+    includes_gst: true
+    calibration_status: route_specific_research_assumption_requires_maker_fill_evidence
+
+  buffered_17:
+    description: "Delta India taker/taker contract with an additional 2.2 bps uncertainty buffer"
+    route: taker_taker_buffered
+    entry_liquidity: taker
+    exit_liquidity: taker
+    base_entry_fee_bps: 5.0
+    base_exit_fee_bps: 5.0
+    gst_bps: 1.8
+    slippage_bps: 3.0
+    safety_buffer_bps: 2.2
+    total_roundtrip_bps: 17.0
+    maker_fee_bps: 2.36
+    taker_fee_bps: 5.90
+    slippage_bps_per_leg: 2.6
+    includes_gst: true
+    calibration_status: conservative_stress_contract

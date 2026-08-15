@@ -53,8 +53,10 @@ from vnedge.scalping.delta_engine.types import (
     SessionRegime,
     Side,
     SignalCandidate,
+    TradeHorizon,
     TrendStrength,
     VolatilityRegime,
+    classify_trade_horizon,
 )
 from vnedge.scalping.delta_engine.validation import (
     fee_sensitivity,
@@ -179,6 +181,10 @@ def test_architecture_manifest_reports_deployed_research_boundary():
     assert manifest["runtime"]["process_model"] == "single_process_asyncio_research_sidecar"
     assert manifest["runtime"]["offline_replay_uses_live_modules"] is True
     assert manifest["components"]["existing_risk_gateway_adapter"] == ("available_not_invoked")
+    assert manifest["components"]["multi_timeframe_forming_candles"].startswith("active_")
+    assert manifest["safety"]["primary_scanners_completed_candles_only"] is True
+    assert manifest["safety"]["forming_candles_context_only"] is True
+    assert manifest["safety"]["forming_candles_used_for_execution"] is False
     assert manifest["safety"]["order_route_present"] is False
     assert manifest["safety"]["can_trade"] is False
     assert "momentum_burst_v1" in manifest["retired_primary_hypotheses"]
@@ -305,7 +311,11 @@ def test_sequence_tracker_records_gaps_and_regressions():
 
 
 def test_l2_trade_flow_store_computes_causal_confirmation_features():
-    store = L2TradeFlowStore(imbalance_history=10, trade_window_seconds=15)
+    store = L2TradeFlowStore(
+        imbalance_history=10,
+        trade_window_seconds=15,
+        contract_values={"BTCUSD": 0.001},
+    )
     bids = [
         {"limit_price": "99.9", "size": "10"},
         {"limit_price": "99.8", "size": "8"},
@@ -318,9 +328,9 @@ def test_l2_trade_flow_store_computes_causal_confirmation_features():
     store.on_book("BTCUSD", bids, asks, observed_at=NOW, sequence=2)
     snapshot = store.on_trade("BTCUSD", price=100, size=2, side="buy", observed_at=NOW, sequence=1)
     assert snapshot.raw_imbalance > 0
-    assert snapshot.cvd_usd == 200
+    assert snapshot.cvd_usd == pytest.approx(0.2)
     assert snapshot.buy_aggression_ratio == 1
-    assert snapshot.depth_usd > 0
+    assert snapshot.depth_usd == pytest.approx(2.2981)
     assert snapshot.sequence.healthy
 
 
@@ -730,6 +740,13 @@ def _candidate() -> SignalCandidate:
         scalper_probability=0.75,
         confidence=0.8,
     )
+
+
+def test_trade_horizon_uses_hard_thirty_minute_boundary() -> None:
+    assert classify_trade_horizon(1_800) is TradeHorizon.SCALP
+    assert classify_trade_horizon(1_801) is TradeHorizon.SWING
+    assert _candidate().trade_horizon is TradeHorizon.SCALP
+    assert _candidate().to_dict()["scalper_max_hold_seconds"] == 1_800
 
 
 class _StaticScanner(Scanner):

@@ -91,6 +91,28 @@ def test_ready_needs_no_token():
     assert client.get("/ready").status_code == 503
 
 
+def test_ready_fails_closed_for_stale_delta_and_event_integrity_fault():
+    provider = SnapshotProvider()
+    provider.publish(
+        {
+            "mode": "research scanner observation",
+            "feed_health": {"candles": "stale", "last_update_ms": 3_600_000},
+            "research_infrastructure": {
+                "recorder": {
+                    "runtime_status_age_seconds": 10,
+                    "runtime": {"gap_guard": {"healthy": False, "integrity_faults": 1}},
+                }
+            },
+        }
+    )
+    response = TestClient(create_app(provider, token="t")).get("/ready")
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "degraded"
+    assert "candle_snapshot_stale" in payload["reasons"]
+    assert "event_tape_integrity_fault" in payload["reasons"]
+
+
 def test_whoami_reports_role_and_permissions():
     store = TokenStore([
         DashboardUser(name="viewer1", token="vt", role="viewer"),

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from datetime import UTC, datetime
 
 from vnedge.dashboard.sse_health import build_health_payload, health_event_generator
 
@@ -51,9 +52,12 @@ def test_health_payload_is_compact_truthful_and_locked():
         "gap_guard": {"healthy": True, "integrity_faults": 0},
     }
 
-    payload = build_health_payload(_snapshot(), recorder)
+    payload = build_health_payload(
+        _snapshot(), recorder, now=datetime(2026, 8, 10, 10, 0, 10, tzinfo=UTC)
+    )
 
     assert payload["snapshot_available"] is True
+    assert payload["snapshot_fresh"] is True
     assert payload["can_trade"] is False
     assert payload["can_promote"] is False
     assert payload["order_route"] == "absent"
@@ -77,6 +81,20 @@ def test_health_payload_fails_closed_when_snapshot_is_missing():
     assert payload["can_trade"] is False
     assert payload["can_promote"] is False
     assert payload["enabled_scanners"] == []
+
+
+def test_health_payload_marks_old_snapshot_and_l2_as_stale():
+    payload = build_health_payload(
+        _snapshot(),
+        {"updated_at": "2026-08-10T11:00:00+00:00"},
+        now=datetime(2026, 8, 10, 11, 0, 0, tzinfo=UTC),
+    )
+
+    assert payload["snapshot_available"] is True
+    assert payload["snapshot_fresh"] is False
+    assert payload["error"] == "snapshot_stale"
+    assert payload["markets"]["BTCUSD"]["l2_fresh"] is False
+    assert payload["markets"]["BTCUSD"]["l2_status"] == "snapshot_stale"
 
 
 class _OneEventRequest:
@@ -136,7 +154,12 @@ def test_health_payload_merges_event_tape_and_reconnect_truth():
         "counterfactual_absorption": {"open": 1, "completed": 2},
     }
 
-    payload = build_health_payload(_snapshot(), recorder, trigger)
+    payload = build_health_payload(
+        _snapshot(),
+        recorder,
+        trigger,
+        now=datetime(2026, 8, 10, 10, 0, 10, tzinfo=UTC),
+    )
 
     assert payload["markets"]["BTCUSD"]["price"] == 70_000.0
     assert payload["markets"]["BTCUSD"]["l2_age_ms"] == 12.0

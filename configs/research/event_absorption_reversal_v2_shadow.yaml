@@ -1,0 +1,61 @@
+contract_id: event_absorption_reversal_v2_shadow
+version: 2.0.0
+status: live_shadow_collecting
+research_only: true
+can_trade: false
+can_promote: false
+
+purpose:
+  scanner_implementation_waits_for_14_days: false
+  live_shadow_starts_immediately: true
+  paper_fill_simulation_starts_immediately: true
+  capital_deployment_requires_full_evidence: true
+
+data:
+  venue: delta_india
+  symbols: [BTCUSD, ETHUSD]
+  required_channels: [trades, ob_updates]
+  require_verified_snapshot: true
+  maximum_sequence_gaps_inside_epoch: 0
+  timestamp_order: local_receive_then_monotonic_then_event_index
+
+entry:
+  hypothesis: fade_verified_displayed_absorption
+  decision_source: causal_event_snapshot
+  fill_model: next_public_trade
+  entry_timeout_ms: 5000
+  duplicate_policy: exactly_once
+  order_route: absent
+
+exit:
+  target_1_bps: 45.0
+  target_2_bps: 75.0
+  stop_bps: 20.0
+  vertical_barrier_seconds: 900
+  trade_horizon: scalp
+  scalper_maximum_hold_seconds: 1800
+  over_limit_horizon: swing
+  stop_first_on_ambiguous_event: true
+
+costs:
+  execution: taker_taker
+  gst_included: true
+  slippage_bps_per_leg: 1.5
+  modeled_round_trip_bps: 14.8
+  target_1_cost_multiple: 3.04
+
+authority:
+  live_market_observation: true
+  simulated_fills: true
+  delta_testnet_orders: false
+  delta_production_orders: false
+  real_capital: false
+
+promotion:
+  minimum_completed_simulations: 200
+  minimum_average_net_bps: 3.0
+  minimum_profit_factor: 1.20
+  require_positive_each_symbol: true
+  require_positive_chronological_halves: true
+  sealed_holdout_required: true
+  signed_paper_eligibility_required: true

@@ -15,6 +15,10 @@ from vnedge.scalping.delta_engine.absorption import (
     AbsorptionObservation,
 )
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
+from vnedge.scalping.delta_engine.types import (
+    SCALPER_MAX_HOLD_SECONDS,
+    classify_trade_horizon,
+)
 
 
 def _utc(ts: datetime) -> datetime:
@@ -27,14 +31,29 @@ class AbsorptionResearchConfig(BaseModel):
     target_1_ticks: float = Field(default=8.0, gt=0)
     target_2_ticks: float = Field(default=12.0, gt=0)
     stop_ticks: float = Field(default=6.0, gt=0)
+    target_1_bps: float | None = Field(default=None, gt=0)
+    target_2_bps: float | None = Field(default=None, gt=0)
+    stop_bps: float | None = Field(default=None, gt=0)
     horizon_ms: int = Field(default=90_000, ge=1_000, le=3_600_000)
     entry_timeout_ms: int = Field(default=5_000, ge=100, le=60_000)
+    one_active_per_symbol: bool = False
     return_horizons_ms: tuple[int, ...] = (1_000, 5_000, 15_000, 30_000, 60_000)
 
     @model_validator(mode="after")
     def validate_targets(self) -> AbsorptionResearchConfig:
         if self.target_2_ticks < self.target_1_ticks:
             raise ValueError("target_2_ticks must be >= target_1_ticks")
+        bps_values = (self.target_1_bps, self.target_2_bps, self.stop_bps)
+        if any(value is not None for value in bps_values) and not all(
+            value is not None for value in bps_values
+        ):
+            raise ValueError("bps geometry requires target_1_bps, target_2_bps, and stop_bps")
+        if (
+            self.target_1_bps is not None
+            and self.target_2_bps is not None
+            and self.target_2_bps < self.target_1_bps
+        ):
+            raise ValueError("target_2_bps must be >= target_1_bps")
         if (
             not self.return_horizons_ms
             or any(value <= 0 for value in self.return_horizons_ms)
@@ -61,6 +80,13 @@ class AbsorptionResearchOutcome:
     realized_gross_ticks: float
     cost_ticks: float
     realized_net_ticks: float
+    mfe_bps: float
+    mae_bps: float
+    realized_gross_bps: float
+    cost_bps: float
+    realized_net_bps: float
+    trade_horizon: str
+    maximum_hold_seconds: int
     time_to_mfe_ms: float
     hit_target_1: bool
     hit_target_2: bool
@@ -117,6 +143,7 @@ class AbsorptionResearchSummary:
     target_1_win_rate: float
     average_mfe_mae_ratio: float
     expectancy_net_ticks: float
+    expectancy_net_bps: float
     profit_factor: float
     stacked_win_rate: float | None
     single_win_rate: float | None
@@ -143,9 +170,12 @@ def summarize_absorption_outcomes(
             return None
         return fmean(row.realized_exit_reason == "target_1" for row in values)
 
-    net = [row.realized_net_ticks for row in completed]
-    gains = sum(value for value in net if value > 0)
-    losses = abs(sum(value for value in net if value < 0))
+    net_ticks = [row.realized_net_ticks for row in completed]
+    # Tick values are not comparable across BTC and ETH. Profit factor and the
+    # cross-market economic summary therefore use bps.
+    net_bps = [row.realized_net_bps for row in completed]
+    gains = sum(value for value in net_bps if value > 0)
+    losses = abs(sum(value for value in net_bps if value < 0))
     profit_factor = gains / losses if losses > 0 else (float("inf") if gains > 0 else 0.0)
     average_mfe = fmean(row.mfe_ticks for row in completed) if completed else 0.0
     average_mae = fmean(row.mae_ticks for row in completed) if completed else 0.0
@@ -159,7 +189,8 @@ def summarize_absorption_outcomes(
             if average_mae > 0
             else (float("inf") if average_mfe > 0 else 0.0)
         ),
-        expectancy_net_ticks=fmean(net) if net else 0.0,
+        expectancy_net_ticks=fmean(net_ticks) if net_ticks else 0.0,
+        expectancy_net_bps=fmean(net_bps) if net_bps else 0.0,
         profit_factor=profit_factor,
         stacked_win_rate=grouped_rate([row for row in completed if row.was_stacked]),
         single_win_rate=grouped_rate([row for row in completed if not row.was_stacked]),
@@ -199,6 +230,9 @@ class AbsorptionResearchTracker:
         self._net_ticks = 0.0
         self._gross_ticks = 0.0
         self._cost_ticks = 0.0
+        self._net_bps = 0.0
+        self._gross_bps = 0.0
+        self._cost_bps = 0.0
         self._gains = 0.0
         self._losses = 0.0
 
@@ -213,6 +247,11 @@ class AbsorptionResearchTracker:
         key = self.key(observation)
         if key in self._seen:
             self._counts["duplicate_observations"] += 1
+            return False
+        if self.config.one_active_per_symbol and (
+            self._pending.get(observation.symbol) or self._open.get(observation.symbol)
+        ):
+            self._counts["one_active_blocked"] += 1
             return False
         instrument = self.instruments.get(observation.symbol)
         if instrument is None:
@@ -299,10 +338,13 @@ class AbsorptionResearchTracker:
                 self._net_ticks += outcome.realized_net_ticks
                 self._gross_ticks += outcome.realized_gross_ticks
                 self._cost_ticks += outcome.cost_ticks
-                if outcome.realized_net_ticks > 0:
-                    self._gains += outcome.realized_net_ticks
-                elif outcome.realized_net_ticks < 0:
-                    self._losses += abs(outcome.realized_net_ticks)
+                self._net_bps += outcome.realized_net_bps
+                self._gross_bps += outcome.realized_gross_bps
+                self._cost_bps += outcome.cost_bps
+                if outcome.realized_net_bps > 0:
+                    self._gains += outcome.realized_net_bps
+                elif outcome.realized_net_bps < 0:
+                    self._losses += abs(outcome.realized_net_bps)
             if self.journal is not None:
                 self.journal.append("delta_absorption_research_outcome", outcome.to_dict())
         return tuple(outcomes)
@@ -318,6 +360,9 @@ class AbsorptionResearchTracker:
             "average_gross_ticks": self._gross_ticks / completed if completed else 0.0,
             "average_cost_ticks": self._cost_ticks / completed if completed else 0.0,
             "average_net_ticks": self._net_ticks / completed if completed else 0.0,
+            "average_gross_bps": self._gross_bps / completed if completed else 0.0,
+            "average_cost_bps": self._cost_bps / completed if completed else 0.0,
+            "average_net_bps": self._net_bps / completed if completed else 0.0,
             "profit_factor": (
                 self._gains / self._losses if self._losses else None if self._gains else 0.0
             ),
@@ -325,7 +370,37 @@ class AbsorptionResearchTracker:
             "can_trade": False,
             "can_promote": False,
             "order_route": "absent",
+            "geometry": {
+                "mode": "bps" if self.config.target_1_bps is not None else "ticks",
+                "trade_horizon": classify_trade_horizon(
+                    self.config.horizon_ms / 1_000
+                ).value,
+                "scalper_max_hold_seconds": SCALPER_MAX_HOLD_SECONDS,
+                "target_1_bps": self.config.target_1_bps,
+                "target_2_bps": self.config.target_2_bps,
+                "stop_bps": self.config.stop_bps,
+                "target_1_ticks": self.config.target_1_ticks,
+                "target_2_ticks": self.config.target_2_ticks,
+                "stop_ticks": self.config.stop_ticks,
+                "horizon_ms": self.config.horizon_ms,
+            },
         }
+
+    def _geometry_ticks(self, entry_price: float, tick_size: float) -> tuple[float, float, float]:
+        if self.config.target_1_bps is None:
+            return (
+                self.config.target_1_ticks,
+                self.config.target_2_ticks,
+                self.config.stop_ticks,
+            )
+        assert self.config.target_2_bps is not None
+        assert self.config.stop_bps is not None
+        scale = entry_price / tick_size / 10_000.0
+        return (
+            self.config.target_1_bps * scale,
+            self.config.target_2_bps * scale,
+            self.config.stop_bps * scale,
+        )
 
     def _update_open(
         self,
@@ -337,6 +412,9 @@ class AbsorptionResearchTracker:
         tick_size: float,
     ) -> AbsorptionResearchOutcome | None:
         direction = row.observation.reversal_direction
+        target_1_ticks, target_2_ticks, stop_ticks = self._geometry_ticks(
+            row.entry_price, tick_size
+        )
         favorable = direction * (price - row.entry_price) / tick_size
         elapsed_ms = (now_ns - row.entry_ns) / 1_000_000.0
         directional_return_bps = direction * (price / row.entry_price - 1.0) * 10_000.0
@@ -353,19 +431,19 @@ class AbsorptionResearchTracker:
             row.mfe_ticks = favorable
             row.time_to_mfe_ms = (now_ns - row.entry_ns) / 1_000_000.0
         row.mae_ticks = max(row.mae_ticks, adverse)
-        row.hit_target_1 = row.hit_target_1 or favorable >= self.config.target_1_ticks
-        row.hit_target_2 = row.hit_target_2 or favorable >= self.config.target_2_ticks
+        row.hit_target_1 = row.hit_target_1 or favorable >= target_1_ticks
+        row.hit_target_2 = row.hit_target_2 or favorable >= target_2_ticks
         if row.realized_exit_reason is None:
-            if adverse >= self.config.stop_ticks:
+            if adverse >= stop_ticks:
                 row.realized_exit_reason = "stop"
                 row.realized_exit_price = row.entry_price - direction * (
-                    self.config.stop_ticks * tick_size
+                    stop_ticks * tick_size
                 )
                 row.realized_exit_ns = now_ns
-            elif favorable >= self.config.target_1_ticks:
+            elif favorable >= target_1_ticks:
                 row.realized_exit_reason = "target_1"
                 row.realized_exit_price = row.entry_price + direction * (
-                    self.config.target_1_ticks * tick_size
+                    target_1_ticks * tick_size
                 )
                 row.realized_exit_ns = now_ns
         if now_ns - row.entry_ns < self.config.horizon_ms * 1_000_000:
@@ -396,6 +474,9 @@ class AbsorptionResearchTracker:
             hold_seconds=hold_seconds,
         )
         cost_ticks = costs.total_bps / 10_000.0 * row.entry_price / tick_size
+        gross_bps = direction * (row.realized_exit_price / row.entry_price - 1.0) * 10_000.0
+        mfe_bps = row.mfe_ticks * tick_size / row.entry_price * 10_000.0
+        mae_bps = row.mae_ticks * tick_size / row.entry_price * 10_000.0
         return AbsorptionResearchOutcome(
             key=self.key(row.observation),
             symbol=row.observation.symbol,
@@ -415,6 +496,13 @@ class AbsorptionResearchTracker:
             realized_gross_ticks=gross_ticks,
             cost_ticks=cost_ticks,
             realized_net_ticks=gross_ticks - cost_ticks,
+            mfe_bps=mfe_bps,
+            mae_bps=mae_bps,
+            realized_gross_bps=gross_bps,
+            cost_bps=costs.total_bps,
+            realized_net_bps=gross_bps - costs.total_bps,
+            trade_horizon=classify_trade_horizon(self.config.horizon_ms / 1_000).value,
+            maximum_hold_seconds=self.config.horizon_ms // 1_000,
             time_to_mfe_ms=row.time_to_mfe_ms,
             hit_target_1=row.hit_target_1,
             hit_target_2=row.hit_target_2,
@@ -447,6 +535,13 @@ class AbsorptionResearchTracker:
             realized_gross_ticks=0.0,
             cost_ticks=0.0,
             realized_net_ticks=0.0,
+            mfe_bps=0.0,
+            mae_bps=0.0,
+            realized_gross_bps=0.0,
+            cost_bps=0.0,
+            realized_net_bps=0.0,
+            trade_horizon=classify_trade_horizon(self.config.horizon_ms / 1_000).value,
+            maximum_hold_seconds=self.config.horizon_ms // 1_000,
             time_to_mfe_ms=0.0,
             hit_target_1=False,
             hit_target_2=False,

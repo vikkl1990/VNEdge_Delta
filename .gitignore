@@ -28,6 +28,11 @@ __pycache__/
 KILL
 /research/live_research/*
 !/research/live_research/README.md
+/research/event_replay/
+
+# Machine-local service definitions contain absolute workspace paths. Keep
+# portable deployment logic in scripts/configs; install launchd files locally.
+/ops/launchd/*.plist
 
 # OS / editor
 .DS_Store

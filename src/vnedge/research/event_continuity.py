@@ -70,6 +70,8 @@ class ContinuityEpoch:
 
     def to_dict(self) -> dict[str, object]:
         return {
+            "manifest_scope": "all_finalized_shards",
+            "manifest_checks": ["compressed_sha256", "uncompressed_sha256", "record_count"],
             "session_id": self.session_id,
             "connection_id": self.connection_id,
             "connection_ids": list(self.connection_ids or (self.connection_id,)),
@@ -232,6 +234,12 @@ def qualify_event_continuity(
             ),
             "coverage": coverage.to_dict() if coverage else {},
             "semantic_validation": validation.to_dict() if validation else {},
+            "semantic_validation_scope": "latest_recoverable_epoch",
+            "scope_note": (
+                "Manifest integrity covers every finalized shard. Sequence, checksum, "
+                "timestamp, and source-delay semantics are evaluated only inside the "
+                "latest recoverable qualification epoch."
+            ),
         },
         "scanner_implementation_authorized": False,
         "selection_authorized": False,

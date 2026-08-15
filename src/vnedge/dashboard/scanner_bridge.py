@@ -25,7 +25,38 @@ def dashboard_scanner_payload(payload: dict, *, now: datetime | None = None) -> 
     """
 
     if isinstance(payload.get("rows"), list):
-        return payload
+        generated = _parse_timestamp(payload.get("generated_at"))
+        if generated is None:
+            return payload
+        current = now or datetime.now(UTC)
+        rows: list[dict] = []
+        for item in payload["rows"]:
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            # A process heartbeat is not market-data freshness. Prefer the
+            # point-in-time candle boundary whenever the publisher supplies it.
+            latest_bar = _parse_timestamp(row.get("latest_bar_ts"))
+            source_time = latest_bar or generated
+            row_age_seconds = max(0.0, (current - source_time).total_seconds())
+            row["source_age_seconds"] = row_age_seconds
+            if row_age_seconds > 15 * 60:
+                row["source_state"] = row.get("state")
+                row["state"] = "DATA_STALE"
+                row["why"] = "latest closed candle is older than the 15 minute freshness limit"
+            rows.append(row)
+        result = dict(payload)
+        result["rows"] = rows
+        summary = dict(payload.get("summary") or {})
+        row_ages = [
+            float(row["source_age_seconds"])
+            for row in rows
+            if isinstance(row.get("source_age_seconds"), (int, float))
+        ]
+        summary["source_age_seconds"] = max(row_ages, default=None)
+        summary["stale"] = sum(row.get("state") == "DATA_STALE" for row in rows)
+        result["summary"] = summary
+        return result
     symbols = payload.get("symbols")
     if not isinstance(symbols, dict):
         return payload

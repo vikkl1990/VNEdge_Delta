@@ -523,3 +523,38 @@ avoids plotting anonymous one-hot columns or overwriting SHAP contributions
 with grouping labels. `shap_dependence_manifest.csv` records feature rank,
 type, interaction partner, sample count, scope, and image path. These plots use
 the threshold-selection window only; the protected final 20% remains untouched.
+
+## Forming-candle multi-timeframe context
+
+`MultiTimeframeCandleEngine` maintains point-in-time OHLCV state for 1m, 3m,
+5m, 15m, 30m, 1h, and 4h. It has two deliberately exclusive modes:
+
+- `tick`: every exchange-timestamped trade incrementally updates each active
+  timeframe and the first trade in a new bucket proves the prior bucket ended;
+- `one_minute`: replay progressively aggregates proven-closed 1m candles and
+  promotes a higher-timeframe bucket only when every required minute is
+  present.
+
+The modes cannot be mixed because doing so would double-count volume. Timestamp
+regressions are rejected, optional event IDs are exactly-once, partial first
+buckets are never promoted, and a detected 1m gap invalidates every in-progress
+bucket. Progress is derived from an explicit `as_of` timestamp; the engine does
+not read the wall clock.
+
+`FormingCandle` is a separate immutable type with `complete = false`,
+`available_at`, `last_update_ts`, progress, remaining seconds, source count, and
+continuity status. Exchange timestamps determine bucket membership. The local
+receive timestamp and derived feed delay are recorded separately for latency
+telemetry and never influence candle construction or a research decision. This
+is a signed `local_receive - exchange` measurement: a negative value is
+explicitly labelled `clock_skew_suspected` rather than misreported as negative
+transport latency. It is attached to `MarketContext.forming_candles` separately from
+`MarketContext.candles`. Existing indicators, regime calculations, and primary
+scanners continue to consume proven-closed candles only.
+
+The live sidecar publishes forming state every two seconds for research
+telemetry. If a candidate is accepted, it also writes a
+`delta_scalper_candidate_forming_context` journal event containing the exact
+point-in-time snapshot at the candidate decision timestamp. That snapshot is
+explicitly marked `used_for_signal = false` and `used_for_execution = false`;
+it grants no signal, paper, promotion, or execution authority.

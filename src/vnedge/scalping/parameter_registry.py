@@ -11,7 +11,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Literal
 
-
 ExecutionTimeframeLabel = Literal[
     "event",
     "250ms",
@@ -392,9 +391,17 @@ def _registry() -> ScalperParameterRegistry:
                 notes="default derivatives assumption",
             ),
             "delta_india": ExchangeFeeProfile(
-                "delta_india", maker_bps=2.0, taker_bps=5.0,
-                slippage_bps=1.5, safety_buffer_bps=1.0,
-                notes="India live candidate; verify fee tier before live",
+                # Effective fee rates include the mandatory 18% GST. Slippage
+                # is per taker leg. The conservative gate buffer covers the
+                # second leg in aggregate cost properties; event replayers use
+                # DeltaFeeModel directly for exact entry/exit geometry.
+                "delta_india", maker_bps=2.36, taker_bps=5.90,
+                slippage_bps=1.5, safety_buffer_bps=1.5,
+                notes=(
+                    "Delta India standard futures fees including 18% GST; "
+                    "1.5 bps adverse slippage per taker leg; 14.8 bps "
+                    "conservative taker/taker hurdle"
+                ),
             ),
         },
         exit_policies=exits,

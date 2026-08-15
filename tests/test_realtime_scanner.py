@@ -265,9 +265,9 @@ def test_runtime_lane_reports_sats_and_stealth_proximity(tmp_path):
     row = payload["rows"][0]
     names = {item["name"] for item in row["proximity"]}
     assert row["state"] == STATE_WAITING
-    assert "expected_net_edge_bps" in names
+    assert "structural_net_headroom_bps" in names
     assert {"tqi", "quality_strength", "momentum_persistence", "bbp_atr", "volume_z"} <= names
-    assert row["gate_diagnostics"]["primary_blocker"]["name"] == "expected_net_edge_bps"
+    assert row["gate_diagnostics"]["primary_blocker"]["name"] == "structural_net_headroom_bps"
     assert row["gate_diagnostics"]["primary_blocker"]["category"] == "cost_edge"
     assert row["uplift"]["action"] == "REPAIR_EXECUTION_ROUTE_OR_SKIP"
 

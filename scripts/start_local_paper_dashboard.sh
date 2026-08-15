@@ -10,6 +10,7 @@ set -euo pipefail
 export PYTHONPATH="${PYTHONPATH:-src}"
 export DASHBOARD_HOST="${DASHBOARD_HOST:-127.0.0.1}"
 export DASHBOARD_PORT="${DASHBOARD_PORT:-8080}"
+export DASHBOARD_REFRESH_EVENT_CONTINUITY="0"
 
 # Explicit paper/shadow boundary. Keep failed research families pruned. The
 # observation mirror is enabled locally so every retained Delta shadow lane has

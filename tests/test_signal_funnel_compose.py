@@ -25,6 +25,21 @@ def test_dashboard_reads_pine_research_kb_from_host_artifact():
     assert "./research/pine_scripts:/app/research/pine_scripts:ro" in service["volumes"]
 
 
+def test_governed_delta_paper_route_is_explicit_locked_and_credential_free():
+    service = compose_services()["delta-governed-paper"]
+
+    assert service["profiles"] == ["paper"]
+    assert service["build"]["target"] == "production"
+    assert service["restart"] == "no"
+    assert service["read_only"] is True
+    assert service["cap_drop"] == ["ALL"]
+    assert service["command"][:3] == ["python", "-m", "vnedge.runtime.paper_trial"]
+    assert "/run/governance/paper_manifest.yaml" in service["command"]
+    assert service["environment"]["VNEDGE_GOVERNANCE_NONCE_DB"].endswith(".sqlite3")
+    assert "./deploy/governance:/run/governance:ro" in service["volumes"]
+    assert "secrets" not in service
+
+
 def test_pine_backtest_evidence_refreshes_matrix_overlay():
     service = compose_services()["pine-backtest-evidence"]
 
@@ -784,7 +799,12 @@ def test_lean_core_is_the_default_profile_and_research_is_opt_in():
     services = compose_services()
     core = {name for name, cfg in services.items() if "profiles" not in cfg}
     research = {name for name, cfg in services.items() if "research" in (cfg.get("profiles") or [])}
-    assert len(services) == len(core) + len(research)
+    live = {name for name, cfg in services.items() if "live" in (cfg.get("profiles") or [])}
+    paper = {name for name, cfg in services.items() if "paper" in (cfg.get("profiles") or [])}
+    assert len(services) == len(core) + len(research) + len(live) + len(paper)
+    assert live == {"delta-live-small"}
+    assert paper == {"delta-governed-paper"}
+    assert not (core & live) and not (research & live) and not (core & paper)
     assert core == {
         "multi-lane-shadow", "dashboard-tls", "realtime-scanner", "lane-survival",
         "paper-lane-governor", "paper-lane-performance", "paper-roster-drift",

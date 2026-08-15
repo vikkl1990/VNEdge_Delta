@@ -78,12 +78,25 @@ from vnedge.research.quantified_pullback_reversion_proof import (
     load_quantified_pullback_reversion_proof_payload,
 )
 from vnedge.research.quantified_strategy_lab import load_quantified_strategy_lab_payload
+from vnedge.research.strategy_evidence_registry import (
+    DEFAULT_REGISTRY,
+    attach_verified_lane_evidence,
+    build_registry_snapshot,
+    dashboard_metric_semantics,
+    relabel_uncalibrated_edge_fields,
+)
 
 logger = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _APP_START = time.time()
+_READY_MAX_SOURCE_AGE_SECONDS = float(
+    os.environ.get("VNEDGE_READY_MAX_SOURCE_AGE_SECONDS", "900")
+)
+_PAPER_STATUS_MAX_AGE_SECONDS = float(
+    os.environ.get("VNEDGE_PAPER_STATUS_MAX_AGE_SECONDS", "180")
+)
 
 
 def _build_sha() -> str:
@@ -175,6 +188,151 @@ def _iso_age_seconds(value: object) -> float | None:
     return max(0.0, (datetime.now(UTC) - moment.astimezone(UTC)).total_seconds())
 
 
+def _artifact_age_seconds(payload: dict[str, object], path: Path | None) -> float | None:
+    """Return the strongest available age signal for a published artifact.
+
+    Payload time wins because an old artifact can be copied or touched during a
+    deploy. File mtime is only a compatibility fallback for older publishers.
+    """
+
+    payload_age = _iso_age_seconds(payload.get("generated_at"))
+    return payload_age if payload_age is not None else _file_age_seconds(path)
+
+
+def _snapshot_readiness(snapshot: dict | None) -> tuple[bool, list[str], dict[str, object]]:
+    """Evaluate serving readiness without confusing existence with freshness.
+
+    Generic dashboard snapshots that do not publish source-health metadata keep
+    the historical "snapshot exists" behaviour. Delta snapshots publish the
+    metadata, so stale candles, a stale recorder heartbeat, or an integrity
+    fault fail readiness while the unauthenticated liveness probe stays green.
+    """
+
+    if snapshot is None:
+        return False, ["snapshot_unavailable"], {}
+
+    reasons: list[str] = []
+    evidence: dict[str, object] = {}
+    feed = snapshot.get("feed_health")
+    if isinstance(feed, dict):
+        candle_state = str(feed.get("candles") or "unknown").lower()
+        source_age_ms = _safe_float(feed.get("last_update_ms"))
+        source_age_seconds = source_age_ms / 1_000.0 if source_age_ms is not None else None
+        evidence["candle_state"] = candle_state
+        evidence["source_age_seconds"] = source_age_seconds
+        if candle_state in {"stale", "error", "unavailable"}:
+            reasons.append(f"candle_feed_{candle_state}")
+        if (
+            source_age_seconds is not None
+            and source_age_seconds > _READY_MAX_SOURCE_AGE_SECONDS
+        ):
+            reasons.append("candle_snapshot_stale")
+
+    infrastructure = snapshot.get("research_infrastructure")
+    if isinstance(infrastructure, dict):
+        recorder = infrastructure.get("recorder")
+        recorder = recorder if isinstance(recorder, dict) else {}
+        runtime = recorder.get("runtime")
+        runtime = runtime if isinstance(runtime, dict) else {}
+        gap_guard = runtime.get("gap_guard")
+        if not isinstance(gap_guard, dict):
+            gap_guard = recorder.get("gap_guard")
+        gap_guard = gap_guard if isinstance(gap_guard, dict) else {}
+        runtime_age = _safe_float(recorder.get("runtime_status_age_seconds"))
+        evidence["recorder_status_age_seconds"] = runtime_age
+        evidence["event_gap_guard_healthy"] = gap_guard.get("healthy")
+        if gap_guard.get("healthy") is False:
+            reasons.append("event_tape_integrity_fault")
+        if runtime_age is not None and runtime_age > _PAPER_STATUS_MAX_AGE_SECONDS:
+            reasons.append("event_recorder_status_stale")
+
+    # Stable order and no duplicate reason strings make this response suitable
+    # for probes, alert de-duplication, and deterministic tests.
+    reasons = list(dict.fromkeys(reasons))
+    return not reasons, reasons, evidence
+
+
+def _fresh_delta_payload(payload: dict, path: Path) -> dict:
+    """Annotate and visibly downgrade a stale Delta candle artifact."""
+
+    age = _artifact_age_seconds(payload, path)
+    fresh = age is not None and age <= _READY_MAX_SOURCE_AGE_SECONDS
+    response = dict(payload)
+    response["freshness"] = {
+        "fresh": fresh,
+        "age_seconds": age,
+        "maximum_age_seconds": _READY_MAX_SOURCE_AGE_SECONDS,
+        "status": "FRESH" if fresh else "STALE",
+    }
+    if fresh:
+        return response
+    rows: list[dict] = []
+    for item in payload.get("rows", []):
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        row["source_state"] = row.get("state")
+        row["state"] = "DATA_STALE"
+        row["source_age_seconds"] = age
+        row["why"] = "Delta candle publisher is stale; values are historical, not live"
+        rows.append(row)
+    response["rows"] = rows
+    response["can_trade"] = False
+    response["can_promote"] = False
+    return response
+
+
+def _fresh_paper_activation_payload(payload: dict, path: Path) -> dict:
+    """Project paper runtime truth from a heartbeat-bearing artifact.
+
+    An accumulated heartbeat count proves a runner existed. It does not prove
+    the runner is online now. Stale evidence is therefore retained for audit but
+    removed from online/running totals.
+    """
+
+    age = _artifact_age_seconds(payload, path)
+    fresh = age is not None and age <= _PAPER_STATUS_MAX_AGE_SECONDS
+    response = dict(payload)
+    response["freshness"] = {
+        "fresh": fresh,
+        "age_seconds": age,
+        "maximum_age_seconds": _PAPER_STATUS_MAX_AGE_SECONDS,
+        "status": "FRESH" if fresh else "STALE",
+    }
+    if fresh:
+        return response
+
+    summary = dict(payload.get("summary") or {})
+    summary["reported_paper_online"] = int(summary.get("paper_online") or 0)
+    summary["reported_paper_running"] = int(summary.get("paper_running") or 0)
+    summary["reported_paper_waiting"] = int(summary.get("paper_waiting") or 0)
+    summary["paper_online"] = 0
+    summary["paper_running"] = 0
+    summary["paper_waiting"] = 0
+    summary["runtime_evidence_fresh"] = False
+    response["summary"] = summary
+    rows: list[dict] = []
+    for item in payload.get("rows", []):
+        if not isinstance(item, dict):
+            continue
+        row = dict(item)
+        if row.get("activation_state") in {"PAPER_RUNNING", "PAPER_ONLINE_WAITING"}:
+            row["reported_activation_state"] = row.get("activation_state")
+            row["activation_state"] = "RUNTIME_EVIDENCE_STALE"
+            row["route_status"] = "RUNTIME_EVIDENCE_STALE"
+        rows.append(row)
+    response["rows"] = rows
+    response["operator_answer"] = (
+        "No paper runner has a fresh heartbeat. Historical paper evidence is retained, "
+        "but zero lanes are reported online."
+    )
+    response["paper_simulation_route_open"] = False
+    response["live_trade_route_open"] = False
+    response["can_trade"] = False
+    response["can_promote"] = False
+    return response
+
+
 def event_research_infrastructure_payload(
     *,
     event_root: Path,
@@ -190,6 +348,8 @@ def event_research_infrastructure_payload(
     htf_structure_path: Path | None = None,
     htf_structure_v2_path: Path | None = None,
     failed_auction_readiness_path: Path | None = None,
+    event_response_atlas_path: Path | None = None,
+    post_absorption_direction_path: Path | None = None,
 ) -> dict[str, object]:
     """Truthful, read-only inventory of the new event-research stack.
 
@@ -249,16 +409,31 @@ def event_research_infrastructure_payload(
     trigger = _read_json_dict(event_trigger_telemetry_path)
     trigger_age_seconds = _file_age_seconds(event_trigger_telemetry_path)
     trigger_counts = trigger.get("counts") if isinstance(trigger.get("counts"), dict) else {}
-    trigger_status = "OBSERVING" if trigger else "IMPLEMENTED_NOT_RUNNING"
+    trigger_status = str(trigger.get("state") or "OBSERVING") if trigger else "IMPLEMENTED_NOT_RUNNING"
     trigger_funnel = trigger.get("funnel") if isinstance(trigger.get("funnel"), dict) else {}
     trigger_rejections = (
         trigger.get("rejection_reasons")
         if isinstance(trigger.get("rejection_reasons"), dict)
         else {}
     )
+    scanner_telemetry = (
+        trigger.get("scanner_telemetry")
+        if isinstance(trigger.get("scanner_telemetry"), dict)
+        else {}
+    )
     counterfactual = (
         trigger.get("counterfactual_absorption")
         if isinstance(trigger.get("counterfactual_absorption"), dict)
+        else {}
+    )
+    enabled_event_scanners = (
+        trigger.get("enabled_scanners")
+        if isinstance(trigger.get("enabled_scanners"), list)
+        else []
+    )
+    paper_simulation = (
+        trigger.get("paper_simulation")
+        if isinstance(trigger.get("paper_simulation"), dict)
         else {}
     )
 
@@ -372,6 +547,53 @@ def event_research_infrastructure_payload(
     )
 
     readiness = _read_json_dict(failed_auction_readiness_path)
+    response_atlas = _read_json_dict(event_response_atlas_path)
+    response_atlas_diagnosis = (
+        response_atlas.get("diagnosis")
+        if isinstance(response_atlas.get("diagnosis"), dict)
+        else {}
+    )
+    response_control = (
+        response_atlas.get("control_qualification")
+        if isinstance(response_atlas.get("control_qualification"), dict)
+        else {}
+    )
+    response_control_schema_valid = (
+        isinstance(response_control.get("passed"), bool)
+        and isinstance((response_atlas.get("source") or {}).get("independent_episodes"), int)
+    )
+    response_exit_authorized = (
+        response_control_schema_valid and response_control.get("passed") is True
+    )
+    if response_atlas and not response_control_schema_valid:
+        response_atlas_diagnosis = {
+            "verdict": "WITHHELD_PRE_CONTROL_GATE_ARTIFACT",
+            "warning": "Artifact predates independent-episode and matched-control qualification.",
+            "next_step": "Rebuild the atlas; no legacy exit matrix is displayed.",
+        }
+    direction_study = _read_json_dict(post_absorption_direction_path)
+    direction_diagnosis = (
+        direction_study.get("diagnosis")
+        if isinstance(direction_study.get("diagnosis"), dict)
+        else {}
+    )
+    direction_control = (
+        direction_study.get("control_qualification")
+        if isinstance(direction_study.get("control_qualification"), dict)
+        else {}
+    )
+    direction_control_schema_valid = (
+        isinstance(direction_control.get("passed"), bool)
+        and isinstance((direction_study.get("source") or {}).get("independent_episodes"), int)
+    )
+    direction_exit_authorized = (
+        direction_control_schema_valid and direction_control.get("passed") is True
+    )
+    if direction_study and not direction_control_schema_valid:
+        direction_diagnosis = {
+            "verdict": "WITHHELD_PRE_CONTROL_GATE_ARTIFACT",
+            "warning": "Artifact predates independent-episode and matched-control qualification.",
+        }
     readiness_coverage = (
         readiness.get("coverage") if isinstance(readiness.get("coverage"), dict) else {}
     )
@@ -423,10 +645,26 @@ def event_research_infrastructure_payload(
         if isinstance(recorder_runtime.get("feed_delay_by_channel"), dict)
         else {}
     )
+    corrected_delay_by_channel = (
+        recorder_runtime.get("feed_delay_corrected_by_channel")
+        if isinstance(recorder_runtime.get("feed_delay_corrected_by_channel"), dict)
+        else {}
+    )
+    timestamp_quality = (
+        recorder_runtime.get("feed_timestamp_quality")
+        if isinstance(recorder_runtime.get("feed_timestamp_quality"), dict)
+        else {}
+    )
+    delay_classifications = (
+        timestamp_quality.get("classification_counts")
+        if isinstance(timestamp_quality.get("classification_counts"), dict)
+        else {}
+    )
     critical_latency: dict[str, object] = {}
     latency_attention = False
     for channel in ("ob_updates", "trades"):
-        metrics = delay_by_channel.get(channel)
+        raw_metrics = delay_by_channel.get(channel)
+        metrics = corrected_delay_by_channel.get(channel) or raw_metrics
         if not isinstance(metrics, dict):
             critical_latency[channel] = {"status": "UNAVAILABLE"}
             latency_attention = True
@@ -443,6 +681,20 @@ def event_research_infrastructure_payload(
             "negative_samples": int(metrics.get("negative_samples") or 0),
             "sample_count": int(metrics.get("count") or 0),
             "p95_sla_us": 500_000,
+            "measurement_basis": (
+                "clock_offset_corrected_source_delay"
+                if channel in corrected_delay_by_channel
+                else "raw_receive_minus_source_delay"
+            ),
+            "raw_p95_us": (
+                _safe_float(raw_metrics.get("p95_us"))
+                if isinstance(raw_metrics, dict)
+                else None
+            ),
+            "delay_classification_counts": {
+                label: int(delay_classifications.get(f"{channel}:{label}") or 0)
+                for label in ("ON_TIME", "DELAYED", "STALE_BACKLOG", "UNKNOWN")
+            },
         }
 
     try:
@@ -501,9 +753,16 @@ def event_research_infrastructure_payload(
             "active": counter_open,
             "pending": counter_pending,
             "resolved": counter_outcomes,
-            "status": "COUNTERFACTUAL_ONLY" if trigger else "NOT_RUNNING",
+            "status": (
+                "LIVE_PAPER_SIMULATION"
+                if paper_simulation.get("enabled") is True
+                else "COUNTERFACTUAL_ONLY"
+                if trigger
+                else "NOT_RUNNING"
+            ),
             "profit_factor": _safe_float(counterfactual.get("profit_factor")),
             "average_net_ticks": _safe_float(counterfactual.get("average_net_ticks")),
+            "average_net_bps": _safe_float(counterfactual.get("average_net_bps")),
         },
     }
 
@@ -520,7 +779,10 @@ def event_research_infrastructure_payload(
             else None
         ),
         "data_ready": effective_data_ready,
+        # This field belongs to the frozen failed-auction-v1 contract.  The
+        # separately versioned accelerated shadow scanner cannot grant it.
         "scanner_implementation_authorized": False,
+        "accelerated_shadow_scanner_active": bool(enabled_event_scanners),
         "selection_authorized": False,
         "events": int(readiness_coverage.get("total_events") or 0),
         "target_events": readiness_target_events,
@@ -645,7 +907,11 @@ def event_research_infrastructure_payload(
             "runtime_status_age_seconds": recorder_status_age_seconds,
             "runtime": recorder_runtime,
             "unreadable_manifests": unreadable_manifests,
-            "integrity_note": "inventory only; full sequence/checksum validation runs before replay",
+            "integrity_note": (
+                "All finalized shard manifests are verified by the continuity audit; "
+                "sequence/checksum and timestamp semantics shown here apply to the "
+                "latest recoverable qualification epoch."
+            ),
             "connection": recorder_runtime.get("connection")
             or {
                 "connected": None,
@@ -677,8 +943,14 @@ def event_research_infrastructure_payload(
             "receive_to_decision": trigger.get("receive_to_decision") if trigger else None,
             "funnel": trigger_funnel,
             "rejection_reasons": trigger_rejections,
+            "scanner_telemetry": scanner_telemetry,
             "market_states": trigger.get("market_states") or {},
+            "higher_timeframe_context": trigger.get("higher_timeframe_context") or {},
             "counterfactual_absorption": counterfactual,
+            "enabled_scanners": enabled_event_scanners,
+            "scanner_policy": trigger.get("scanner_policy"),
+            "paper_simulation": paper_simulation,
+            "validated_edge": trigger.get("validated_edge") is True,
         },
         "absorption": {
             "implementation": "available",
@@ -697,6 +969,72 @@ def event_research_infrastructure_payload(
             "liquidation_strength_applied_to_signal": False,
         },
         "observation_state": observation_state,
+        "response_atlas": {
+            "implementation": "available",
+            "status": (
+                str(response_atlas_diagnosis.get("verdict") or "PUBLISHED")
+                if response_atlas
+                else "READY_NO_ARTIFACT"
+            ),
+            "artifact_present": bool(response_atlas),
+            "generated_at": response_atlas.get("generated_at"),
+            "source": response_atlas.get("source") or {},
+            "contract": response_atlas.get("contract") or {},
+            "coverage": response_atlas.get("coverage") or {},
+            "diagnosis": response_atlas_diagnosis,
+            "episode_collapse": response_atlas.get("episode_collapse") or {},
+            "control_qualification": response_control,
+            "opportunity_atlas": (
+                response_atlas.get("opportunity_atlas") or []
+                if response_exit_authorized
+                else []
+            ),
+            "direction_entry_exit_matrix": (
+                response_atlas.get("direction_entry_exit_matrix") or []
+                if response_exit_authorized
+                else []
+            ),
+            "best_discovery_cells": (
+                response_atlas.get("best_discovery_cells") or []
+                if response_exit_authorized
+                else []
+            ),
+            "deterministic_result_hash": response_atlas.get("deterministic_result_hash"),
+            "development_window_only": True,
+            "scanner_implementation_authorized": False,
+            "can_trade": False,
+            "can_promote": False,
+        },
+        "post_absorption_direction": {
+            "implementation": "available",
+            "status": (
+                str(direction_diagnosis.get("verdict") or "PUBLISHED")
+                if direction_study
+                else "READY_NO_ARTIFACT"
+            ),
+            "artifact_present": bool(direction_study),
+            "generated_at": direction_study.get("generated_at"),
+            "source": direction_study.get("source") or {},
+            "contract": direction_study.get("contract") or {},
+            "coverage": direction_study.get("coverage") or {},
+            "diagnosis": direction_diagnosis,
+            "episode_collapse": direction_study.get("episode_collapse") or {},
+            "control_qualification": direction_control,
+            "best_comparisons": (
+                direction_study.get("best_comparisons") or []
+                if direction_exit_authorized
+                else []
+            ),
+            "deterministic_result_hash": direction_study.get(
+                "deterministic_result_hash"
+            ),
+            "development_window_only": True,
+            "sealed_holdout_opened": False,
+            "scanner_implementation_authorized": False,
+            "paper_authorized": False,
+            "can_trade": False,
+            "can_promote": False,
+        },
         "failed_auction_readiness": failed_auction,
         "operations": {
             "incident_status": incident_status,
@@ -795,11 +1133,16 @@ def event_research_infrastructure_payload(
             },
             "governance": {
                 "implementation": "available",
-                "status": "SIGNED_PROOF_MIGRATION_PENDING",
+                "status": "SIGNED_ENVELOPES_ENFORCED",
                 "sha256_proof_chain": "implemented",
                 "ed25519_keyring_primitives": "implemented",
-                "paper_manifest_signature_required": False,
-                "note": "Ed25519 primitives are tested; current proof envelopes remain SHA-256 integrity proofs, not signed identity proofs.",
+                "paper_manifest_signature_required": True,
+                "stage_authorization_signature_required": True,
+                "single_use_nonce_required": True,
+                "note": (
+                    "Paper eligibility and production stage transitions require trusted "
+                    "Ed25519 envelopes; missing or replayed proofs fail closed."
+                ),
             },
             "delta_execution_safety": {
                 "implementation": "available",
@@ -1081,16 +1424,28 @@ def _cost_model_payload() -> dict:
     The paper broker's pessimistic fill model is reported alongside so the
     "8 vs 10 bps" disconnect is visible instead of buried in one number.
     """
-    from vnedge.paper.fill_model import FillModel
+    from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
     from vnedge.scalping.parameter_registry import (
         DEFAULT_SCALPER_PARAMETER_REGISTRY as _registry,
     )
 
-    fee = _registry.fee_profile("binanceusdm")
-    paper = FillModel()
-    maker_first_rt = fee.maker_bps + fee.taker_bps + fee.slippage_bps
-    taker_rt = 2 * fee.taker_bps + fee.slippage_bps
-    paper_taker_rt = 2 * (paper.taker_fee_bps + paper.slippage_bps)
+    fee = _registry.fee_profile("delta_india")
+    delta = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
+    maker_first_rt = (
+        delta.maker_bps
+        + delta.taker_bps
+        + delta.default_slippage_bps_per_leg
+    )
+    taker_rt = (
+        2 * delta.taker_bps
+        + 2 * delta.default_slippage_bps_per_leg
+    )
+    paper_taker_rt = delta.breakdown(
+        "ETHUSD",
+        entry_is_maker=False,
+        exit_is_maker=False,
+        hold_seconds=30 * 60,
+    ).total_bps
 
     # Every venue's real fee schedule, so the leverage/PnL calculator can model
     # each exchange from the SAME constants the research and paper engines use —
@@ -1111,12 +1466,13 @@ def _cost_model_payload() -> dict:
         )
     return {
         "exchange": fee.exchange,
-        "source": "scalper_replay_diagnostics + paper.fill_model constants",
+        "source": "DeltaFeeModel canonical v1: venue fee + GST + per-leg slippage",
         "maker_bps": fee.maker_bps,
         "taker_bps": fee.taker_bps,
         "slippage_bps": fee.slippage_bps,
         "safety_buffer_bps": fee.safety_buffer_bps,
-        # Two labelled round-trip cost models (no safety buffer — the raw wall).
+        # Two execution-aware raw walls: a passive maker entry does not pay
+        # modeled impact, while both taker legs do. Gate buffers are separate.
         "maker_first_rt_bps": round(maker_first_rt, 2),
         "taker_rt_bps": round(taker_rt, 2),
         # With the research safety buffer applied (what the gates actually use).
@@ -1125,9 +1481,11 @@ def _cost_model_payload() -> dict:
         # Per-exchange schedules for the calculator (Binance / Bybit / Delta).
         "exchanges": exchanges,
         "paper_fill_model": {
-            "taker_fee_bps": paper.taker_fee_bps,
-            "slippage_bps": paper.slippage_bps,
+            "taker_fee_bps": delta.taker_bps,
+            "maker_fee_bps": delta.maker_bps,
+            "slippage_bps_per_leg": delta.default_slippage_bps_per_leg,
             "taker_rt_bps": round(paper_taker_rt, 2),
+            "includes_gst": True,
         },
     }
 
@@ -1167,6 +1525,7 @@ def create_app(
     indicator_score_calibration_path: Path | None = None,
     revived_scanner_evidence_path: Path | None = None,
     revival_experiment_matrix_path: Path | None = None,
+    production_readiness_path: Path | None = None,
     scanner_forward_evidence_path: Path | None = None,
     lane_firing_causality_path: Path | None = None,
     paper_lane_activation_path: Path | None = None,
@@ -1214,6 +1573,9 @@ def create_app(
     htf_structure_path: Path | None = None,
     htf_structure_v2_path: Path | None = None,
     failed_auction_readiness_path: Path | None = None,
+    event_response_atlas_path: Path | None = None,
+    post_absorption_direction_path: Path | None = None,
+    strategy_evidence_registry_path: Path | None = None,
     token_store: TokenStore | None = None,
     agent_token_store: AgentTokenStore | None = None,
     agent_audit_path: Path | None = None,
@@ -1276,9 +1638,14 @@ def create_app(
         it needs no token. Distinct from /health so an orchestrator can wait for
         data readiness before routing traffic without treating a warming
         process as dead."""
-        if provider.latest() is None:
-            return JSONResponse({"status": "starting"}, status_code=503)
-        return JSONResponse({"status": "ready"})
+        is_ready, reasons, evidence = _snapshot_readiness(provider.latest())
+        if not is_ready:
+            status = "starting" if reasons == ["snapshot_unavailable"] else "degraded"
+            return JSONResponse(
+                {"status": status, "reasons": reasons, "evidence": evidence},
+                status_code=503,
+            )
+        return JSONResponse({"status": "ready", "reasons": [], "evidence": evidence})
 
     # Per-lane files (equity/fills/journals/alerts) live next to the primary
     # equity history unless a journal dir is given explicitly.
@@ -1326,7 +1693,10 @@ def create_app(
         e.g. expiry) on failure. Never returns an unauthorized result."""
         header = request.headers.get("authorization", "")
         candidate = header.removeprefix("Bearer ").strip()
-        if not candidate:
+        if (
+            not candidate
+            and os.environ.get("DASHBOARD_ALLOW_QUERY_TOKEN", "1") == "1"
+        ):
             candidate = request.query_params.get("token", "")
         if not candidate:
             candidate = request.cookies.get("vnedge_session", "")
@@ -1456,6 +1826,10 @@ def create_app(
     revival_experiment_matrix_file = revival_experiment_matrix_path or Path(
         "research/live_research/mtf_amf_revival_matrix_latest.json"
     )
+    production_readiness_file = production_readiness_path or Path(
+        "research/live_research/production_readiness_latest.json"
+    )
+    strategy_evidence_registry_file = strategy_evidence_registry_path or DEFAULT_REGISTRY
     delta_event_root_dir = delta_event_root or Path("data/delta_events")
     event_trigger_telemetry_file = event_trigger_telemetry_path or Path(
         "research/live_research/delta_event_trigger_telemetry_latest.json"
@@ -1487,6 +1861,12 @@ def create_app(
     )
     failed_auction_readiness_file = failed_auction_readiness_path or Path(
         "research/live_research/failed_auction_response_v1_readiness_latest.json"
+    )
+    event_response_atlas_file = event_response_atlas_path or Path(
+        "research/live_research/event_response_atlas_latest.json"
+    )
+    post_absorption_direction_file = post_absorption_direction_path or Path(
+        "research/live_research/post_absorption_direction_study_latest.json"
     )
     paper_lane_activation_file = paper_lane_activation_path or Path(
         "research/live_research/paper_lane_activation_latest.json"
@@ -2110,8 +2490,7 @@ def create_app(
         and paper journals. It is read-only and cannot start or promote a lane.
         """
         user = _authorized(request)
-        return JSONResponse(
-            _read_json_payload(
+        payload = _read_json_payload(
                 paper_lane_activation_file,
                 {
                     "summary": {},
@@ -2122,9 +2501,10 @@ def create_app(
                     "can_trade": False,
                     "can_promote": False,
                 },
-            ),
-            headers=_identity(user),
-        )
+            )
+        if paper_lane_activation_file.is_file():
+            payload = _fresh_paper_activation_payload(payload, paper_lane_activation_file)
+        return JSONResponse(payload, headers=_identity(user))
 
     @app.get("/paper-lane-performance")
     async def paper_lane_performance(request: Request) -> JSONResponse:
@@ -2813,8 +3193,31 @@ def create_app(
                 "can_promote": False,
             },
         )
+        adapted = dashboard_scanner_payload(payload)
+        raw_rows = adapted.get("rows") if isinstance(adapted.get("rows"), list) else []
+        rows, withheld, registry = attach_verified_lane_evidence(
+            [row for row in raw_rows if isinstance(row, dict)],
+            registry_path=strategy_evidence_registry_file,
+        )
+        safe = dict(adapted)
+        safe["rows"] = rows
+        safe["withheld_lanes"] = withheld
+        safe["strategy_evidence_registry"] = registry
+        safe["metric_semantics"] = dashboard_metric_semantics()
+        safe["can_trade"] = False
+        safe["can_promote"] = False
         return JSONResponse(
-            dashboard_scanner_payload(payload),
+            relabel_uncalibrated_edge_fields(safe),
+            headers=_identity(user),
+        )
+
+    @app.get("/strategy-evidence-registry")
+    async def strategy_evidence_registry(request: Request) -> JSONResponse:
+        """Canonical, hash-verified dashboard lane and route-cost authority."""
+
+        user = _authorized(request)
+        return JSONResponse(
+            build_registry_snapshot(strategy_evidence_registry_file),
             headers=_identity(user),
         )
 
@@ -2861,12 +3264,43 @@ def create_app(
             delta_scalper_file,
             {"rows": [], "can_trade": False, "can_promote": False},
         )
+        if delta_scalper_file.is_file():
+            payload = _fresh_delta_payload(payload, delta_scalper_file)
+        production_readiness = _read_json_payload(
+            production_readiness_file,
+            {
+                "scanner": {"state": "UNAVAILABLE"},
+                "ladder": [],
+                "blockers": ["production readiness artifact unavailable"],
+                "authority": {
+                    "paper_allowed": False,
+                    "live_allowed": False,
+                    "can_trade": False,
+                    "can_promote": False,
+                },
+            },
+        )
 
-        rows = [
+        candidate_rows = [
             row
             for row in payload.get("rows", [])
             if isinstance(row, dict) and row.get("strategy_id") == "delta_scalper_engine_v1"
         ]
+        rows, withheld_lanes, strategy_registry = attach_verified_lane_evidence(
+            candidate_rows,
+            registry_path=strategy_evidence_registry_file,
+        )
+        freshness = (
+            payload.get("freshness")
+            if isinstance(payload.get("freshness"), dict)
+            else {
+                "fresh": False,
+                "age_seconds": None,
+                "maximum_age_seconds": _READY_MAX_SOURCE_AGE_SECONDS,
+                "status": "UNAVAILABLE",
+            }
+        )
+        snapshot_fresh = freshness.get("fresh") is True
         embedded_panels = payload.get("delta_scalper")
         if not isinstance(embedded_panels, dict):
             embedded_panels = {
@@ -2909,6 +3343,7 @@ def create_app(
             "can_promote": False,
         }
         embedded_panels["indicator_score_calibration"] = indicator_calibration
+        embedded_panels["production_readiness"] = production_readiness
         revived_evidence = _read_json_payload(
             revived_scanner_evidence_file,
             {
@@ -3134,12 +3569,27 @@ def create_app(
                 {
                     "lane_id": f"delta_scalper_{symbol.lower()}",
                     "strategy_id": row.get("strategy_id"),
+                    "hypothesis_class": row.get("hypothesis_class"),
+                    "trade_horizon": row.get("trade_horizon"),
+                    "lifecycle": row.get("lifecycle"),
+                    "evidence": {
+                        "artifact": row.get("evidence_artifact"),
+                        "sha256": row.get("evidence_sha256"),
+                        "verified": row.get("registry_verified") is True,
+                        "metrics": row.get("evidence_metrics") or {},
+                        "warnings": row.get("evidence_warnings") or [],
+                    },
+                    "route_cost_contract": row.get("route_cost_contract"),
                     "symbol": symbol,
                     "exchange": row.get("exchange") or "delta_india",
                     "timeframe": row.get("timeframe"),
                     "state": row.get("state") or "WAITING",
                     "active_regime": latest_eval.get("active_regime"),
-                    "l2_status": l2.get("status") or "unavailable",
+                    "l2_status": (
+                        l2.get("status") or "unavailable"
+                        if snapshot_fresh
+                        else "snapshot_stale"
+                    ),
                     "evaluations": int(row.get("evaluations") or 0),
                     "latest_candidates": latest_candidates,
                     "latest_accepted": latest_accepted,
@@ -3149,6 +3599,58 @@ def create_app(
                     "pipeline_duration_us": latest_eval.get("pipeline_duration_us"),
                     "pipeline_trace": pipeline_trace,
                     "why_no_signal": no_signal_reason,
+                    "can_trade": False,
+                }
+            )
+
+        # Publish registered evidence-collection lanes even when no retired
+        # candle-runtime row exists.  Their state and all performance numbers
+        # come exclusively from the hash-verified canonical registry.
+        published_strategy_ids = {str(lane.get("strategy_id") or "") for lane in lanes}
+        for strategy_id, entry in strategy_registry.get("strategies", {}).items():
+            if strategy_id in published_strategy_ids:
+                continue
+            if entry.get("display") is not True or entry.get("status") not in {
+                "research",
+                "shadow",
+            }:
+                continue
+            evidence = entry.get("evidence") if isinstance(entry.get("evidence"), dict) else {}
+            if evidence.get("verified") is not True:
+                continue
+            lanes.append(
+                {
+                    "lane_id": f"registry_{strategy_id}",
+                    "strategy_id": strategy_id,
+                    "hypothesis_class": entry.get("hypothesis_class"),
+                    "trade_horizon": entry.get("type"),
+                    "lifecycle": entry.get("status"),
+                    "evidence": {
+                        "artifact": evidence.get("primary"),
+                        "sha256": evidence.get("actual_sha256"),
+                        "verified": True,
+                        "metrics": evidence.get("metrics") or {},
+                        "warnings": evidence.get("warning_badges") or [],
+                    },
+                    "route_cost_contract": entry.get("route_cost_contract"),
+                    "symbol": " / ".join(entry.get("markets") or []),
+                    "exchange": "delta_india",
+                    "timeframe": " / ".join(entry.get("timeframe") or []),
+                    "state": "COLLECTING_EVIDENCE",
+                    "active_regime": "selection only",
+                    "l2_status": "not required",
+                    "evaluations": 0,
+                    "latest_candidates": 0,
+                    "latest_accepted": 0,
+                    "alerts_journaled": 0,
+                    "forward_outcomes": int((evidence.get("metrics") or {}).get("n_trades") or 0),
+                    "last_eval_ts": None,
+                    "pipeline_duration_us": None,
+                    "pipeline_trace": [],
+                    "why_no_signal": (
+                        "Sparse swing evidence collection only; sample and sealed-holdout "
+                        "gates block paper and live authority."
+                    ),
                     "can_trade": False,
                 }
             )
@@ -3271,6 +3773,9 @@ def create_app(
         }
         system_health = {
             "snapshot_available": bool(payload.get("generated_at") and rows),
+            "snapshot_fresh": snapshot_fresh,
+            "snapshot_age_seconds": freshness.get("age_seconds"),
+            "snapshot_max_age_seconds": freshness.get("maximum_age_seconds"),
             "snapshot_generated_at": payload.get("generated_at"),
             "connected_symbols": len(rows),
             "expected_symbols": ["BTCUSD", "ETHUSD"],
@@ -3284,11 +3789,14 @@ def create_app(
             "last_evaluation_ts": latest_eval_ts,
         }
 
-        return JSONResponse(
-            {
+        response_payload = {
                 "generated_at": payload.get("generated_at"),
+                "freshness": freshness,
                 "rows": rows,
                 "lanes": lanes,
+                "withheld_lanes": withheld_lanes,
+                "strategy_evidence_registry": strategy_registry,
+                "metric_semantics": dashboard_metric_semantics(),
                 "signal_funnel": signal_funnel,
                 "system_health": system_health,
                 "multi_tf_state": multi_tf_state,
@@ -3320,7 +3828,9 @@ def create_app(
                 },
                 "can_trade": False,
                 "can_promote": False,
-            },
+            }
+        return JSONResponse(
+            relabel_uncalibrated_edge_fields(response_payload),
             headers=_identity(user),
         )
 
@@ -3377,6 +3887,8 @@ def create_app(
                 htf_structure_path=htf_structure_file,
                 htf_structure_v2_path=htf_structure_v2_file,
                 failed_auction_readiness_path=failed_auction_readiness_file,
+                event_response_atlas_path=event_response_atlas_file,
+                post_absorption_direction_path=post_absorption_direction_file,
             ),
             headers=_identity(user),
         )

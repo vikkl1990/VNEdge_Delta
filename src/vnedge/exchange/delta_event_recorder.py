@@ -51,6 +51,24 @@ MANIFEST_SCHEMA_VERSION = "vnedge.delta_event_shard_manifest.v1"
 STATUS_SCHEMA_VERSION = "vnedge.delta_event_recorder_status.v1"
 LATENCY_WINDOW_SIZE = 10_000
 MAX_CREDIBLE_FEED_DELAY_US = 300_000_000
+FEED_DELAY_SLA_US = 500_000
+FEED_DELAY_STALE_BACKLOG_US = 5_000_000
+
+
+def classify_corrected_feed_delay(delay_us: int | None) -> str:
+    """Give source latency an explicit, non-promotional interpretation.
+
+    The corrected delay is telemetry only and never changes replay ordering.
+    Missing or outlier timestamps fail closed for event-time decisions.
+    """
+
+    if delay_us is None:
+        return "UNKNOWN"
+    if delay_us <= FEED_DELAY_SLA_US:
+        return "ON_TIME"
+    if delay_us <= FEED_DELAY_STALE_BACKLOG_US:
+        return "DELAYED"
+    return "STALE_BACKLOG"
 
 PUBLIC_CHANNELS = (
     "trades",
@@ -228,6 +246,14 @@ class DeltaBookIntegrityValidator:
 
     def reset(self) -> None:
         self._states.clear()
+
+    @property
+    def valid_symbols(self) -> tuple[str, ...]:
+        """Symbols backed by a checksum-valid snapshot in the active connection."""
+
+        return tuple(
+            sorted(symbol for symbol, state in self._states.items() if state.valid)
+        )
 
     def observe(self, message: Mapping[str, Any]) -> dict[str, Any]:
         symbol = _message_symbol(message)
@@ -549,6 +575,7 @@ class DeltaEventRecorder:
         self.feed_timestamp_outliers: Counter[str] = Counter()
         self.feed_timestamp_missing: Counter[str] = Counter()
         self.feed_timestamp_units: Counter[str] = Counter()
+        self.feed_delay_classifications: Counter[str] = Counter()
         self.connected = False
         self.active_connection_id: str | None = None
         self.connected_since: str | None = None
@@ -690,6 +717,12 @@ class DeltaEventRecorder:
                 corrected = offset.corrected(raw_feed_delay_us)
                 envelope["clock_offset_estimate_us"] = offset.estimated_offset_us
                 envelope["corrected_feed_delay_us"] = corrected
+                delay_classification = classify_corrected_feed_delay(corrected)
+                envelope["feed_delay_classification"] = delay_classification
+                envelope["decision_eligible"] = delay_classification == "ON_TIME"
+                self.feed_delay_classifications[
+                    f"{channel}:{delay_classification}"
+                ] += 1
                 self.corrected_feed_delay_us.add(corrected)
                 self.corrected_feed_delay_by_channel.setdefault(
                     channel, _SignedLatencyWindow()
@@ -697,8 +730,14 @@ class DeltaEventRecorder:
             else:
                 self.feed_timestamp_outliers[channel] += 1
                 envelope["feed_timestamp_outlier"] = True
+                envelope["feed_delay_classification"] = "UNKNOWN"
+                envelope["decision_eligible"] = False
+                self.feed_delay_classifications[f"{channel}:UNKNOWN"] += 1
         else:
             self.feed_timestamp_missing[channel] += 1
+            envelope["feed_delay_classification"] = "UNKNOWN"
+            envelope["decision_eligible"] = False
+            self.feed_delay_classifications[f"{channel}:UNKNOWN"] += 1
         # Archive the exact wire message before testing integrity. A bad delta
         # is evidence too, but it is never applied beyond this point.
         await self._put(channel, envelope)
@@ -903,6 +942,17 @@ class DeltaEventRecorder:
                 await self._publish_status("RECORDING")
 
     def _status_payload(self, state: str) -> dict[str, Any]:
+        integrity_faults = sum(
+            count
+            for marker, count in self.control_markers.items()
+            if marker in _INTEGRITY_FAULT_MARKERS
+        )
+        required_book_symbols = (
+            set(self.config.symbols) if "ob_updates" in self.config.channels else set()
+        )
+        valid_book_symbols = set(self._book.valid_symbols)
+        active_books_ready = required_book_symbols.issubset(valid_book_symbols)
+        active_integrity_fault = integrity_faults > 0 and not active_books_ready
         return {
             "schema_version": STATUS_SCHEMA_VERSION,
             "state": state,
@@ -958,17 +1008,28 @@ class DeltaEventRecorder:
                 "clock_offset_applied_to_replay_order": False,
                 "last_raw_delay_us": self.last_raw_feed_delay_us,
                 "negative_samples": self.feed_delay_us.summary()["negative_samples"],
+                "decision_latency_sla_us": FEED_DELAY_SLA_US,
+                "stale_backlog_threshold_us": FEED_DELAY_STALE_BACKLOG_US,
+                "classification_counts": dict(self.feed_delay_classifications),
+                "decision_policy": (
+                    "state may update from verified delayed events; candidate evaluation "
+                    "requires ON_TIME source latency"
+                ),
             },
             "gap_guard": {
-                "integrity_faults": sum(
-                    count
-                    for marker, count in self.control_markers.items()
-                    if marker in _INTEGRITY_FAULT_MARKERS
-                ),
+                # Historical faults are permanent evidence. Operational
+                # health may recover only after the reconnect supplies fresh,
+                # checksum-valid snapshots for every required symbol.
+                "integrity_faults": integrity_faults,
+                "historical_integrity_faults": integrity_faults,
                 "markers": dict(self.control_markers),
-                "healthy": not any(
-                    marker in _INTEGRITY_FAULT_MARKERS
-                    for marker in self.control_markers
+                "healthy": not active_integrity_fault,
+                "active_fault": active_integrity_fault,
+                "recovered": integrity_faults > 0 and active_books_ready,
+                "required_book_symbols": sorted(required_book_symbols),
+                "valid_book_symbols": sorted(valid_book_symbols),
+                "recovery_rule": (
+                    "fresh checksum-valid snapshots for every required symbol"
                 ),
             },
             "research_only": True,

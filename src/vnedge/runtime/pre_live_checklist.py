@@ -15,7 +15,6 @@ still require the three settings gates AND the adapter's mainnet confirmation.
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -177,20 +176,30 @@ def _journal_writable(path: Path) -> bool:
 
 
 def run_pre_live_checklist_from_env(settings: Settings | None = None) -> ChecklistReport:
-    """Standalone env-driven pre-flight, shared by the CLI and the mainnet
-    execution drill. The live session re-checks with live OM state."""
+    """Conservative standalone diagnostic.
+
+    Venue reconciliation, private-stream freshness, and ladder eligibility
+    cannot be established from environment booleans.  The executable live
+    runtime supplies those values from a signed authorization and direct
+    exchange observations.  This standalone command therefore reports them
+    as blocked instead of accepting forgeable shell attestations.
+    """
+    import os
+
     settings = settings or Settings()
     return run_pre_live_checklist(
         settings=settings,
         risk_config=settings.risk,
         kill_switch_active=Path(os.environ.get("KILL_FILE", "KILL")).exists(),
-        has_unresolved_orders=False,
+        has_unresolved_orders=True,
         journal_path=Path(os.environ.get("DECISION_JOURNAL", "logs/decision_journal.jsonl")),
         credentials_present=bool(
             os.environ.get("VNEDGE_EXEC_API_KEY") and os.environ.get("VNEDGE_EXEC_API_SECRET")
         ),
-        lower_rungs_validated=os.environ.get("PRE_LIVE_LADDER_ATTESTED", "").lower()
-        in {"1", "true", "yes", "on"},
+        lower_rungs_validated=False,
+        private_stream_required=settings.is_live,
+        private_stream_connected=False,
+        private_stream_age_seconds=float("inf"),
     )
 
 

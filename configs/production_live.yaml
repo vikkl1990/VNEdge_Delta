@@ -1,0 +1,35 @@
+schema_version: vnedge.production_runtime.v1
+venue: delta_india
+markets: [BTC/USD:USD, ETH/USD:USD]
+runtime:
+  default_stage: research
+  live_orders_enabled: false
+  execution_adapter: delta_native
+  public_market_data: delta_native_ws
+  private_order_state: delta_authenticated_ws
+  account_truth: delta_authenticated_rest
+  server_side_bracket_required: true
+  deadman_heartbeat_required: true
+scanner_authority:
+  scanner_id: mtf_amf_directional_rejection_v3
+  strategy_registry: configs/strategy_registry.yaml
+  cost_contract: taker_full_14_8
+  state: collecting_swing_evidence
+  hypothesis_class: sparse_structural_swing
+  trade_horizon: swing
+  maximum_hold_seconds: 43200
+  edge_claim: unproven_swing_hypothesis_not_scalping_edge
+  enabled_for_observation: true
+  enabled_for_paper: false
+  enabled_for_live: false
+  selection_evidence: research/live_research/mtf_amf_revival_matrix_latest.json
+  selection_minimum_trades: 60
+  untouched_status: sealed
+  reason: AMF v3 may collect sparse multi-hour swing evidence; selection is below minimum and paper/live remain locked
+promotion:
+  signed_paper_eligibility_required: true
+  signed_stage_authorization_required: true
+  single_use_nonce_required: true
+  paper_proof_required: true
+  shadow_proof_required: true
+  live_small_proof_required_for_live_full: true

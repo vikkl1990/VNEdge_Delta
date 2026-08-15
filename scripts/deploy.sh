@@ -33,6 +33,16 @@ git reset --hard origin/main
 HEAD_SHA=$(git rev-parse HEAD)
 echo "deploying $(git rev-parse --short HEAD)"
 
+# Re-validate the checked-out release after the origin/main reset. This catches
+# dependency-lock loss and safety-manifest drift before any image is built.
+release_python="${VNEDGE_PYTHON:-.venv/bin/python}"
+if [ ! -x "$release_python" ]; then
+    echo "production release checker unavailable at $release_python" >&2
+    exit 1
+fi
+"$release_python" -m vnedge.runtime.production_release_check \
+    --repo-root . --expected-sha "$HEAD_SHA"
+
 # Compose services that write mounted research artifacts must use the host
 # deploy user's UID/GID. OCI Ubuntu images can be 1001 rather than 1000, so
 # detect it here instead of baking in a default that may poison the worktree.
@@ -49,7 +59,7 @@ echo "compose artifact writer uid/gid: ${VNEDGE_CONTAINER_UID}:${VNEDGE_CONTAINE
 # Skip the build only when NOTHING that lands in the image changed. The path
 # list must include EVERY input to the image: a docs/ or .dockerignore change
 # once shipped nothing because it was omitted here (2026-07-11).
-IMAGE_INPUTS="src/ research/ docs/ frontend/ pyproject.toml README.md Dockerfile .dockerignore docker-compose.yml"
+IMAGE_INPUTS="src/ research/ docs/ frontend/ pyproject.toml requirements-production.lock README.md Dockerfile .dockerignore docker-compose.yml"
 APP_BUILD_SERVICE=multi-lane-shadow
 COMPOSE_PROJECT="${COMPOSE_PROJECT_NAME:-$(basename "$PWD")}"
 APP_BUILD_IMAGE="${COMPOSE_PROJECT}-${APP_BUILD_SERVICE}:latest"

@@ -22,6 +22,10 @@ from vnedge.scalping.delta_engine.absorption_research import (
     AbsorptionResearchConfig,
     AbsorptionResearchTracker,
 )
+from vnedge.scalping.delta_engine.confirmed_absorption import (
+    ConfirmedAbsorptionConfig,
+    ConfirmedAbsorptionReversalScanner,
+)
 from vnedge.scalping.delta_engine.event_trigger import (
     AbsorptionReversalScanner,
     EventDrivenTriggerLayer,
@@ -100,9 +104,33 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--code-version", default=None)
     parser.add_argument("--speed", type=float, default=0.0)
     parser.add_argument("--signal-to-fill-latency-ms", type=int, default=100)
-    parser.add_argument("--scanner", choices=("none", "flow", "absorption"), default="flow")
+    parser.add_argument(
+        "--scanner",
+        choices=(
+            "none",
+            "flow",
+            "absorption",
+            "absorption_v2",
+            "absorption_v3",
+        ),
+        default="flow",
+    )
     parser.add_argument("--tick-size", action="append", default=[])
+    parser.add_argument(
+        "--contract-value",
+        action="append",
+        default=[],
+        help="Delta base-asset value per contract, for example BTCUSD=0.001",
+    )
     parser.add_argument("--minimum-absorption-notional", type=float, default=5_000.0)
+    parser.add_argument(
+        "--research-candidate-outcomes",
+        action="store_true",
+        help=(
+            "track provisional candidates through the orderless forward simulator; "
+            "does not alter can_trade/can_promote or production gates"
+        ),
+    )
     parser.add_argument("--holdout-manifest", type=Path)
     parser.add_argument("--sealed-holdout", action="store_true")
     parser.add_argument("--no-journal", action="store_true")
@@ -127,19 +155,24 @@ def main() -> int:
     channels = tuple(row.strip() for row in args.channels.split(",") if row.strip())
     code_version = args.code_version or _code_version()
     ticks = _tick_sizes(args.tick_size)
-    if args.scanner == "absorption" and set(symbols) != set(ticks):
+    contract_values = _tick_sizes(args.contract_value)
+    absorption_scanners = {"absorption", "absorption_v2", "absorption_v3"}
+    if args.scanner in absorption_scanners and set(symbols) != set(ticks):
         raise SystemExit("absorption replay requires one --tick-size SYMBOL=VALUE per symbol")
+    if args.scanner in absorption_scanners and set(symbols) != set(contract_values):
+        raise SystemExit("absorption replay requires one --contract-value SYMBOL=VALUE per symbol")
     instruments = tuple(
         AbsorptionInstrumentConfig(
             symbol=symbol,
             tick_size=ticks[symbol],
+            contract_value=contract_values[symbol],
             minimum_aggressive_notional_usd=args.minimum_absorption_notional,
         )
         for symbol in symbols
         if symbol in ticks
     )
     absorption_config = AbsorptionDetectorConfig(
-        enabled=args.scanner == "absorption",
+        enabled=args.scanner in absorption_scanners,
         instruments=instruments,
     )
     fee_model = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
@@ -162,21 +195,49 @@ def main() -> int:
                 config=AbsorptionResearchConfig(),
                 journal=journal,
             )
+        elif enable_scanner and args.scanner == "absorption_v2":
+            scanners = (
+                AbsorptionReversalScanner(
+                    fee_model,
+                    scanner_id="event_absorption_reversal_v2_shadow",
+                    stop_bps=20.0,
+                    target_bps=45.0,
+                    time_stop_seconds=900,
+                ),
+            )
+        elif enable_scanner and args.scanner == "absorption_v3":
+            scanners = (
+                ConfirmedAbsorptionReversalScanner(
+                    fee_model,
+                    ConfirmedAbsorptionConfig(tick_sizes=ticks),
+                ),
+            )
+        gates = (
+            SignalGateConfig(
+                min_expectancy_bps=-100.0,
+                min_probability=0.0,
+                min_confidence=0.0,
+                allowed_symbols=symbols,
+            )
+            if args.research_candidate_outcomes
+            else SignalGateConfig(allowed_symbols=symbols)
+        )
         return EventDrivenTriggerLayer(
             scanners,
             config=EventTriggerConfig(
                 enabled_symbols=symbols,
                 absorption=absorption_config,
+                require_trade_book_join=args.scanner in absorption_scanners,
+                one_active_observation_per_symbol=args.scanner == "absorption_v2",
+                observation_lock_ms=900_000,
             ),
-            gates=SignalGateConfig(allowed_symbols=symbols),
+            gates=gates,
             journal=journal,
             absorption_research=research,
         )
 
     manifest = (
-        load_holdout_manifest(args.holdout_manifest)
-        if args.holdout_manifest
-        else HoldoutManifest()
+        load_holdout_manifest(args.holdout_manifest) if args.holdout_manifest else HoldoutManifest()
     )
     config = ReplayConfig(
         symbols=symbols,

@@ -23,17 +23,20 @@ def test_bybit_taker_fee_is_5_5_bps():
     assert venue_taker_bps("Bybit") == 5.5  # case-insensitive
 
 
-def test_non_bybit_venues_keep_binance_taker():
+def test_venue_taker_fees_are_explicit_for_delta_and_major_venues():
     assert venue_taker_bps("binanceusdm") == 5.0
-    assert venue_taker_bps("delta_india") == 5.0
+    assert venue_taker_bps("delta_india") == 5.9
     assert venue_taker_bps("something_new") == 5.0
 
 
 def test_venue_fill_model_wires_the_right_taker():
     bybit = venue_fill_model("bybit")
     binance = venue_fill_model("binanceusdm")
+    delta = venue_fill_model("delta_india")
     assert bybit.taker_fee_bps == 5.5
     assert binance.taker_fee_bps == 5.0
+    assert delta.taker_fee_bps == 5.9
+    assert delta.slippage_bps == 1.5
     # slippage stays venue-agnostic and pessimistic
     assert bybit.slippage_bps == 2.0 == binance.slippage_bps
 

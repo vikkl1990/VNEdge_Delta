@@ -228,6 +228,7 @@ class CandidateEconomics:
     modeled_cost_bps: float
     expected_net_bps: float
     reward_risk: float
+    expectancy_calibrated: bool = True
 
     @classmethod
     def from_candidate(cls, candidate: SignalCandidate) -> CandidateEconomics:
@@ -238,6 +239,9 @@ class CandidateEconomics:
             modeled_cost_bps=candidate.modeled_cost_bps,
             expected_net_bps=candidate.fee_adjusted_expectancy_bps,
             reward_risk=reward_risk,
+            expectancy_calibrated=not bool(
+                candidate.metadata.get("uncalibrated_probability_prior", False)
+            ),
         )
 
     def __post_init__(self) -> None:
@@ -434,9 +438,14 @@ def _economics_evidence(
             net_score,
             1.0,
             available_at,
-            "candidate expectancy after modeled fees, GST, slippage, and funding input",
+            (
+                "calibrated candidate expectancy after modeled costs"
+                if economics.expectancy_calibrated
+                else "uncalibrated probability prior cannot establish economic expectancy"
+            ),
             economics.expected_net_bps,
             weight=1.25,
+            hard_block=not economics.expectancy_calibrated,
         ),
         IndicatorEvidence(
             "reward_risk",
@@ -460,12 +469,13 @@ def event_indicator_evidence(
 
     config = config or default_indicator_scoring_config()
     at = context.available_at
+    htf_available = bool(context.features.get("htf_available", False))
     evidence: list[IndicatorEvidence] = [
         IndicatorEvidence(
             "htf_bias_alignment",
             IndicatorFamily.STRUCTURE,
             _alignment_score(context.htf_bias, side),
-            0.85 if context.htf_bias else 0.45,
+            (0.85 if context.htf_bias else 0.45) if htf_available else 0.0,
             at,
             "higher-timeframe directional bias alignment",
             context.htf_bias,
@@ -475,7 +485,7 @@ def event_indicator_evidence(
             "vwap_directional_location",
             IndicatorFamily.STRUCTURE,
             _directional_score(context.vwap_distance_bps, config.vwap_full_scale_bps, side),
-            0.65,
+            0.65 if htf_available else 0.0,
             at,
             "price location versus causal higher-timeframe VWAP",
             context.vwap_distance_bps,
@@ -528,6 +538,25 @@ def event_indicator_evidence(
             float(context.features.get("depth_usd", 0.0)),
         ),
     ]
+    trend_coverage = float(context.features.get("trend_coverage_seconds", 0.0))
+    if trend_coverage >= 300.0:
+        trend_5m_bps = float(context.features.get("trend_5m_bps", 0.0))
+        evidence.append(
+            IndicatorEvidence(
+                "event_trend_5m_alignment",
+                IndicatorFamily.MOMENTUM,
+                _directional_score(
+                    trend_5m_bps,
+                    config.vwap_full_scale_bps,
+                    side,
+                ),
+                min(1.0, trend_coverage / 300.0),
+                at,
+                "causal five-minute trade-price trend relative to candidate side",
+                trend_5m_bps,
+                weight=1.25,
+            )
+        )
     if context.absorption is not None:
         evidence.append(
             IndicatorEvidence(

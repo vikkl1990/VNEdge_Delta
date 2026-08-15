@@ -56,9 +56,10 @@ async def test_open_positions_mapped():
     assert positions[1].side == "short" and positions[1].quantity == 2.0
 
 
-async def test_flat_account_when_fetch_positions_errors():
+async def test_fetch_position_error_fails_closed_instead_of_claiming_flat():
     p = provider(positions_raises=True)
-    assert await p.open_positions() == []
+    with pytest.raises(RuntimeError, match="position truth unavailable"):
+        await p.open_positions()
 
 
 def test_has_no_order_submission_methods():

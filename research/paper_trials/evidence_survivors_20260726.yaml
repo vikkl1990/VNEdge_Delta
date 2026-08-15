@@ -24,6 +24,8 @@ dashboard_read_only: true
 candidates:
   - trial_id: stealth_trail_bbp_eth_4h_20260726
     strategy: stealth_trail_bbp_v1
+    strategy_registry_path: ../../configs/strategy_registry.yaml
+    cost_contract: taker_full_14_8
     symbol: "ETH/USD:USD"
     timeframe: 4h
     strategy_params: {}                         # default config, matches the grid
@@ -36,6 +38,8 @@ candidates:
 
   - trial_id: luxy_ut_bot_forecast_xrp_1h_20260726
     strategy: luxy_ut_bot_forecast_v1
+    strategy_registry_path: ../../configs/strategy_registry.yaml
+    cost_contract: taker_full_14_8
     symbol: "XRP/USD:USD"
     timeframe: 1h
     strategy_params: {}
@@ -43,6 +47,8 @@ candidates:
 
   - trial_id: quant_signal_pack_bnb_4h_20260726
     strategy: quant_signal_pack_v1
+    strategy_registry_path: ../../configs/strategy_registry.yaml
+    cost_contract: taker_full_14_8
     symbol: "BNB/USD:USD"
     timeframe: 4h
     strategy_params: {}

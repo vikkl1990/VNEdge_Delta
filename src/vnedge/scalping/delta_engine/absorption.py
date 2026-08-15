@@ -31,6 +31,7 @@ class AbsorptionInstrumentConfig(BaseModel):
 
     symbol: str
     tick_size: float = Field(gt=0)
+    contract_value: float = Field(default=1.0, gt=0)
     minimum_aggressive_notional_usd: float = Field(gt=0)
 
     @model_validator(mode="after")
@@ -55,6 +56,7 @@ class AbsorptionInstrumentConfig(BaseModel):
         return cls(
             symbol=spec.symbol,
             tick_size=spec.tick_size,
+            contract_value=spec.contract_value,
             minimum_aggressive_notional_usd=minimum_aggressive_notional_usd,
         )
 
@@ -468,7 +470,10 @@ class AbsorptionDetector:
         range_ticks = (stats.price_high - stats.price_low) / self.instrument.tick_size
         if range_ticks > self.config.tolerance_ticks:
             return None
-        displayed_capacity = stats.max_resting_size + stats.replenished_size
+        # Initial displayed size plus positive replenishment is the total
+        # observable passive capacity. max_size + replenishment double-counts
+        # simple book growth and artificially saturates this ratio.
+        displayed_capacity = stats.initial_resting_size + stats.replenished_size
         absorption_ratio = min(1.0, displayed_capacity / dominant) if dominant else 0.0
         if absorption_ratio < self.config.minimum_absorption_ratio:
             return None
@@ -601,7 +606,7 @@ class AbsorptionDetector:
         if range_ticks > self.config.stacked_band_ticks + 1:
             return None
         displayed_capacity = sum(
-            stats.max_resting_size + stats.replenished_size for stats in band
+            stats.initial_resting_size + stats.replenished_size for stats in band
         )
         absorption_ratio = min(1.0, displayed_capacity / dominant) if dominant else 0.0
         if absorption_ratio < self.config.minimum_absorption_ratio:

@@ -116,6 +116,28 @@ def test_existing_realtime_scanner_contract_passes_through_unchanged():
     assert dashboard_scanner_payload(payload) is payload
 
 
+def test_runtime_heartbeat_cannot_hide_a_stale_closed_candle():
+    now = datetime(2026, 8, 5, 1, 0, tzinfo=UTC)
+    payload = {
+        "generated_at": now.isoformat(),
+        "mode": "delta_scalper_research_shadow",
+        "rows": [
+            {
+                "strategy_id": "delta_scalper_engine_v1",
+                "symbol": "BTCUSD",
+                "state": "WAITING",
+                "latest_bar_ts": (now - timedelta(minutes=20)).isoformat(),
+            }
+        ],
+    }
+
+    adapted = dashboard_scanner_payload(payload, now=now)
+
+    assert adapted["rows"][0]["state"] == "DATA_STALE"
+    assert adapted["rows"][0]["source_age_seconds"] == 20 * 60
+    assert adapted["summary"]["source_age_seconds"] == 20 * 60
+
+
 def test_token_gated_endpoint_reads_mtf_scanner_file(tmp_path):
     path = tmp_path / "mtf_scanner.json"
     path.write_text(json.dumps(mtf_payload(datetime.now(UTC))))
@@ -392,9 +414,22 @@ def test_delta_scalper_endpoint_exposes_research_panels_only(tmp_path):
     assert response.status_code == 200
     payload = response.json()
     assert len(payload["rows"]) == 1
-    assert len(payload["lanes"]) == 1
-    assert payload["lanes"][0]["lane_id"] == "delta_scalper_btcusd"
-    assert payload["lanes"][0]["why_no_signal"].startswith("All primary scanner hypotheses")
+    lane_ids = {lane["lane_id"] for lane in payload["lanes"]}
+    assert lane_ids == {
+        "delta_scalper_btcusd",
+        "registry_mtf_amf_directional_rejection_v3",
+    }
+    delta_lane = next(
+        lane for lane in payload["lanes"] if lane["lane_id"] == "delta_scalper_btcusd"
+    )
+    assert delta_lane["why_no_signal"].startswith("All primary scanner hypotheses")
+    registry_lane = next(
+        lane
+        for lane in payload["lanes"]
+        if lane["lane_id"] == "registry_mtf_amf_directional_rejection_v3"
+    )
+    assert registry_lane["evidence"]["verified"] is True
+    assert "SAMPLE_BELOW_REQUIRED" in registry_lane["evidence"]["warnings"]
     assert payload["signal_funnel"]["stages"][1] == {
         "id": "scanners",
         "label": "Enabled scanners",
@@ -547,9 +582,19 @@ def test_delta_scalper_endpoint_reads_dedicated_snapshot_directly(tmp_path):
     assert payload["policy"]["order_route"] == "absent"
     assert payload["policy"]["broker"] == "absent"
     assert payload["scanner_status"]["enabled_count"] == 0
-    assert [lane["symbol"] for lane in payload["lanes"]] == ["BTCUSD", "ETHUSD"]
-    assert payload["lanes"][0]["latest_candidates"] == 0
-    assert payload["lanes"][0]["latest_accepted"] == 0
+    runtime_lanes = [
+        lane for lane in payload["lanes"] if lane["lane_id"].startswith("delta_scalper_")
+    ]
+    assert [lane["symbol"] for lane in runtime_lanes] == ["BTCUSD", "ETHUSD"]
+    assert runtime_lanes[0]["latest_candidates"] == 0
+    assert runtime_lanes[0]["latest_accepted"] == 0
+    registry_lane = next(
+        lane
+        for lane in payload["lanes"]
+        if lane["lane_id"] == "registry_mtf_amf_directional_rejection_v3"
+    )
+    assert registry_lane["evidence"]["verified"] is True
+    assert registry_lane["route_cost_contract"]["contract_id"] == "taker_full_14_8"
     funnel = {stage["id"]: stage for stage in payload["signal_funnel"]["stages"]}
     assert funnel["evaluations"]["count"] == 2855
     assert funnel["scanners"]["state"] == "BLOCKED"

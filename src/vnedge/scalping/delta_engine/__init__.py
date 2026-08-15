@@ -22,6 +22,10 @@ from vnedge.scalping.delta_engine.absorption_research import (
 )
 from vnedge.scalping.delta_engine.architecture import architecture_manifest
 from vnedge.scalping.delta_engine.candle_store import MultiTimeframeCandleStore
+from vnedge.scalping.delta_engine.confirmed_absorption import (
+    ConfirmedAbsorptionConfig,
+    ConfirmedAbsorptionReversalScanner,
+)
 from vnedge.scalping.delta_engine.context import MarketContextBuilder
 from vnedge.scalping.delta_engine.event_trigger import (
     AbsorptionReversalScanner,
@@ -46,6 +50,10 @@ from vnedge.scalping.delta_engine.flow_store import (
 from vnedge.scalping.delta_engine.forward_tracker import (
     ForwardOutcome,
     ForwardOutcomeTracker,
+)
+from vnedge.scalping.delta_engine.forming_candles import (
+    DEFAULT_FORMING_TIMEFRAMES,
+    MultiTimeframeCandleEngine,
 )
 from vnedge.scalping.delta_engine.indicator_scoring import (
     CandidateEconomics,
@@ -74,13 +82,19 @@ from vnedge.scalping.delta_engine.signal_generator import (
     ScalperRiskAdapter,
 )
 from vnedge.scalping.delta_engine.types import (
+    SCALPER_MAX_HOLD_SECONDS,
     Candle,
     ExitPath,
     L2Confirmation,
     MarketContext,
+    FormingCandle,
+    MultiTimeframeCandleSnapshot,
     Regime,
     Side,
     SignalCandidate,
+    TimeframeCandleState,
+    TradeHorizon,
+    classify_trade_horizon,
 )
 from vnedge.scalping.delta_engine.validation import (
     RobustValidationReport,
@@ -90,6 +104,7 @@ from vnedge.scalping.delta_engine.validation import (
 )
 
 __all__ = [
+    "SCALPER_MAX_HOLD_SECONDS",
     "AbsorptionDetector",
     "AbsorptionDetectorConfig",
     "AbsorptionInstrumentConfig",
@@ -101,7 +116,10 @@ __all__ = [
     "AbsorptionReversalScanner",
     "CandidateEconomics",
     "Candle",
+    "DEFAULT_FORMING_TIMEFRAMES",
     "ChannelSequenceTracker",
+    "ConfirmedAbsorptionConfig",
+    "ConfirmedAbsorptionReversalScanner",
     "DeltaFeeModel",
     "DeltaScalperAssembly",
     "DeltaScalperSignalGenerator",
@@ -118,6 +136,7 @@ __all__ = [
     "FootprintLevel",
     "ForwardOutcome",
     "ForwardOutcomeTracker",
+    "FormingCandle",
     "IndicatorEvidence",
     "IndicatorFamily",
     "IndicatorFamilyScore",
@@ -129,6 +148,8 @@ __all__ = [
     "LiquidationCluster",
     "MarketContext",
     "MarketContextBuilder",
+    "MultiTimeframeCandleEngine",
+    "MultiTimeframeCandleSnapshot",
     "MomentumBurstScanner",
     "MultiTimeframeCandleStore",
     "OrderFlowImbalanceFadeScanner",
@@ -141,9 +162,12 @@ __all__ = [
     "Side",
     "SignalCandidate",
     "SustainedFlowImbalanceScanner",
+    "TimeframeCandleState",
+    "TradeHorizon",
     "architecture_manifest",
     "build_delta_scalper_assembly",
     "candle_indicator_evidence",
+    "classify_trade_horizon",
     "default_indicator_scoring_config",
     "event_indicator_evidence",
     "fee_sensitivity",

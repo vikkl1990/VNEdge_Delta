@@ -418,6 +418,19 @@ class DeltaRestExecutionAdapter:
             return None
         return payload
 
+    async def close(self) -> None:
+        """Close native REST transports without leaking secrets."""
+
+        client = self._client
+        close = getattr(client, "close", None) if client is not None else None
+        if close is not None:
+            result = close()
+            if hasattr(result, "__await__"):
+                await result
+        safety = self._safety_client
+        if safety is not None:
+            await asyncio.to_thread(safety.close)
+
 
 def _order_type(raw: str) -> _DeltaEnumValue:
     value = str(raw or "").lower()

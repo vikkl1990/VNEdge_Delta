@@ -15,6 +15,7 @@ frequency, durability beats throughput by an enormous margin.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -26,15 +27,19 @@ logger = logging.getLogger(__name__)
 
 
 class DecisionJournal:
-    def __init__(self, path: Path | str) -> None:
+    def __init__(self, path: Path | str, *, hash_chain: bool = False) -> None:
         self.path = Path(path)
+        self.hash_chain = bool(hash_chain)
+        self._last_hash = "0" * 64
         self._available = True
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             # Probe writability at startup, not at first order.
             with open(self.path, "a", encoding="utf-8"):
                 pass
-        except OSError as exc:
+            if self.hash_chain:
+                self._last_hash = self._verify_chain()
+        except (OSError, ValueError, KeyError) as exc:
             self._mark_unavailable(f"journal probe failed: {exc}")
 
     @property
@@ -57,11 +62,16 @@ class DecisionJournal:
             "kind": kind,
             "payload": payload,
         }
+        if self.hash_chain:
+            record["prev_hash"] = self._last_hash
+            record["hash"] = self._record_hash(record)
         try:
             with open(self.path, "a", encoding="utf-8") as f:
                 f.write(json.dumps(record, default=str) + "\n")
                 f.flush()
                 os.fsync(f.fileno())
+            if self.hash_chain:
+                self._last_hash = str(record["hash"])
             return True
         except OSError as exc:
             self._mark_unavailable(str(exc))
@@ -78,3 +88,24 @@ class DecisionJournal:
                 if line:
                     records.append(json.loads(line))
         return records
+
+    @staticmethod
+    def _record_hash(record: dict[str, Any]) -> str:
+        canonical = json.dumps(
+            {key: value for key, value in record.items() if key != "hash"},
+            default=str,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(canonical).hexdigest()
+
+    def _verify_chain(self) -> str:
+        previous = "0" * 64
+        for line_number, record in enumerate(self.read_all(), start=1):
+            if record.get("prev_hash") != previous:
+                raise OSError(f"journal hash chain broken at line {line_number}")
+            expected = self._record_hash(record)
+            if record.get("hash") != expected:
+                raise OSError(f"journal record hash invalid at line {line_number}")
+            previous = expected
+        return previous

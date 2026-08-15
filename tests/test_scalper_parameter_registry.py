@@ -55,10 +55,14 @@ def test_registry_contains_scalper_timeframes_and_families():
 def test_exchange_fee_profiles_expose_cost_hurdles():
     binance = REGISTRY.fee_profile("binanceusdm")
     bybit = REGISTRY.fee_profile("bybit")
+    delta = REGISTRY.fee_profile("delta_india")
 
     assert binance.maker_first_cost_bps == pytest.approx(9.0)
     assert binance.taker_round_trip_cost_bps == pytest.approx(12.0)
     assert bybit.taker_round_trip_cost_bps > binance.taker_round_trip_cost_bps
+    assert delta.maker_bps == pytest.approx(2.36)
+    assert delta.taker_bps == pytest.approx(5.90)
+    assert delta.taker_round_trip_cost_bps == pytest.approx(14.8)
 
 
 def test_replay_and_alpha_kwargs_are_registry_backed():

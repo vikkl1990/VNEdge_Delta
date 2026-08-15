@@ -173,6 +173,10 @@ class RecordingValidationReport:
     negative_delay_samples: int
     channel_timestamp_regressions: Mapping[str, int]
     clock_delay_by_channel_us: Mapping[str, Mapping[str, int | None]]
+    source_delay_classification_by_channel: Mapping[str, Mapping[str, int]]
+    ordering_policy: str
+    exchange_timestamp_regressions_blocking: bool
+    latency_interpretation: str
     issues: tuple[str, ...]
 
     def __post_init__(self) -> None:
@@ -196,6 +200,16 @@ class RecordingValidationReport:
                 }
             ),
         )
+        object.__setattr__(
+            self,
+            "source_delay_classification_by_channel",
+            MappingProxyType(
+                {
+                    channel: MappingProxyType(dict(summary))
+                    for channel, summary in self.source_delay_classification_by_channel.items()
+                }
+            ),
+        )
         object.__setattr__(self, "issues", tuple(self.issues))
 
     def to_dict(self) -> dict[str, object]:
@@ -208,6 +222,10 @@ class RecordingValidationReport:
             "clock_delay_by_channel_us": {
                 channel: dict(summary)
                 for channel, summary in self.clock_delay_by_channel_us.items()
+            },
+            "source_delay_classification_by_channel": {
+                channel: dict(summary)
+                for channel, summary in self.source_delay_classification_by_channel.items()
             },
             "issues": list(self.issues),
         }

@@ -240,21 +240,13 @@ def test_stealth_trail_bbp_delta_lanes_are_shadow_first_and_5m():
     assert all(lane.mode is RunnerMode.SHADOW for lane in lanes)
 
 
-def test_stealth_trail_bbp_lanes_can_be_paper_observed_without_promotion():
-    # stealth_trail is pruned from the default roster (2026-08-03 hard-cut);
-    # prune-off verifies the generator + paper-observation wiring still work.
+def test_stealth_trail_bbp_lanes_cannot_bypass_canonical_paper_authority():
+    # Prune-off may restore shadow research lanes, but the blocked registry
+    # status remains absolute for paper authority.
     specs = desired_lane_specs(
         {"MULTI_LANE_PAPER_OBSERVE_ALL": "1", "MULTI_LANE_PRUNE_DEAD": "0"}
     )
     ids = {spec.lane_id for spec in specs}
 
     assert "stealth_trail_bbp_delta_india_eth_usd_usd_shadow" in ids
-    assert "stealth_trail_bbp_delta_india_eth_usd_usd_paper_observation" in ids
-    observed = next(
-        spec
-        for spec in specs
-        if spec.lane_id == "stealth_trail_bbp_delta_india_eth_usd_usd_paper_observation"
-    )
-    assert observed.mode is RunnerMode.PAPER
-    assert observed.timeframe == "5m"
-    assert observed.is_primary is False
+    assert "stealth_trail_bbp_delta_india_eth_usd_usd_paper_observation" not in ids

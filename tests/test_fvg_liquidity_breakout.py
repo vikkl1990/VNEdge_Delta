@@ -192,25 +192,16 @@ def test_fvg_liquidity_breakout_delta_lanes_are_mainline_shadow_5m():
     )
 
 
-def test_fvg_liquidity_breakout_lanes_can_be_paper_observed_without_promotion():
-    # fvg is pruned from the default roster (2026-08-03 hard-cut); prune-off
-    # verifies the generator + paper-observation wiring still work.
+def test_fvg_liquidity_breakout_lanes_cannot_bypass_canonical_paper_authority():
+    # Environment flags may restore shadow research lanes, but cannot synthesize
+    # paper authority for a strategy absent from the canonical registry.
     specs = desired_lane_specs(
         {"MULTI_LANE_PAPER_OBSERVE_ALL": "1", "MULTI_LANE_PRUNE_DEAD": "0"}
     )
     ids = {spec.lane_id for spec in specs}
 
     assert "fvg_liquidity_breakout_delta_india_eth_usd_usd_shadow" in ids
-    assert "fvg_liquidity_breakout_delta_india_eth_usd_usd_paper_observation" in ids
-    observed = next(
-        spec
-        for spec in specs
-        if spec.lane_id
-        == "fvg_liquidity_breakout_delta_india_eth_usd_usd_paper_observation"
-    )
-    assert observed.mode is RunnerMode.PAPER
-    assert observed.timeframe == "5m"
-    assert observed.is_primary is False
+    assert "fvg_liquidity_breakout_delta_india_eth_usd_usd_paper_observation" not in ids
 
 
 def test_fvg_liquidity_breakout_mainline_lanes_can_be_disabled():

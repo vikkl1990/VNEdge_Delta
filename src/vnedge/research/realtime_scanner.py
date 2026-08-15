@@ -50,7 +50,7 @@ _GATE_CATEGORIES: dict[str, tuple[str, str]] = {
     "volume_z": ("participation", "require_real_participation"),
     "body_atr": ("displacement", "wait_for_real_displacement"),
     "body_percentile": ("displacement", "wait_for_real_displacement"),
-    "expected_net_edge_bps": ("cost_edge", "repair_execution_or_skip"),
+    "structural_net_headroom_bps": ("cost_edge", "repair_execution_or_skip"),
     "leader_bps": ("event_impulse", "wait_for_larger_leader_move"),
     "leader_z": ("event_impulse", "wait_for_larger_leader_move"),
 }
@@ -711,7 +711,7 @@ def _threshold_pairs(eval_payload: Mapping[str, Any]) -> list[dict[str, Any]]:
     )
     _add_min_pair(
         pairs,
-        "expected_net_edge_bps",
+        "structural_net_headroom_bps",
         _max_num(
             features.get("expected_net_edge_bps_long"),
             features.get("expected_net_edge_bps_short"),

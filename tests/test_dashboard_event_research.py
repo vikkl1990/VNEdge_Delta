@@ -33,8 +33,9 @@ def test_event_research_endpoint_distinguishes_installed_from_running(tmp_path: 
     assert payload["event_trigger"]["status"] == "IMPLEMENTED_NOT_RUNNING"
     assert payload["absorption"]["status"] == "AWAITING_EVENT_TAPE"
     assert payload["replay"]["status"] == "WAITING_FOR_TAPE"
-    assert payload["research_modules"]["governance"]["status"] == ("SIGNED_PROOF_MIGRATION_PENDING")
-    assert payload["research_modules"]["governance"]["paper_manifest_signature_required"] is False
+    assert payload["research_modules"]["governance"]["status"] == "SIGNED_ENVELOPES_ENFORCED"
+    assert payload["research_modules"]["governance"]["paper_manifest_signature_required"] is True
+    assert payload["research_modules"]["governance"]["single_use_nonce_required"] is True
     assert (
         payload["research_modules"]["delta_execution_safety"]["dashboard_runtime_connected"]
         is False
@@ -62,6 +63,11 @@ def test_event_research_endpoint_reads_runtime_artifacts_without_promoting(
         json.dumps(
             {
                 "counts": {"events": 123, "evaluations": 7, "selected": 1},
+                "scanner_telemetry": {
+                    "event_absorption_confirmed_reversal_v3_shadow": {
+                        "counts": {"setups": 5, "confirmed": 2}
+                    }
+                },
                 "feed_delay": {"p95_us": 20_000},
                 "receive_to_decision": {"p95_us": 4_000},
                 "research_only": True,
@@ -116,6 +122,9 @@ def test_event_research_endpoint_reads_runtime_artifacts_without_promoting(
     assert payload["recorder"]["recorded_events_from_manifests"] == 123
     assert payload["event_trigger"]["status"] == "OBSERVING"
     assert payload["event_trigger"]["counts"]["selected"] == 1
+    assert payload["event_trigger"]["scanner_telemetry"][
+        "event_absorption_confirmed_reversal_v3_shadow"
+    ]["counts"] == {"setups": 5, "confirmed": 2}
     assert payload["absorption"]["status"] == "ACTIVE"
     assert payload["absorption"]["observations"] == 1
     assert payload["absorption"]["liquidation_strength_applied_to_signal"] is False
@@ -407,6 +416,108 @@ def test_scanner_state_can_carry_same_event_research_truth() -> None:
     assert snapshot["research_infrastructure"] == infrastructure
     assert snapshot["can_trade"] is False
     assert snapshot["orders_sent"] == 0
+
+
+def test_dashboard_surfaces_response_atlas_without_granting_authority(tmp_path: Path) -> None:
+    atlas = tmp_path / "atlas.json"
+    atlas.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-08-13T00:00:00+00:00",
+                    "source": {
+                        "raw_detections": 700,
+                        "independent_episodes": 500,
+                        "symbols": ["BTCUSD", "ETHUSD"],
+                    },
+                    "contract": {"route_cost_contract": {"round_trip_cost_bps": 14.8}},
+                    "control_qualification": {"passed": True, "matched_pairs": 500},
+                "coverage": {"evaluated_entries": 1_200},
+                "diagnosis": {
+                    "verdict": "NO_AFTER_COST_DIRECTIONAL_CELL_FOUND",
+                    "best_cell": {"average_net_bps": -8.0},
+                },
+                "opportunity_atlas": [{"symbol": "ETHUSD", "average_mfe_bps": 30.0}],
+                "direction_entry_exit_matrix": [
+                    {"symbol": "ETHUSD", "hypothesis": "reversal"}
+                ],
+                "best_discovery_cells": [],
+                "deterministic_result_hash": "a" * 64,
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(provider, token="token", event_response_atlas_path=atlas)
+    )
+
+    response = client.get("/event-research-infrastructure?token=token").json()[
+        "response_atlas"
+    ]
+
+    assert response["status"] == "NO_AFTER_COST_DIRECTIONAL_CELL_FOUND"
+    assert response["source"]["independent_episodes"] == 500
+    assert response["control_qualification"]["passed"] is True
+    assert response["diagnosis"]["best_cell"]["average_net_bps"] == -8.0
+    assert response["scanner_implementation_authorized"] is False
+    assert response["can_trade"] is False
+    assert response["can_promote"] is False
+
+
+def test_dashboard_surfaces_post_event_direction_failure_without_authority(
+    tmp_path: Path,
+) -> None:
+    study = tmp_path / "direction.json"
+    study.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-08-14T00:00:00+00:00",
+                    "source": {
+                        "raw_detections": 10_000,
+                        "independent_episodes": 8_907,
+                        "symbols": ["BTCUSD", "ETHUSD"],
+                    },
+                    "contract": {"route_cost_contract": {"round_trip_cost_bps": 14.8}},
+                    "control_qualification": {"passed": True, "matched_pairs": 8_907},
+                "coverage": {"captured_response_states": 39_307},
+                "diagnosis": {
+                    "verdict": "NO_STABLE_AFTER_COST_DIRECTION_RULE_FOUND",
+                    "supported_development_cells": 0,
+                    "best_comparison": {
+                        "symbol": "BTCUSD",
+                        "selection": {"average_net_bps": -14.32},
+                        "validation": {"average_net_bps": -14.26},
+                    },
+                },
+                "best_comparisons": [],
+                "deterministic_result_hash": "b" * 64,
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(provider, token="token", post_absorption_direction_path=study)
+    )
+
+    response = client.get("/event-research-infrastructure?token=token").json()[
+        "post_absorption_direction"
+    ]
+
+    assert response["status"] == "NO_STABLE_AFTER_COST_DIRECTION_RULE_FOUND"
+    assert response["source"]["independent_episodes"] == 8_907
+    assert response["control_qualification"]["passed"] is True
+    assert response["diagnosis"]["best_comparison"]["validation"][
+        "average_net_bps"
+    ] == -14.26
+    assert response["scanner_implementation_authorized"] is False
+    assert response["paper_authorized"] is False
+    assert response["can_trade"] is False
+    assert response["can_promote"] is False
 
 
 def test_dashboard_surfaces_rejected_htf_selection_without_opening_tail(tmp_path: Path) -> None:

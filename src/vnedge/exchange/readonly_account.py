@@ -21,6 +21,7 @@ from __future__ import annotations
 import logging
 
 from vnedge.execution.order_manager import FlattenTarget
+from vnedge.risk.risk_manager import AccountState
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +64,38 @@ class CcxtReadOnlyAccountProvider:
             )
         return float(equity)
 
+    async def account_state(self) -> AccountState:
+        """Return fail-closed venue truth for the risk gateway.
+
+        Read failures propagate; a live runtime must never translate an
+        unavailable account into a flat, healthy account.
+        """
+
+        equity = await self.fetch_equity_usd()
+        positions = await self.open_positions()
+        exposure_by_symbol: dict[str, float] = {}
+        # The read-only CCXT position surface may omit reliable mark/notional
+        # fields across venues.  Count every position and let the venue-specific
+        # execution boundary enforce contract notional; unknown exposure is not
+        # guessed here.
+        for position in positions:
+            exposure_by_symbol[position.symbol] = 0.0
+        return AccountState(
+            equity_usd=equity,
+            daily_pnl_usd=0.0,
+            peak_equity_usd=equity,
+            open_positions=len(positions),
+            exposure_by_symbol_usd=exposure_by_symbol,
+            total_exposure_usd=0.0,
+            consecutive_losses=0,
+        )
+
     async def open_positions(self) -> list[FlattenTarget]:
         """Real open positions as FlattenTargets. Read-only. Empty if flat."""
         try:
             raw = await self._ex.fetch_positions()
-        except Exception as exc:  # noqa: BLE001 — some accounts/venues 400 when flat
-            logger.warning("fetch_positions failed (treating as flat): %s", exc)
-            return []
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError("live position truth unavailable; entries must halt") from exc
         out: list[FlattenTarget] = []
         for p in raw:
             contracts = float(p.get("contracts") or 0.0)

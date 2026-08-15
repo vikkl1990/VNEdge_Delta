@@ -129,6 +129,8 @@ def test_next_trade_entry_tracks_mfe_mae_and_both_targets_to_horizon() -> None:
     assert outcome.was_stacked and outcome.had_liquidation_confluence
     assert outcome.volume_percentile == pytest.approx(1.0)
     assert outcome.horizon_returns_bps == {"1000": pytest.approx(150.0)}
+    assert outcome.trade_horizon == "scalp"
+    assert outcome.maximum_hold_seconds == 1
     assert outcome.to_dict()["order_route"] == "absent"
 
 
@@ -204,6 +206,8 @@ def test_weekly_summary_separates_stacked_and_liquidation_cohorts() -> None:
         realized_exit_reason="stop",
         realized_gross_ticks=-2.0,
         realized_net_ticks=-2.0,
+        realized_gross_bps=-100.0,
+        realized_net_bps=-100.0,
         mfe_ticks=1.0,
         mae_ticks=2.0,
         hit_target_1=False,
@@ -220,6 +224,7 @@ def test_weekly_summary_separates_stacked_and_liquidation_cohorts() -> None:
     assert summary.completed == 2
     assert summary.target_1_win_rate == pytest.approx(0.5)
     assert summary.expectancy_net_ticks == pytest.approx(0.0)
+    assert summary.expectancy_net_bps == pytest.approx(0.0)
     assert summary.profit_factor == pytest.approx(1.0)
     assert summary.stacked_win_rate == pytest.approx(1.0)
     assert summary.single_win_rate == pytest.approx(0.0)
@@ -283,3 +288,49 @@ def test_tracker_journals_counterfactual_lifecycle_and_economic_telemetry(
     assert telemetry["average_net_ticks"] == pytest.approx(2.0)
     assert telemetry["profit_factor"] is None
     assert telemetry["can_trade"] is False
+
+
+def test_bps_geometry_scales_targets_consistently_across_instruments() -> None:
+    fee = DeltaFeeModel(
+        maker_fee_bps_pre_tax=0,
+        taker_fee_bps_pre_tax=0,
+        default_slippage_bps_per_leg=0,
+    )
+    engine = AbsorptionResearchTracker(
+        fee,
+        (
+            AbsorptionInstrumentConfig(
+                symbol="BTCUSD", tick_size=0.5, minimum_aggressive_notional_usd=500
+            ),
+        ),
+        config=AbsorptionResearchConfig(
+            target_1_bps=50,
+            target_2_bps=75,
+            stop_bps=20,
+            horizon_ms=1_000,
+            entry_timeout_ms=500,
+        ),
+    )
+    assert engine.register(observation(), decision_ts=NOW)
+    engine.on_trade(
+        "BTCUSD",
+        price=100.0,
+        received_at=NOW + timedelta(milliseconds=100),
+        monotonic_ns=BASE_NS + 100_000_000,
+    )
+    engine.on_trade(
+        "BTCUSD",
+        price=100.5,
+        received_at=NOW + timedelta(milliseconds=200),
+        monotonic_ns=BASE_NS + 200_000_000,
+    )
+    outcome = engine.on_trade(
+        "BTCUSD",
+        price=100.5,
+        received_at=NOW + timedelta(milliseconds=1_100),
+        monotonic_ns=BASE_NS + 1_100_000_000,
+    )[0]
+    assert outcome.realized_exit_reason == "target_1"
+    assert outcome.realized_gross_bps == pytest.approx(50.0)
+    assert outcome.realized_net_bps == pytest.approx(50.0)
+    assert engine.telemetry()["geometry"]["mode"] == "bps"

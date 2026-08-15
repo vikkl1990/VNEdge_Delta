@@ -175,10 +175,11 @@ def test_detector_config_requires_explicit_unique_instrument_contracts() -> None
 
 def test_instrument_contract_uses_exchange_tick_metadata_without_guessing() -> None:
     row = AbsorptionInstrumentConfig.from_delta_contract(
-        DeltaContractSpec(symbol="BTCUSD", tick_size=0.5),
+        DeltaContractSpec(symbol="BTCUSD", tick_size=0.5, contract_value=0.001),
         minimum_aggressive_notional_usd=500,
     )
     assert row.tick_size == pytest.approx(0.5)
+    assert row.contract_value == pytest.approx(0.001)
     with pytest.raises(ValueError, match="tick_size"):
         AbsorptionInstrumentConfig.from_delta_contract(
             DeltaContractSpec(symbol="ETHUSD", tick_size=None),

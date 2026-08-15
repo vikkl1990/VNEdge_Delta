@@ -22,6 +22,7 @@ from vnedge.scalping.delta_engine.event_trigger import (
     FundingOpenInterestEvent,
     HigherTimeframeContext,
     L2Event,
+    ReferencePriceEvent,
     SustainedFlowImbalanceScanner,
     TradeEvent,
 )
@@ -136,6 +137,152 @@ def test_sustained_confirmation_builds_immutable_event_snapshot() -> None:
     assert score["research_only"] is True
     assert score["can_trade"] is False
     assert score["used_for_signal"] is False
+    assert "hard_block:expected_net_bps" in score["blockers"]
+    assert "zero_confidence_family:structure" in score["blockers"]
+
+
+def test_gate_rejected_candidate_does_not_activate_observation_lock() -> None:
+    engine = layer()
+    first = prime_sustained_flow(engine)
+    assert first is not None and first.selected is None
+    second = engine.on_trade(trade(600))
+    assert second is not None and second.selected is None
+    assert "one_active_observation_per_symbol" not in second.rejection_reasons
+    assert engine.telemetry()["counts"]["observation_blocked"] == 0
+
+
+def test_shared_engine_locks_only_after_candidate_passes_gates() -> None:
+    fee = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
+    engine = EventDrivenTriggerLayer(
+        (SustainedFlowImbalanceScanner(fee, probability_prior=0.90),),
+        config=config(
+            candidate_cooldown_ms=0,
+            observation_lock_ms=1_000,
+            one_active_observation_per_symbol=True,
+        ),
+        gates=SignalGateConfig(
+            min_expectancy_bps=8.0,
+            min_probability=0.70,
+            min_confidence=0.60,
+            allowed_symbols=("BTCUSD", "ETHUSD"),
+        ),
+    )
+    first = prime_sustained_flow(engine)
+    assert first is not None and first.selected is not None
+    second = engine.on_trade(trade(600))
+    assert second is not None and second.selected is None
+    assert "one_active_observation_per_symbol" in second.rejection_reasons
+    assert engine.telemetry()["counts"]["observation_blocked"] == 1
+
+
+def test_delta_contract_value_scales_event_notional_and_depth_to_usd() -> None:
+    fee = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
+    absorption = AbsorptionDetectorConfig(
+        instruments=(
+            AbsorptionInstrumentConfig(
+                symbol="BTCUSD",
+                tick_size=0.5,
+                contract_value=0.001,
+                minimum_aggressive_notional_usd=500.0,
+            ),
+        )
+    )
+    engine = EventDrivenTriggerLayer(
+        (SustainedFlowImbalanceScanner(fee),),
+        config=config(absorption=absorption),
+    )
+    decision = prime_sustained_flow(engine)
+    assert decision is not None and decision.context is not None
+    assert decision.context.aggressive_buy_usd == pytest.approx(0.3015)
+    assert decision.context.features["depth_usd"] == pytest.approx(1.647)
+    assert decision.context.features["contract_value"] == pytest.approx(0.001)
+
+
+def test_market_truth_publishes_basis_htf_and_temporal_join_quality() -> None:
+    engine = EventDrivenTriggerLayer((), config=config())
+    engine.update_higher_timeframe_context(
+        HigherTimeframeContext(
+            symbol="BTCUSD",
+            available_at=NOW,
+            bias=1,
+            regime="trend|strong_trend|medium",
+            cusum_state="stable",
+        )
+    )
+    for kind, price in (("mark", 101.0), ("spot", 100.0)):
+        engine.on_reference_price(
+            ReferencePriceEvent(
+                symbol="BTCUSD",
+                kind=kind,
+                price=price,
+                exchange_ts=NOW,
+                received_at=NOW,
+                received_monotonic_ns=BASE_NS,
+            )
+        )
+    engine.on_funding_or_oi(
+        FundingOpenInterestEvent(
+            symbol="BTCUSD",
+            funding_rate=0.0001,
+            open_interest=12_345.0,
+            exchange_ts=NOW,
+            received_at=NOW,
+            received_monotonic_ns=BASE_NS,
+        )
+    )
+    engine.on_l2(l2(0))
+    engine.on_trade(
+        TradeEvent(
+            symbol="BTCUSD",
+            price=101.0,
+            size=1.0,
+            side="buy",
+            exchange_ts=NOW + timedelta(milliseconds=50),
+            publish_ts=NOW + timedelta(milliseconds=100),
+            received_at=NOW + timedelta(milliseconds=120),
+            received_monotonic_ns=BASE_NS + 120_000_000,
+        )
+    )
+    state = engine.market_states(now_ns=BASE_NS + 120_000_000)["BTCUSD"]
+    truth = state["market_truth"]
+    assert truth["ready"] is True
+    assert truth["trade_book_join_ok"] is True
+    assert truth["trade_book_join_lag_ms"] == pytest.approx(120.0)
+    assert truth["basis_bps"] == pytest.approx(100.0)
+    assert state["htf"]["available"] is True
+
+
+def test_trade_without_causal_book_match_cannot_feed_absorption() -> None:
+    fee = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
+    absorption = AbsorptionDetectorConfig(
+        instruments=(
+            AbsorptionInstrumentConfig(
+                symbol="BTCUSD",
+                tick_size=0.5,
+                minimum_aggressive_notional_usd=1.0,
+            ),
+        ),
+    )
+    engine = EventDrivenTriggerLayer(
+        (AbsorptionReversalScanner(fee),),
+        config=config(absorption=absorption, require_trade_book_join=True),
+    )
+    engine.on_l2(l2(0))
+    engine.on_trade(
+        TradeEvent(
+            symbol="BTCUSD",
+            price=105.0,
+            size=100.0,
+            side="buy",
+            exchange_ts=NOW + timedelta(milliseconds=50),
+            publish_ts=NOW + timedelta(milliseconds=100),
+            received_at=NOW + timedelta(milliseconds=120),
+            received_monotonic_ns=BASE_NS + 120_000_000,
+        )
+    )
+    counts = engine.telemetry(now_ns=BASE_NS + 120_000_000)["counts"]
+    assert counts["trade_book_join_rejected"] == 1
+    assert counts["absorption_observations"] == 0
 
 
 def test_calibrated_plugin_still_uses_shared_gates_and_journal(tmp_path: Path) -> None:
@@ -191,6 +338,30 @@ def test_stale_book_blocks_evaluation() -> None:
     assert engine.telemetry()["counts"]["invalid_book"] >= 1
 
 
+def test_unconfirmed_observer_receives_causal_snapshots_without_creating_candidate() -> None:
+    class Observer:
+        scanner_id = "test_unconfirmed_observer"
+        observes_unconfirmed_events = True
+
+        def __init__(self) -> None:
+            self.snapshots = []
+
+        def evaluate(self, context):
+            self.snapshots.append(context)
+
+    observer = Observer()
+    engine = EventDrivenTriggerLayer(
+        (observer,),
+        config=config(),
+        gates=SignalGateConfig(allowed_symbols=("BTCUSD", "ETHUSD")),
+    )
+    assert engine.on_l2(l2(0)) is not None
+    assert observer.snapshots
+    assert observer.snapshots[0].confirmed_direction == 0
+    assert observer.snapshots[0].features["trend_coverage_seconds"] == 0.0
+    assert engine.telemetry()["counts"]["selected"] == 0
+
+
 def test_rate_limit_and_exactly_once_candidate_dedup() -> None:
     engine = layer(probability=0.9)
     first = prime_sustained_flow(engine)
@@ -209,9 +380,7 @@ def test_candidate_cooldown_prevents_event_spam() -> None:
     assert first is not None and first.selected is not None
     later = engine.on_trade(trade(1_000))
     assert later is not None and later.selected is None
-    assert later.rejection_reasons == (
-        "event_sustained_flow_imbalance_v1:candidate_cooldown",
-    )
+    assert later.rejection_reasons == ("event_sustained_flow_imbalance_v1:candidate_cooldown",)
     assert engine.telemetry()["counts"]["cooldown_blocked"] == 1
 
 
@@ -261,9 +430,10 @@ def test_telemetry_exposes_bounded_latency_percentiles() -> None:
     assert telemetry["research_only"] is True
     assert telemetry["order_route"] == "absent"
     assert telemetry["funnel"]["events"] == 4
-    assert telemetry["rejection_reasons"][
-        "event_sustained_flow_imbalance_v1:probability_below_gate"
-    ] == 1
+    assert (
+        telemetry["rejection_reasons"]["event_sustained_flow_imbalance_v1:probability_below_gate"]
+        == 1
+    )
     market = telemetry["market_states"]["BTCUSD"]
     assert market["price"] == pytest.approx(100.5)
     assert market["best_bid"] == pytest.approx(100.0)
@@ -317,6 +487,43 @@ def test_verified_recorder_bridge_rejects_unverified_tape() -> None:
         bridge.consume({}, integrity_verified=False)
 
 
+def test_verified_bridge_updates_book_but_blocks_stale_source_decisions() -> None:
+    engine = layer()
+    bridge = DeltaVerifiedEventBridge(engine)
+    message = {
+        "type": "ob_updates",
+        "action": "snapshot",
+        "sy": "BTCUSD",
+        "seq": 1,
+        "a": [["101", "1"]],
+        "b": [["100", "10"]],
+    }
+    envelope = {
+        "record_kind": "exchange",
+        "channel": "ob_updates",
+        "symbol": "BTCUSD",
+        "exchange_timestamp_us": int(NOW.timestamp() * 1_000_000),
+        "local_recv_ns": int((NOW + timedelta(seconds=20)).timestamp() * 1e9),
+        "local_monotonic_ns": BASE_NS,
+        # Legacy verified recordings have corrected delay telemetry but no
+        # explicit eligibility flag; the bridge must still fail closed.
+        "corrected_feed_delay_us": 20_000_000,
+        "raw_text": json.dumps(message),
+    }
+
+    assert bridge.consume(envelope, integrity_verified=True) is None
+    telemetry = engine.telemetry(now_ns=BASE_NS)
+    assert telemetry["counts"]["stale_source_events"] == 1
+    assert telemetry["counts"]["evaluations"] == 0
+    market = telemetry["market_states"]["BTCUSD"]
+    assert market["book_healthy"] is True
+    assert market["source_latency"] == {
+        "decision_eligible": False,
+        "classification": "STALE_BACKLOG",
+        "ordering_clock": "local_receive_availability",
+    }
+
+
 def test_absorption_is_a_separate_reversal_confirmation_source() -> None:
     fee = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
     absorption = AbsorptionDetectorConfig(
@@ -357,6 +564,7 @@ def test_absorption_is_a_separate_reversal_confirmation_source() -> None:
             size=2.0,
             side="buy",
             exchange_ts=NOW + timedelta(milliseconds=offset - 20),
+            publish_ts=NOW + timedelta(milliseconds=offset),
             received_at=NOW + timedelta(milliseconds=offset),
             received_monotonic_ns=BASE_NS + offset * 1_000_000,
         )

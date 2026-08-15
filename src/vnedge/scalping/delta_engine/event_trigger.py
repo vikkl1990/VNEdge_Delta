@@ -16,7 +16,7 @@ from __future__ import annotations
 import heapq
 import json
 from collections import Counter, deque
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from time import perf_counter_ns
@@ -25,6 +25,7 @@ from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from vnedge.exchange.delta_event_recorder import classify_corrected_feed_delay
 from vnedge.exchange.delta_public_schema import (
     parse_funding_rate_decimal,
     parse_public_trade,
@@ -63,12 +64,27 @@ class EventTriggerConfig(BaseModel):
     candidate_cooldown_ms: int = Field(default=30_000, ge=0, le=86_400_000)
     confirmation_ms: int = Field(default=400, ge=100, le=5_000)
     max_book_age_ms: int = Field(default=1_000, ge=50, le=30_000)
+    max_trade_book_join_ms: int = Field(default=1_000, ge=10, le=10_000)
+    max_reference_age_ms: int = Field(default=10_000, ge=500, le=300_000)
+    max_funding_age_ms: int = Field(default=32_400_000, ge=60_000, le=86_400_000)
+    max_open_interest_age_ms: int = Field(default=10_000, ge=500, le=300_000)
+    max_htf_age_ms: int = Field(default=120_000, ge=10_000, le=600_000)
+    book_truth_history: int = Field(default=512, ge=16, le=10_000)
     trade_window_ms: int = Field(default=5_000, ge=250, le=60_000)
+    trend_window_ms: int = Field(default=900_000, ge=300_000, le=3_600_000)
+    trend_sample_interval_ms: int = Field(default=1_000, ge=100, le=60_000)
+    trend_max_gap_ms: int = Field(default=30_000, ge=1_000, le=300_000)
     top_levels: int = Field(default=5, ge=1, le=25)
+    book_truth_levels: int = Field(default=25, ge=5, le=100)
     imbalance_threshold: float = Field(default=0.40, gt=0, le=1)
     flow_threshold: float = Field(default=0.60, gt=0, le=1)
     minimum_confirmation_samples: int = Field(default=3, ge=2, le=100)
     telemetry_window: int = Field(default=10_000, ge=100, le=100_000)
+    require_htf_context: bool = False
+    require_reference_prices: bool = False
+    require_trade_book_join: bool = False
+    one_active_observation_per_symbol: bool = False
+    observation_lock_ms: int = Field(default=900_000, ge=1_000, le=3_600_000)
     enabled_symbols: tuple[str, ...] = ("BTCUSD", "ETHUSD")
     absorption: AbsorptionDetectorConfig = AbsorptionDetectorConfig()
     research_only: bool = True
@@ -107,6 +123,8 @@ class L2Event:
     received_at: datetime
     received_monotonic_ns: int
     checksum_healthy: bool = True
+    decision_eligible: bool = True
+    source_delay_classification: str = "UNKNOWN"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "symbol", self.symbol.upper())
@@ -128,12 +146,17 @@ class TradeEvent:
     exchange_ts: datetime | None
     received_at: datetime
     received_monotonic_ns: int
+    publish_ts: datetime | None = None
+    decision_eligible: bool = True
+    source_delay_classification: str = "UNKNOWN"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "symbol", self.symbol.upper())
         object.__setattr__(self, "received_at", _utc(self.received_at))
         if self.exchange_ts is not None:
             object.__setattr__(self, "exchange_ts", _utc(self.exchange_ts))
+        if self.publish_ts is not None:
+            object.__setattr__(self, "publish_ts", _utc(self.publish_ts))
         if self.price <= 0 or self.size <= 0:
             raise ValueError("trade price and size must be positive")
         if self.received_monotonic_ns < 0:
@@ -177,6 +200,26 @@ class FundingOpenInterestEvent:
             object.__setattr__(self, "exchange_ts", _utc(self.exchange_ts))
         if self.open_interest is not None and self.open_interest < 0:
             raise ValueError("open interest cannot be negative")
+        if self.received_monotonic_ns < 0:
+            raise ValueError("monotonic timestamp cannot be negative")
+
+
+@dataclass(frozen=True)
+class ReferencePriceEvent:
+    symbol: str
+    kind: Literal["mark", "spot"]
+    price: float
+    exchange_ts: datetime | None
+    received_at: datetime
+    received_monotonic_ns: int
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "symbol", self.symbol.upper())
+        object.__setattr__(self, "received_at", _utc(self.received_at))
+        if self.exchange_ts is not None:
+            object.__setattr__(self, "exchange_ts", _utc(self.exchange_ts))
+        if self.price <= 0:
+            raise ValueError("reference price must be positive")
         if self.received_monotonic_ns < 0:
             raise ValueError("monotonic timestamp cannot be negative")
 
@@ -274,13 +317,25 @@ class EventMarketSnapshot:
     event_kind: str
     source_exchange_ts: datetime | None
     source_received_at: datetime
-    features: Mapping[str, float] = field(default_factory=dict)
+    mark_price: float | None = None
+    spot_price: float | None = None
+    basis_bps: float | None = None
+    market_truth_ready: bool = False
+    market_truth_blockers: tuple[str, ...] = ()
+    market_truth_required_blockers: tuple[str, ...] = ()
+    features: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "decision_ts", _utc(self.decision_ts))
         object.__setattr__(self, "available_at", _utc(self.available_at))
         object.__setattr__(self, "source_received_at", _utc(self.source_received_at))
         object.__setattr__(self, "features", MappingProxyType(dict(self.features)))
+        object.__setattr__(self, "market_truth_blockers", tuple(self.market_truth_blockers))
+        object.__setattr__(
+            self,
+            "market_truth_required_blockers",
+            tuple(self.market_truth_required_blockers),
+        )
         if self.source_exchange_ts is not None:
             object.__setattr__(self, "source_exchange_ts", _utc(self.source_exchange_ts))
         if self.available_at > self.decision_ts:
@@ -301,6 +356,8 @@ class EventMarketSnapshot:
             "source_received_at": self.source_received_at.isoformat(),
             "absorption": self.absorption.to_dict() if self.absorption else None,
             "features": dict(self.features),
+            "market_truth_blockers": list(self.market_truth_blockers),
+            "market_truth_required_blockers": list(self.market_truth_required_blockers),
         }
 
 
@@ -498,11 +555,23 @@ class EventTriggerDecision:
         }
 
 
+@dataclass(frozen=True)
+class _BookTruthSnapshot:
+    """Causally received book state used to align a published trade."""
+
+    exchange_ts: datetime
+    received_at: datetime
+    sequence: int
+    bids: tuple[BookLevel, ...]
+    asks: tuple[BookLevel, ...]
+
+
 @dataclass
 class _SymbolState:
     bids: _BookSide = field(default_factory=lambda: _BookSide(bid=True))
     asks: _BookSide = field(default_factory=lambda: _BookSide(bid=False))
     trades: deque[tuple[int, float, float]] = field(default_factory=deque)
+    trend_prices: deque[tuple[datetime, float]] = field(default_factory=deque)
     buy_usd: float = 0.0
     sell_usd: float = 0.0
     confirmation_direction: int = 0
@@ -511,20 +580,38 @@ class _SymbolState:
     last_book_sequence: int | None = None
     book_healthy: bool = False
     last_book_monotonic_ns: int | None = None
+    book_truth: deque[_BookTruthSnapshot] = field(default_factory=deque)
+    last_trade_book_join_ok: bool = False
+    last_trade_book_join_lag_ms: float | None = None
+    last_trade_book_join_reason: str = "no_trade_join_yet"
     last_eval_monotonic_ns: int | None = None
     last_mid: float | None = None
     last_trade_price: float | None = None
+    last_trend_sample_at: datetime | None = None
     last_received_at: datetime | None = None
     last_source_exchange_ts: datetime | None = None
+    last_source_decision_eligible: bool = True
+    last_source_delay_classification: str = "UNKNOWN"
     flow_anchor_mid: float | None = None
     funding_rate: float | None = None
     open_interest: float | None = None
     open_interest_delta: float | None = None
+    funding_observed_at: datetime | None = None
+    funding_monotonic_ns: int | None = None
+    open_interest_observed_at: datetime | None = None
+    open_interest_monotonic_ns: int | None = None
+    mark_price: float | None = None
+    mark_observed_at: datetime | None = None
+    mark_monotonic_ns: int | None = None
+    spot_price: float | None = None
+    spot_observed_at: datetime | None = None
+    spot_monotonic_ns: int | None = None
     liquidation_price: float | None = None
     liquidation_side: str | None = None
     htf: HigherTimeframeContext | None = None
     absorption_detector: AbsorptionDetector | None = None
     last_absorption_evaluated_ns: int | None = None
+    observation_active_until_ns: int | None = None
 
 
 class _LatencyWindow:
@@ -582,6 +669,10 @@ class EventDrivenTriggerLayer:
             "cooldown_blocked": 0,
             "not_confirmed": 0,
             "invalid_book": 0,
+            "trade_book_joined": 0,
+            "trade_book_join_rejected": 0,
+            "market_truth_blocked": 0,
+            "observation_blocked": 0,
             "absorption_observations": 0,
             "counterfactual_observations": 0,
             "counterfactual_outcomes": 0,
@@ -590,6 +681,7 @@ class EventDrivenTriggerLayer:
             "indicator_scoring_errors": 0,
             "scanner_no_signal": 0,
             "gate_rejected": 0,
+            "stale_source_events": 0,
         }
         self._rejection_reasons: Counter[str] = Counter()
         self._feed_latency = _LatencyWindow(self.config.telemetry_window)
@@ -619,10 +711,11 @@ class EventDrivenTriggerLayer:
         state = self._state(event.symbol)
         state.last_received_at = event.received_at
         state.last_source_exchange_ts = event.exchange_ts
+        state.last_source_decision_eligible = event.decision_eligible
+        state.last_source_delay_classification = event.source_delay_classification
         self._counts["events"] += 1
         valid_sequence = event.is_snapshot or (
-            state.last_book_sequence is not None
-            and event.sequence == state.last_book_sequence + 1
+            state.last_book_sequence is not None and event.sequence == state.last_book_sequence + 1
         )
         if not event.checksum_healthy or not valid_sequence:
             state.bids.clear()
@@ -653,6 +746,37 @@ class EventDrivenTriggerLayer:
         state.last_book_sequence = event.sequence
         state.book_healthy = True
         state.last_book_monotonic_ns = event.received_monotonic_ns
+        if event.exchange_ts is not None:
+            try:
+                truth_bids = state.bids.top(self.config.book_truth_levels)
+                truth_asks = state.asks.top(self.config.book_truth_levels)
+                if truth_bids and truth_asks and truth_bids[0].price < truth_asks[0].price:
+                    state.book_truth.append(
+                        _BookTruthSnapshot(
+                            exchange_ts=event.exchange_ts,
+                            received_at=event.received_at,
+                            sequence=event.sequence,
+                            bids=truth_bids,
+                            asks=truth_asks,
+                        )
+                    )
+                    while len(state.book_truth) > self.config.book_truth_history:
+                        state.book_truth.popleft()
+            except ValueError:
+                pass
+        if not event.decision_eligible:
+            # Preserve sequence-correct book state, but never turn stale source
+            # data into a present-time decision or sustained confirmation.
+            state.confirmation_direction = 0
+            state.confirmation_started_ns = None
+            state.confirmation_samples = 0
+            if state.absorption_detector is not None:
+                state.absorption_detector.reset()
+            self._counts["stale_source_events"] += 1
+            self._rejection_reasons[
+                f"source_latency:{event.source_delay_classification.lower()}"
+            ] += 1
+            return None
         detector = state.absorption_detector
         if detector is not None:
             try:
@@ -686,8 +810,22 @@ class EventDrivenTriggerLayer:
         state = self._state(event.symbol)
         state.last_received_at = event.received_at
         state.last_source_exchange_ts = event.exchange_ts
-        state.last_trade_price = event.price
+        state.last_source_decision_eligible = event.decision_eligible
+        state.last_source_delay_classification = event.source_delay_classification
         self._counts["events"] += 1
+        if not event.decision_eligible:
+            # The observer may retain the verified tape for later replay, but
+            # stale/backlogged trades cannot alter the live rolling flow state.
+            state.confirmation_direction = 0
+            state.confirmation_started_ns = None
+            state.confirmation_samples = 0
+            self._counts["stale_source_events"] += 1
+            self._rejection_reasons[
+                f"source_latency:{event.source_delay_classification.lower()}"
+            ] += 1
+            return None
+        state.last_trade_price = event.price
+        self._record_trend_price(state, event.received_at, event.price)
         if self.absorption_research is not None:
             outcomes = self.absorption_research.on_trade(
                 event.symbol,
@@ -696,7 +834,9 @@ class EventDrivenTriggerLayer:
                 monotonic_ns=event.received_monotonic_ns,
             )
             self._counts["counterfactual_outcomes"] += len(outcomes)
-        notional = event.price * event.size
+        instrument = self.config.absorption.instrument(event.symbol)
+        contract_value = instrument.contract_value if instrument is not None else 1.0
+        notional = event.price * event.size * contract_value
         signed = notional if event.side == "buy" else -notional
         state.trades.append((event.received_monotonic_ns, signed, event.price))
         if signed > 0:
@@ -705,24 +845,24 @@ class EventDrivenTriggerLayer:
             state.sell_usd += -signed
         self._prune_trades(state, event.received_monotonic_ns)
         detector = state.absorption_detector
-        if detector is not None and state.book_healthy:
-            try:
-                _, _, mid, _, _ = self._book_features(state)
-            except ValueError:
-                mid = 0.0
-            if mid > 0:
-                resting_book = state.asks if event.side == "buy" else state.bids
-                observation = detector.on_trade(
-                    price=event.price,
-                    size=event.size,
-                    notional_usd=notional,
-                    side=event.side,
-                    current_resting_size=resting_book.size_at(event.price),
-                    mid=mid,
-                    now_ns=event.received_monotonic_ns,
-                )
-                if observation is not None:
-                    self._counts["absorption_observations"] += 1
+        matched = False
+        resting_size = 0.0
+        matched_mid = 0.0
+        if state.book_healthy:
+            matched, resting_size, matched_mid = self._trade_book_truth(state, event)
+            self._counts["trade_book_joined" if matched else "trade_book_join_rejected"] += 1
+        if detector is not None and state.book_healthy and matched:
+            observation = detector.on_trade(
+                price=event.price,
+                size=event.size,
+                notional_usd=notional,
+                side=event.side,
+                current_resting_size=resting_size,
+                mid=matched_mid,
+                now_ns=event.received_monotonic_ns,
+            )
+            if observation is not None:
+                self._counts["absorption_observations"] += 1
         self._record_confirmation(state, event.received_monotonic_ns)
         return self._maybe_evaluate(
             event.symbol,
@@ -758,9 +898,7 @@ class EventDrivenTriggerLayer:
             started,
         )
 
-    def on_funding_or_oi(
-        self, event: FundingOpenInterestEvent
-    ) -> EventTriggerDecision | None:
+    def on_funding_or_oi(self, event: FundingOpenInterestEvent) -> EventTriggerDecision | None:
         started = perf_counter_ns()
         state = self._state(event.symbol)
         state.last_received_at = event.received_at
@@ -768,9 +906,13 @@ class EventDrivenTriggerLayer:
         self._counts["events"] += 1
         if event.funding_rate is not None:
             state.funding_rate = event.funding_rate
+            state.funding_observed_at = event.received_at
+            state.funding_monotonic_ns = event.received_monotonic_ns
         if event.open_interest is not None:
             previous = state.open_interest
             state.open_interest = event.open_interest
+            state.open_interest_observed_at = event.received_at
+            state.open_interest_monotonic_ns = event.received_monotonic_ns
             state.open_interest_delta = (
                 event.open_interest - previous if previous is not None else None
             )
@@ -784,6 +926,65 @@ class EventDrivenTriggerLayer:
             started,
         )
 
+    def on_reference_price(self, event: ReferencePriceEvent) -> None:
+        """Update mark/spot truth without turning a reference tick into a trigger."""
+
+        state = self._state(event.symbol)
+        state.last_received_at = event.received_at
+        state.last_source_exchange_ts = event.exchange_ts
+        self._counts["events"] += 1
+        if event.kind == "mark":
+            state.mark_price = event.price
+            state.mark_observed_at = event.received_at
+            state.mark_monotonic_ns = event.received_monotonic_ns
+        else:
+            state.spot_price = event.price
+            state.spot_observed_at = event.received_at
+            state.spot_monotonic_ns = event.received_monotonic_ns
+
+    def _trade_book_truth(
+        self,
+        state: _SymbolState,
+        event: TradeEvent,
+    ) -> tuple[bool, float, float]:
+        """Join a trade to the latest already-received book published before it."""
+
+        published = event.publish_ts
+        if published is None:
+            state.last_trade_book_join_ok = False
+            state.last_trade_book_join_lag_ms = None
+            state.last_trade_book_join_reason = "trade_publish_timestamp_missing"
+            return False, 0.0, 0.0
+        matched = next(
+            (
+                row
+                for row in reversed(state.book_truth)
+                if row.exchange_ts <= published and row.received_at <= event.received_at
+            ),
+            None,
+        )
+        if matched is None:
+            state.last_trade_book_join_ok = False
+            state.last_trade_book_join_lag_ms = None
+            state.last_trade_book_join_reason = "causal_book_snapshot_missing"
+            return False, 0.0, 0.0
+        lag_ms = (published - matched.exchange_ts).total_seconds() * 1_000.0
+        state.last_trade_book_join_lag_ms = lag_ms
+        if lag_ms < 0 or lag_ms > self.config.max_trade_book_join_ms:
+            state.last_trade_book_join_ok = False
+            state.last_trade_book_join_reason = "trade_book_join_stale"
+            return False, 0.0, 0.0
+        side = matched.asks if event.side == "buy" else matched.bids
+        size = next((level.size for level in side if level.price == event.price), 0.0)
+        if size <= 0:
+            state.last_trade_book_join_ok = False
+            state.last_trade_book_join_reason = "trade_price_absent_from_resting_book"
+            return False, 0.0, 0.0
+        mid = (matched.bids[0].price + matched.asks[0].price) / 2.0
+        state.last_trade_book_join_ok = True
+        state.last_trade_book_join_reason = "joined"
+        return True, size, mid
+
     def _prune_trades(self, state: _SymbolState, now_ns: int) -> None:
         cutoff = now_ns - self.config.trade_window_ms * 1_000_000
         while state.trades and state.trades[0][0] < cutoff:
@@ -792,6 +993,61 @@ class EventDrivenTriggerLayer:
                 state.buy_usd -= signed
             else:
                 state.sell_usd -= -signed
+
+    def _record_trend_price(
+        self,
+        state: _SymbolState,
+        received_at: datetime,
+        price: float,
+    ) -> None:
+        previous = state.last_trend_sample_at
+        if previous is not None:
+            gap_ms = (received_at - previous).total_seconds() * 1_000.0
+            if gap_ms < 0 or gap_ms > self.config.trend_max_gap_ms:
+                state.trend_prices.clear()
+        if (
+            previous is None
+            or (received_at - previous).total_seconds() * 1_000.0
+            >= self.config.trend_sample_interval_ms
+        ):
+            state.trend_prices.append((received_at, price))
+            state.last_trend_sample_at = received_at
+        cutoff = received_at.timestamp() - self.config.trend_window_ms / 1_000.0
+        while state.trend_prices and state.trend_prices[0][0].timestamp() < cutoff:
+            state.trend_prices.popleft()
+
+    @staticmethod
+    def _event_trend_features(state: _SymbolState, now: datetime) -> dict[str, float]:
+        rows = tuple(state.trend_prices)
+        if not rows:
+            return {
+                "last_trade_price": state.last_trade_price or 0.0,
+                "trend_coverage_seconds": 0.0,
+                "trend_1m_bps": 0.0,
+                "trend_5m_bps": 0.0,
+                "trend_15m_bps": 0.0,
+            }
+        latest = state.last_trade_price or rows[-1][1]
+        coverage = max(0.0, (now - rows[0][0]).total_seconds())
+
+        def trailing_return(seconds: int) -> float:
+            if coverage < seconds:
+                return 0.0
+            cutoff = now.timestamp() - seconds
+            reference = rows[0][1]
+            for observed_at, price in rows:
+                if observed_at.timestamp() >= cutoff:
+                    reference = price
+                    break
+            return (latest / reference - 1.0) * 10_000.0
+
+        return {
+            "last_trade_price": latest,
+            "trend_coverage_seconds": coverage,
+            "trend_1m_bps": trailing_return(60),
+            "trend_5m_bps": trailing_return(300),
+            "trend_15m_bps": trailing_return(900),
+        }
 
     def _book_features(
         self, state: _SymbolState
@@ -866,7 +1122,9 @@ class EventDrivenTriggerLayer:
         bids, asks, mid, spread, imbalance = self._book_features(state)
         total_flow = state.buy_usd + state.sell_usd
         flow = (state.buy_usd - state.sell_usd) / total_flow if total_flow else 0.0
-        depth = sum(level.price * level.size for level in (*bids, *asks))
+        instrument = self.config.absorption.instrument(symbol)
+        contract_value = instrument.contract_value if instrument is not None else 1.0
+        depth = sum(level.price * level.size * contract_value for level in (*bids, *asks))
         absorption = (
             state.absorption_detector.latest(now_ns)
             if state.absorption_detector is not None
@@ -880,6 +1138,18 @@ class EventDrivenTriggerLayer:
             else None
         )
         htf = state.htf
+        blockers = self._market_truth_blockers(state, now_ns)
+        required_blockers = self._required_market_truth_blockers(blockers)
+        basis_bps = (
+            (state.mark_price / state.spot_price - 1.0) * 10_000.0
+            if state.mark_price is not None and state.spot_price is not None
+            else None
+        )
+        open_interest_notional = (
+            state.open_interest * contract_value * state.mark_price
+            if state.open_interest is not None and state.mark_price is not None
+            else None
+        )
         available_at = max(received_at, htf.available_at if htf else received_at)
         if available_at > received_at:
             raise ValueError("higher-timeframe context is not yet available")
@@ -919,16 +1189,106 @@ class EventDrivenTriggerLayer:
             event_kind=event_kind,
             source_exchange_ts=exchange_ts,
             source_received_at=received_at,
+            mark_price=state.mark_price,
+            spot_price=state.spot_price,
+            basis_bps=basis_bps,
+            market_truth_ready=not required_blockers,
+            market_truth_blockers=blockers,
+            market_truth_required_blockers=required_blockers,
             features={
                 "depth_usd": depth,
+                "contract_value": contract_value,
+                "htf_available": htf is not None,
+                "basis_bps": basis_bps,
+                "funding_available": state.funding_rate is not None,
+                "open_interest_available": state.open_interest is not None,
+                "open_interest_notional_usd": open_interest_notional,
+                "trade_book_join_ok": state.last_trade_book_join_ok,
+                "trade_book_join_lag_ms": state.last_trade_book_join_lag_ms,
+                "trade_book_join_reason": state.last_trade_book_join_reason,
                 "trade_window_ms": float(self.config.trade_window_ms),
                 "book_age_ms": (
                     (now_ns - state.last_book_monotonic_ns) / 1_000_000.0
                     if state.last_book_monotonic_ns is not None
                     else float("inf")
                 ),
+                **self._event_trend_features(state, received_at),
             },
         )
+
+    def _market_truth_blockers(
+        self,
+        state: _SymbolState,
+        now_ns: int,
+    ) -> tuple[str, ...]:
+        blockers: list[str] = []
+        if not state.book_healthy or state.last_book_monotonic_ns is None:
+            blockers.append("book_unhealthy")
+        elif now_ns - state.last_book_monotonic_ns > self.config.max_book_age_ms * 1_000_000:
+            blockers.append("book_stale")
+        if not state.last_trade_book_join_ok:
+            blockers.append(state.last_trade_book_join_reason)
+        if state.htf is None:
+            blockers.append("htf_context_missing")
+        elif (
+            state.last_received_at is not None
+            and (state.last_received_at - state.htf.available_at).total_seconds() * 1_000.0
+            > self.config.max_htf_age_ms
+        ):
+            blockers.append("htf_context_stale")
+        if state.mark_price is None:
+            blockers.append("mark_price_missing")
+        elif now_ns > 0 and (
+            state.mark_monotonic_ns is None
+            or now_ns - state.mark_monotonic_ns > self.config.max_reference_age_ms * 1_000_000
+        ):
+            blockers.append("mark_price_stale")
+        if state.spot_price is None:
+            blockers.append("spot_price_missing")
+        elif now_ns > 0 and (
+            state.spot_monotonic_ns is None
+            or now_ns - state.spot_monotonic_ns > self.config.max_reference_age_ms * 1_000_000
+        ):
+            blockers.append("spot_price_stale")
+        if state.funding_rate is None:
+            blockers.append("funding_missing")
+        elif now_ns > 0 and (
+            state.funding_monotonic_ns is None
+            or now_ns - state.funding_monotonic_ns > self.config.max_funding_age_ms * 1_000_000
+        ):
+            blockers.append("funding_stale")
+        if state.open_interest is None:
+            blockers.append("open_interest_missing")
+        elif now_ns > 0 and (
+            state.open_interest_monotonic_ns is None
+            or now_ns - state.open_interest_monotonic_ns
+            > self.config.max_open_interest_age_ms * 1_000_000
+        ):
+            blockers.append("open_interest_stale")
+        return tuple(dict.fromkeys(blockers))
+
+    def _required_market_truth_blockers(
+        self,
+        truth_blockers: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        required: set[str] = set()
+        if self.config.require_htf_context:
+            required.update(
+                reason for reason in truth_blockers if reason.startswith("htf_context_")
+            )
+        if self.config.require_reference_prices:
+            required.update(
+                reason
+                for reason in truth_blockers
+                if reason.startswith(("mark_price_", "spot_price_"))
+            )
+        if self.config.require_trade_book_join:
+            required.update(
+                reason
+                for reason in truth_blockers
+                if reason.startswith("trade_") or reason == "causal_book_snapshot_missing"
+            )
+        return tuple(reason for reason in truth_blockers if reason in required)
 
     def _maybe_evaluate(
         self,
@@ -941,14 +1301,12 @@ class EventDrivenTriggerLayer:
     ) -> EventTriggerDecision | None:
         state = self._state(symbol)
         if state.last_eval_monotonic_ns is not None and (
-            now_ns - state.last_eval_monotonic_ns
-            < self.config.min_eval_interval_ms * 1_000_000
+            now_ns - state.last_eval_monotonic_ns < self.config.min_eval_interval_ms * 1_000_000
         ):
             self._counts["rate_limited"] += 1
             return None
         if state.last_book_monotonic_ns is None or (
-            now_ns - state.last_book_monotonic_ns
-            > self.config.max_book_age_ms * 1_000_000
+            now_ns - state.last_book_monotonic_ns > self.config.max_book_age_ms * 1_000_000
         ):
             self._counts["invalid_book"] += 1
             return None
@@ -976,8 +1334,20 @@ class EventDrivenTriggerLayer:
         else:
             direction, samples, confirmation_age_ms = self._sustained_direction(state, now_ns)
             confirmation_source = "flow_imbalance"
-        if direction == 0:
+        observes_unconfirmed = any(
+            bool(getattr(scanner, "observes_unconfirmed_events", False))
+            for scanner in self.scanners
+        )
+        if direction == 0 and not observes_unconfirmed:
             self._counts["not_confirmed"] += 1
+            return None
+        truth_blockers = self._market_truth_blockers(state, now_ns)
+        active_truth_blockers = self._required_market_truth_blockers(truth_blockers)
+        if active_truth_blockers:
+            self._counts["market_truth_blocked"] += 1
+            self._rejection_reasons.update(
+                f"market_truth:{reason}" for reason in active_truth_blockers
+            )
             return None
         state.last_eval_monotonic_ns = now_ns
         trace: list[PipelineStage] = []
@@ -998,7 +1368,9 @@ class EventDrivenTriggerLayer:
         except ValueError as exc:
             self._counts["context_errors"] += 1
             self._rejection_reasons[f"context_error:{type(exc).__name__}"] += 1
-            trace.append(PipelineStage("event_context", "error", self._elapsed(freeze_started), str(exc)))
+            trace.append(
+                PipelineStage("event_context", "error", self._elapsed(freeze_started), str(exc))
+            )
             return self._journal(
                 EventTriggerDecision(
                     symbol.upper(),
@@ -1085,6 +1457,7 @@ class EventDrivenTriggerLayer:
         )
         selected = max(accepted, key=lambda row: row.rank_score) if accepted else None
         duplicate = False
+        selected_cooldown_key: tuple[str, str, str] | None = None
         if selected is not None:
             duplicate = selected.dedup_key in self._seen
             if duplicate:
@@ -1104,8 +1477,27 @@ class EventDrivenTriggerLayer:
                     self._counts["cooldown_blocked"] += 1
                     selected = None
                 else:
-                    self._seen.add(selected.dedup_key)
-                    self._last_selected_ns[cooldown_key] = now_ns
+                    selected_cooldown_key = cooldown_key
+        # A rejected raw candidate is evidence, not an active observation.
+        # Locking before shared economic gates caused permanently unqualified
+        # setups to suppress later independent candidates.  Ownership of the
+        # one-active policy starts only after a candidate has passed every
+        # shared gate and survived deduplication/cooldown.
+        if selected is not None and self.config.one_active_observation_per_symbol:
+            active_until = state.observation_active_until_ns
+            if active_until is not None and now_ns < active_until:
+                reasons.append("one_active_observation_per_symbol")
+                self._rejection_reasons["one_active_observation_per_symbol"] += 1
+                self._counts["observation_blocked"] += 1
+                selected = None
+            else:
+                state.observation_active_until_ns = (
+                    now_ns + self.config.observation_lock_ms * 1_000_000
+                )
+        if selected is not None:
+            self._seen.add(selected.dedup_key)
+            if selected_cooldown_key is not None:
+                self._last_selected_ns[selected_cooldown_key] = now_ns
         self._counts["evaluations"] += 1
         self._counts["raw_candidates"] += len(candidates)
         decision = EventTriggerDecision(
@@ -1160,19 +1552,24 @@ class EventDrivenTriggerLayer:
             "rejection_reasons": dict(self._rejection_reasons.most_common()),
             "funnel": {
                 "events": self._counts["events"],
+                "trade_book_joined": self._counts["trade_book_joined"],
+                "trade_book_join_rejected": self._counts["trade_book_join_rejected"],
+                "market_truth_blocked": self._counts["market_truth_blocked"],
+                "observation_blocked": self._counts["observation_blocked"],
                 "absorption_observations": self._counts["absorption_observations"],
-                "counterfactual_observations": self._counts[
-                    "counterfactual_observations"
-                ],
+                "counterfactual_observations": self._counts["counterfactual_observations"],
                 "evaluations": self._counts["evaluations"],
                 "raw_candidates": self._counts["raw_candidates"],
                 "gate_rejected": self._counts["gate_rejected"],
                 "selected": self._counts["selected"],
-                "counterfactual_outcomes": self._counts[
-                    "counterfactual_outcomes"
-                ],
+                "counterfactual_outcomes": self._counts["counterfactual_outcomes"],
             },
             "market_states": self.market_states(now_ns=now_ns),
+            "scanner_telemetry": {
+                scanner.scanner_id: scanner.telemetry()
+                for scanner in self.scanners
+                if callable(getattr(scanner, "telemetry", None))
+            },
             "counterfactual_absorption": (
                 self.absorption_research.telemetry()
                 if self.absorption_research is not None
@@ -1210,12 +1607,22 @@ class EventDrivenTriggerLayer:
             except ValueError:
                 bids, asks, mid, spread, imbalance = (), (), None, None, None
             total_flow = state.buy_usd + state.sell_usd
-            flow = (
-                (state.buy_usd - state.sell_usd) / total_flow
-                if total_flow
-                else 0.0
-            )
+            flow = (state.buy_usd - state.sell_usd) / total_flow if total_flow else 0.0
             htf = state.htf
+            truth_blockers = self._market_truth_blockers(state, now_ns or 0)
+            required_truth_blockers = self._required_market_truth_blockers(truth_blockers)
+            basis_bps = (
+                (state.mark_price / state.spot_price - 1.0) * 10_000.0
+                if state.mark_price is not None and state.spot_price is not None
+                else None
+            )
+            instrument = self.config.absorption.instrument(symbol)
+            contract_value = instrument.contract_value if instrument is not None else 1.0
+            oi_notional = (
+                state.open_interest * contract_value * state.mark_price
+                if state.open_interest is not None and state.mark_price is not None
+                else None
+            )
             rows[symbol] = {
                 "status": "healthy" if state.book_healthy and mid is not None else "unavailable",
                 "available_at": (
@@ -1226,6 +1633,11 @@ class EventDrivenTriggerLayer:
                     if state.last_source_exchange_ts
                     else None
                 ),
+                "source_latency": {
+                    "decision_eligible": state.last_source_decision_eligible,
+                    "classification": state.last_source_delay_classification,
+                    "ordering_clock": "local_receive_availability",
+                },
                 "price": state.last_trade_price or mid,
                 "mid": mid,
                 "best_bid": bids[0].price if bids else None,
@@ -1238,6 +1650,22 @@ class EventDrivenTriggerLayer:
                 "book_healthy": state.book_healthy,
                 "active_confirmation": state.confirmation_direction,
                 "confirmation_samples": state.confirmation_samples,
+                "market_truth": {
+                    "ready": not required_truth_blockers,
+                    "complete": not truth_blockers,
+                    "blockers": list(truth_blockers),
+                    "required_blockers": list(required_truth_blockers),
+                    "trade_book_join_ok": state.last_trade_book_join_ok,
+                    "trade_book_join_lag_ms": state.last_trade_book_join_lag_ms,
+                    "trade_book_join_reason": state.last_trade_book_join_reason,
+                    "mark_price": state.mark_price,
+                    "spot_price": state.spot_price,
+                    "basis_bps": basis_bps,
+                    "funding_rate": state.funding_rate,
+                    "open_interest": state.open_interest,
+                    "open_interest_delta": state.open_interest_delta,
+                    "open_interest_notional_usd": oi_notional,
+                },
                 "htf": {
                     "available": htf is not None,
                     "available_at": htf.available_at.isoformat() if htf else None,
@@ -1282,8 +1710,14 @@ class DeltaVerifiedEventBridge:
     scanner input.
     """
 
-    def __init__(self, trigger: EventDrivenTriggerLayer) -> None:
+    def __init__(
+        self,
+        trigger: EventDrivenTriggerLayer,
+        *,
+        trade_observer: Callable[[TradeEvent], None] | None = None,
+    ) -> None:
         self.trigger = trigger
+        self.trade_observer = trade_observer
 
     def consume(
         self,
@@ -1318,6 +1752,23 @@ class DeltaVerifiedEventBridge:
             if exchange_raw is not None
             else None
         )
+        corrected_delay = envelope.get("corrected_feed_delay_us")
+        delay_classification = str(
+            envelope.get("feed_delay_classification")
+            or (
+                classify_corrected_feed_delay(int(corrected_delay))
+                if isinstance(corrected_delay, int)
+                else "UNKNOWN"
+            )
+        ).upper()
+        explicit_eligibility = envelope.get("decision_eligible")
+        decision_eligible = (
+            bool(explicit_eligibility)
+            if isinstance(explicit_eligibility, bool)
+            else delay_classification == "ON_TIME"
+            if isinstance(corrected_delay, int)
+            else True  # compatibility with recordings made before latency telemetry
+        )
         if channel == "ob_updates":
             return self.trigger.on_l2(
                 L2Event(
@@ -1330,6 +1781,8 @@ class DeltaVerifiedEventBridge:
                     received_at=received_at,
                     received_monotonic_ns=monotonic_ns,
                     checksum_healthy=True,
+                    decision_eligible=decision_eligible,
+                    source_delay_classification=delay_classification,
                 )
             )
         if channel == "trades":
@@ -1339,17 +1792,42 @@ class DeltaVerifiedEventBridge:
                 if trade.trade_timestamp_us is not None
                 else exchange_ts
             )
-            return self.trigger.on_trade(
-                TradeEvent(
-                    symbol=symbol,
-                    price=trade.price,
-                    size=trade.size,
-                    side=trade.aggressor_side,
-                    exchange_ts=trade_exchange_ts,
-                    received_at=received_at,
-                    received_monotonic_ns=monotonic_ns,
-                )
+            event = TradeEvent(
+                symbol=symbol,
+                price=trade.price,
+                size=trade.size,
+                side=trade.aggressor_side,
+                exchange_ts=trade_exchange_ts,
+                received_at=received_at,
+                received_monotonic_ns=monotonic_ns,
+                publish_ts=(
+                    datetime.fromtimestamp(
+                        int(envelope["publish_timestamp_us"]) / 1_000_000,
+                        tz=UTC,
+                    )
+                    if envelope.get("publish_timestamp_us") is not None
+                    else exchange_ts
+                ),
+                decision_eligible=decision_eligible,
+                source_delay_classification=delay_classification,
             )
+            if self.trade_observer is not None:
+                self.trade_observer(event)
+            return self.trigger.on_trade(event)
+        if channel in {"mark_price", "spot_price"}:
+            price = self._optional_number(message, "p", "price", "sp")
+            if price is not None:
+                self.trigger.on_reference_price(
+                    ReferencePriceEvent(
+                        symbol=symbol,
+                        kind="mark" if channel == "mark_price" else "spot",
+                        price=price,
+                        exchange_ts=exchange_ts,
+                        received_at=received_at,
+                        received_monotonic_ns=monotonic_ns,
+                    )
+                )
+            return None
         if channel == "funding_rate":
             return self.trigger.on_funding_or_oi(
                 FundingOpenInterestEvent(
@@ -1362,6 +1840,25 @@ class DeltaVerifiedEventBridge:
                 )
             )
         if channel == "ticker":
+            # Delta ticker carries both the mark (d[].m) and spot index (sp).
+            spot = self._optional_number(message, "sp")
+            rows = message.get("d")
+            ticker_row = (
+                rows[0] if isinstance(rows, list) and rows and isinstance(rows[0], dict) else {}
+            )
+            mark = self._optional_number(ticker_row, "m")
+            for kind, price in (("mark", mark), ("spot", spot)):
+                if price is not None:
+                    self.trigger.on_reference_price(
+                        ReferencePriceEvent(
+                            symbol=symbol,
+                            kind=kind,
+                            price=price,
+                            exchange_ts=exchange_ts,
+                            received_at=received_at,
+                            received_monotonic_ns=monotonic_ns,
+                        )
+                    )
             open_interest = parse_ticker_open_interest(message, symbol)
             if open_interest is None:
                 return None
@@ -1375,6 +1872,18 @@ class DeltaVerifiedEventBridge:
                     received_monotonic_ns=monotonic_ns,
                 )
             )
+        return None
+
+    @staticmethod
+    def _optional_number(message: Mapping[str, object], *keys: str) -> float | None:
+        for key in keys:
+            value = message.get(key)
+            try:
+                number = float(value) if value is not None else None
+            except (TypeError, ValueError):
+                continue
+            if number is not None and number > 0:
+                return number
         return None
 
     @staticmethod

@@ -54,6 +54,7 @@ services:
       # exposes it only on the host's loopback — SSH-tunnel to reach it.
       DASHBOARD_HOST: 0.0.0.0
       DASHBOARD_TOKEN: ${DASHBOARD_TOKEN:?set DASHBOARD_TOKEN in .env}
+      DASHBOARD_ALLOW_QUERY_TOKEN: "0"
       # Optional per-user tokens: "name:token:role[:expiry_iso];..."
       # (docs/DASHBOARD_AUTH.md). DASHBOARD_TOKEN keeps working unchanged.
       DASHBOARD_USERS: ${DASHBOARD_USERS:-}
@@ -148,6 +149,92 @@ services:
     logging:
       driver: json-file
       options: { max-size: "20m", max-file: "5" }
+
+  # The only real-order service. It is absent from normal/research startup and
+  # must be named explicitly with COMPOSE_PROFILES=live. Even then it refuses
+  # to start unless the signed stage proof, trusted keyring, Delta private
+  # stream, REST truth, deadman, brackets, risk gateway and three live gates
+  # all pass. Secrets are mounted as files, never placed in compose env text.
+  delta-live-small:
+    profiles: ["live"]
+    build:
+      context: .
+      target: production
+      args:
+        VNEDGE_BUILD_SHA: "${VNEDGE_BUILD_SHA:?set VNEDGE_BUILD_SHA to the deployed commit}"
+    restart: "no"
+    command: ["python", "-m", "vnedge.runtime.live_trader_main",
+              "--exchange", "delta_india",
+              "--symbol", "${VNEDGE_LIVE_SYMBOL:-ETH/USD:USD}",
+              "--timeframe", "${VNEDGE_LIVE_TIMEFRAME:-1h}",
+              "--strategy", "${VNEDGE_LIVE_STRATEGY:?set an authorized registered strategy}",
+              "--runtime-config", "/app/configs/production_live.yaml"]
+    environment:
+      VNEDGE_TRADING_MODE: live_small
+      VNEDGE_LIVE_TRADING_ENABLED: "${VNEDGE_LIVE_TRADING_ENABLED:-false}"
+      VNEDGE_CONFIRM_LIVE_TRADING: "${VNEDGE_CONFIRM_LIVE_TRADING:-}"
+      VNEDGE_EXEC_API_KEY_FILE: /run/secrets/delta_api_key
+      VNEDGE_EXEC_API_SECRET_FILE: /run/secrets/delta_api_secret
+      VNEDGE_DELTA_ACCOUNT_CURRENCY: "${VNEDGE_DELTA_ACCOUNT_CURRENCY:?set the exact Delta settlement wallet currency}"
+      VNEDGE_STAGE_AUTHORIZATION: /run/governance/stage_authorization.json
+      VNEDGE_GOVERNANCE_KEYRING: /run/governance/keyring.json
+      VNEDGE_GOVERNANCE_NONCE_DB: /app/data/governance_nonces.sqlite3
+      VNEDGE_BUILD_SHA: "${VNEDGE_BUILD_SHA:?set VNEDGE_BUILD_SHA to the deployed commit}"
+      DECISION_JOURNAL: /app/logs/live/delta_live_small.journal.jsonl
+      KILL_FILE: /app/data/LIVE_KILL
+    secrets:
+      - delta_api_key
+      - delta_api_secret
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./deploy/governance:/run/governance:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "10" }
+
+  # Signed, Delta-only live-data paper route. This profile is deliberately
+  # absent from normal/research startup and has no private exchange credentials
+  # or real-order adapter. The runner refuses an unsigned, replayed, expired,
+  # wrong-venue, or non-canonical-cost manifest before opening its public feed.
+  delta-governed-paper:
+    profiles: ["paper"]
+    build:
+      context: .
+      target: production
+      args:
+        VNEDGE_BUILD_SHA: "${VNEDGE_BUILD_SHA:?set VNEDGE_BUILD_SHA to the deployed commit}"
+    restart: "no"
+    command: ["python", "-m", "vnedge.runtime.paper_trial",
+              "/run/governance/paper_manifest.yaml",
+              "--hours", "${VNEDGE_PAPER_HOURS:-24}"]
+    environment:
+      VNEDGE_GOVERNANCE_KEYRING: /run/governance/keyring.json
+      VNEDGE_GOVERNANCE_NONCE_DB: /app/data/governance_nonces.sqlite3
+      VNEDGE_PAPER_JOURNAL_DIR: /app/logs/paper_trials
+      VNEDGE_PAPER_REPORTS_DIR: /app/logs/paper_trials
+      VNEDGE_BUILD_SHA: "${VNEDGE_BUILD_SHA:?set VNEDGE_BUILD_SHA to the deployed commit}"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./deploy/governance:/run/governance:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1g
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "10" }
 
   # Agent Gateway research worker. It consumes queued /api/agent/v1/backtests
   # jobs and writes terminal research-only evidence. No exchange credentials,
@@ -1741,3 +1828,9 @@ services:
 
 volumes:
   caddy_data:
+
+secrets:
+  delta_api_key:
+    file: ${VNEDGE_DELTA_API_KEY_FILE:-./secrets/delta_api_key}
+  delta_api_secret:
+    file: ${VNEDGE_DELTA_API_SECRET_FILE:-./secrets/delta_api_secret}

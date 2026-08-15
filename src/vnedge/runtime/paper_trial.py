@@ -20,8 +20,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -36,6 +38,14 @@ from vnedge.config.risk_config import RiskConfig
 from vnedge.execution.fill_ledger import FillLedger
 from vnedge.execution.journal import DecisionJournal
 from vnedge.execution.order_manager import OrderManager
+from vnedge.governance.promotion_policy import DEFAULT_PROMOTION_POLICY
+from vnedge.governance.proofs import sha256_json, sha256_text
+from vnedge.governance.signed_envelope import (
+    NonceReplayStore,
+    SignedPaperEligibilityEnvelope,
+    load_governance_keyring,
+    load_signed_paper_envelope,
+)
 from vnedge.paper.account_store import PaperAccountStore
 from vnedge.paper.fill_model import FillModel
 from vnedge.paper.paper_broker import PaperBroker
@@ -44,55 +54,145 @@ from vnedge.risk.kill_switch import KillSwitch
 from vnedge.risk.risk_manager import PreTradeRiskGateway
 from vnedge.runtime.live_paper import LivePaperSession
 from vnedge.runtime.runner_config import RunnerConfig, RunnerMode
+from vnedge.research.strategy_evidence_registry import (
+    DEFAULT_REGISTRY,
+    build_registry_snapshot,
+    route_cost_contract,
+    strategy_authority_blockers,
+)
 from vnedge.strategy.funding_mean_reversion import FundingMeanReversion
 
 logger = logging.getLogger(__name__)
-
-APPROVED_STRATEGIES = {"funding_mean_reversion_v1"}
-
 
 @dataclass(frozen=True)
 class TrialManifest:
     trial_id: str
     strategy: str
+    exchange: str
     symbol: str
     timeframe: str
     mode: str
-    approved_by: str
     strategy_params: dict
+    cost_model: dict
+    cost_contract_id: str
+    strategy_registry_path: str
     starting_equity: float
     daily_loss_limit_usd: float
     max_daily_loss_pct: float
     live_orders_enabled: bool
     promotion_source_commit: str
+    eligibility_proof_path: str
+    eligibility_envelope: SignedPaperEligibilityEnvelope
 
     @classmethod
-    def load(cls, path: Path) -> "TrialManifest":
+    def load(
+        cls,
+        path: Path,
+        *,
+        keyring_path: Path | None = None,
+    ) -> TrialManifest:
         raw = yaml.safe_load(path.read_text())
+        proof_locator = str(raw.get("eligibility_proof_path") or "").strip()
+        if not proof_locator:
+            raise ValueError(
+                "paper trial requires eligibility_proof_path; string approvals are not authority"
+            )
+        proof_path = Path(proof_locator)
+        if not proof_path.is_absolute():
+            proof_path = path.parent / proof_path
+        envelope = load_signed_paper_envelope(proof_path)
+        local_keyring = path.parent / "governance_keyring.json"
+        trust_path = keyring_path or Path(
+            os.environ.get(
+                "VNEDGE_GOVERNANCE_KEYRING",
+                str(local_keyring if local_keyring.is_file() else "config/governance_keyring.json"),
+            )
+        )
+        keyring = load_governance_keyring(trust_path)
+        registry_locator = str(raw.get("strategy_registry_path") or DEFAULT_REGISTRY)
+        registry_path = Path(registry_locator)
+        if not registry_path.is_absolute():
+            registry_path = path.parent / registry_path
+        registry = build_registry_snapshot(registry_path)
+        cost_contract_id = str(raw.get("cost_contract") or "").strip()
+        if not cost_contract_id:
+            raise ValueError("paper manifest requires exactly one cost_contract ID")
+        if "cost_model" in raw:
+            raise ValueError(
+                "paper manifest must not embed cost_model; resolve cost_contract from canonical registry"
+            )
+        contract = route_cost_contract(cost_contract_id, registry_path=registry_path)
+        cost_model = contract.paper_cost_model()
         manifest = cls(
             trial_id=raw["trial_id"],
             strategy=raw["strategy"],
+            exchange=str(raw.get("exchange") or "").strip().lower(),
             symbol=raw["symbol"],
             timeframe=raw["timeframe"],
             mode=raw["mode"],
-            approved_by=raw["approved_by"],
             strategy_params=raw.get("strategy_params", {}),
+            cost_model=cost_model,
+            cost_contract_id=cost_contract_id,
+            strategy_registry_path=str(registry_path),
             starting_equity=float(raw["starting_equity"]),
             daily_loss_limit_usd=float(raw["daily_loss_limit_usd"]),
             max_daily_loss_pct=float(raw.get("max_daily_loss_pct", 2.0)),
             live_orders_enabled=bool(raw["live_orders_enabled"]),
             promotion_source_commit=str(raw["promotion_source_commit"]),
+            eligibility_proof_path=str(proof_path),
+            eligibility_envelope=envelope,
         )
         if manifest.live_orders_enabled:
             raise ValueError("manifest enables live orders — not a paper trial, refusing")
+        if manifest.exchange not in {"delta_india", "binanceusdm", "bybit"}:
+            raise ValueError("paper manifest requires an explicit supported exchange")
         if manifest.mode != "live_data_paper":
             raise ValueError(f"unsupported trial mode '{manifest.mode}'")
-        if manifest.strategy not in APPROVED_STRATEGIES:
-            raise ValueError(
-                f"strategy '{manifest.strategy}' has no promotion-gate approval on record"
-            )
-        if manifest.approved_by != "human":
-            raise ValueError("paper trials require human approval on the manifest")
+        failures = envelope.verify(
+            keyring=keyring,
+            policy=DEFAULT_PROMOTION_POLICY,
+            strategy_id=manifest.strategy,
+            symbol=manifest.symbol,
+        )
+        artifact_map = {
+            artifact.name: artifact.sha256 for artifact in envelope.proof.artifacts
+        }
+        if artifact_map.get("source_commit") != sha256_text(
+            manifest.promotion_source_commit
+        ):
+            failures += ("paper manifest source commit is not bound to eligibility proof",)
+        if artifact_map.get("strategy_config") != sha256_json(
+            manifest.strategy_params
+        ):
+            failures += ("paper manifest strategy parameters are not bound to eligibility proof",)
+        if artifact_map.get("cost_model") != sha256_json(manifest.cost_model):
+            failures += ("paper manifest cost model is not bound to eligibility proof",)
+        if artifact_map.get("cost_contract") != sha256_text(manifest.cost_contract_id):
+            failures += ("paper manifest cost contract is not bound to eligibility proof",)
+        if artifact_map.get("strategy_registry") != hashlib.sha256(
+            registry_path.read_bytes()
+        ).hexdigest():
+            failures += ("paper manifest canonical registry is not bound to eligibility proof",)
+        strategy_entry = registry.get("strategies", {}).get(manifest.strategy)
+        if not isinstance(strategy_entry, dict):
+            failures += ("paper strategy is absent from canonical registry",)
+        else:
+            if strategy_entry.get("cost_contract") != manifest.cost_contract_id:
+                failures += ("paper cost contract differs from canonical strategy registry",)
+            evidence = strategy_entry.get("evidence") or {}
+            if artifact_map.get("strategy_evidence") != str(
+                evidence.get("actual_sha256") or ""
+            ):
+                failures += ("paper proof is not bound to canonical strategy evidence",)
+        failures += strategy_authority_blockers(
+            manifest.strategy,
+            purpose="paper",
+            registry_path=registry_path,
+        )
+        if artifact_map.get("exchange") != sha256_text(manifest.exchange):
+            failures += ("paper manifest exchange is not bound to eligibility proof",)
+        if failures:
+            raise ValueError("paper eligibility verification failed: " + "; ".join(failures))
         return manifest
 
 
@@ -173,7 +273,14 @@ def build_trial_session(
         starting_equity_usd=manifest.starting_equity, risk=risk,
     )
     strategy = LiveFundingMR(seed_funding, feed, **manifest.strategy_params)
-    exchange = SimulatedExchange(FillModel(), config.starting_equity_usd)
+    exchange = SimulatedExchange(
+        FillModel(
+            slippage_bps=float(manifest.cost_model["slippage_bps_per_leg"]),
+            taker_fee_bps=float(manifest.cost_model["taker_fee_bps"]),
+            maker_fee_bps=float(manifest.cost_model["maker_fee_bps"]),
+        ),
+        config.starting_equity_usd,
+    )
     journal = DecisionJournal(journal_dir / f"{manifest.trial_id}.journal.jsonl")
     kill = KillSwitch(kill_file=journal_dir / f"{manifest.trial_id}.KILL")
     gateway = PreTradeRiskGateway(config.risk, kill)
@@ -225,6 +332,7 @@ def build_trial_session(
         session.restore_plan(state.get("plan"))
     journal.append("trial_session_start", {
         "trial_id": manifest.trial_id, "resumed": resumed,
+        "cost_contract": manifest.cost_contract_id,
         "balance_usd": exchange.balance_usd,
         "open_positions": len(exchange.get_positions()),
     })
@@ -246,6 +354,9 @@ def append_trial_report(manifest: TrialManifest, report, reports_path: Path) -> 
         "ts": datetime.now(UTC).isoformat(),
         "trial_id": manifest.trial_id,
         "manifest_strategy": manifest.strategy,
+        "exchange": manifest.exchange,
+        "cost_contract": manifest.cost_contract_id,
+        "cost_model": manifest.cost_model,
         "promotion_source_commit": manifest.promotion_source_commit,
         "run_commit": _current_commit(),
         "report": report.to_dict(),
@@ -260,7 +371,7 @@ async def _seed_via_rest(manifest: TrialManifest, warmup_hours: int = 450):
     from vnedge.data.schemas import normalize_candles, normalize_funding
 
     until = int(time.time() * 1000)
-    async with CcxtPublicClient("binanceusdm") as rest:
+    async with CcxtPublicClient(manifest.exchange) as rest:
         raw_c = await rest.fetch_candles(
             manifest.symbol, manifest.timeframe, until - warmup_hours * 3_600_000, until
         )
@@ -272,19 +383,27 @@ async def _seed_via_rest(manifest: TrialManifest, warmup_hours: int = 450):
 
 async def run_trial(manifest_path: Path, hours: float, dashboard: bool) -> int:
     manifest = TrialManifest.load(manifest_path)
+    journal_dir = Path(os.environ.get("VNEDGE_PAPER_JOURNAL_DIR", "logs/paper_trials"))
+    nonce_store = NonceReplayStore(
+        Path(os.environ.get("VNEDGE_GOVERNANCE_NONCE_DB", "data/governance_nonces.sqlite3"))
+    )
+    if not nonce_store.consume(
+        nonce=manifest.eligibility_envelope.nonce,
+        proof_hash=manifest.eligibility_envelope.proof.proof_hash,
+        purpose=f"paper_trial:{manifest.trial_id}",
+    ):
+        raise ValueError("paper eligibility nonce was already consumed; replay refused")
     logger.info("trial %s: seeding warmup history via REST", manifest.trial_id)
     history, seed_funding = await _seed_via_rest(manifest)
 
     from vnedge.exchange.live_feed import LiveMarketFeed
 
     feed = LiveMarketFeed(
-        "binanceusdm", symbol=manifest.symbol, timeframe=manifest.timeframe
+        manifest.exchange, symbol=manifest.symbol, timeframe=manifest.timeframe
     )
     provider = None
     server_task = None
     if dashboard:
-        import os
-
         import uvicorn
 
         from vnedge.dashboard.app import SnapshotProvider, create_app
@@ -294,14 +413,14 @@ async def run_trial(manifest_path: Path, hours: float, dashboard: bool) -> int:
         app = create_app(
             # DASHBOARD_USERS (per-user tokens) + legacy DASHBOARD_TOKEN
             provider, token_store=TokenStore.from_env(),
-            history_path=Path("logs/paper_trials") / f"{manifest.trial_id}.equity.jsonl",
+            history_path=journal_dir / f"{manifest.trial_id}.equity.jsonl",
             research_path=Path("research/live_research/latest.json"),
             alpha_council_path=Path("research/live_research/alpha_council_latest.json"),
             alpha_workbench_path=Path("research/live_research/alpha_workbench_latest.json"),
             vibe_intelligence_path=Path("research/live_research/vibe_intelligence_latest.json"),
             realtime_scanner_path=Path("research/live_research/realtime_scanner_latest.json"),
             alerts_path=Path("logs/alerts.jsonl"),
-            journal_dir=Path("logs/paper_trials"),
+            journal_dir=journal_dir,
         )
         server = uvicorn.Server(
             uvicorn.Config(
@@ -315,7 +434,6 @@ async def run_trial(manifest_path: Path, hours: float, dashboard: bool) -> int:
         )
         server_task = asyncio.create_task(server.serve())
 
-    journal_dir = Path("logs/paper_trials")
     session = build_trial_session(
         manifest, feed, history, seed_funding,
         journal_dir=journal_dir, snapshot_provider=provider,
@@ -328,7 +446,10 @@ async def run_trial(manifest_path: Path, hours: float, dashboard: bool) -> int:
         if server_task is not None:
             server_task.cancel()
 
-    reports_path = manifest_path.parent / f"{manifest.trial_id}.reports.jsonl"
+    reports_dir = Path(
+        os.environ.get("VNEDGE_PAPER_REPORTS_DIR", str(manifest_path.parent))
+    )
+    reports_path = reports_dir / f"{manifest.trial_id}.reports.jsonl"
     append_trial_report(manifest, report, reports_path)
     print(report.summary)
     print(f"trial report appended to {reports_path}")

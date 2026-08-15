@@ -76,16 +76,41 @@ def test_paper_trial_lanes_toggle_off():
     assert evidence_paper_trial_lanes({"MULTI_LANE_EVIDENCE_PAPER_TRIAL": "0"}) == []
 
 
-def test_paper_trial_lanes_in_desired_specs():
-    # ml_pro paper trials are pruned by default (2026-08-03 hard-cut); prune-off
-    # verifies the paper-trial generator still wires them into the base set.
-    specs = desired_lane_specs({"MULTI_LANE_PRUNE_DEAD": "0"})
+def test_canonical_registry_blocks_legacy_paper_trial_lanes():
+    # Legacy preregistrations are traceable registry entries, but no PAPER lane
+    # can run while canonical paper authority remains globally false.
+    specs = desired_lane_specs({"MULTI_LANE_PRUNE_DEAD": "1"})
     paper = {
         (s.strategy_id, s.timeframe)
         for s in specs
         if s.mode is RunnerMode.PAPER and s.strategy_id == "vnedge_algo_ml_pro_v1"
     }
-    assert ("vnedge_algo_ml_pro_v1", "4h") in paper
+    assert paper == set()
+    shadow_pruned = [
+        s
+        for s in specs
+        if s.mode is RunnerMode.SHADOW and s.strategy_id == "vnedge_algo_ml_pro_v1"
+    ]
+    assert shadow_pruned == []
+
+
+def test_pruning_reassigns_primary_to_a_surviving_lane():
+    specs = desired_lane_specs(
+        {
+            "MULTI_LANE_EXCHANGES": "delta_india",
+            "MULTI_LANE_MODES": "paper,shadow",
+            "MULTI_LANE_PRUNE_DEAD": "1",
+            "MULTI_LANE_PAPER_OBSERVE_ALL": "0",
+            "MULTI_LANE_DELTA_PAPER_OBSERVE": "0",
+            "MULTI_LANE_CRYPTO_TREND_DOGE": "0",
+            "MULTI_LANE_CRYPTO_TREND_DOGE_PAPER": "0",
+            "MULTI_LANE_EVIDENCE_ALIGNED": "0",
+            "MULTI_LANE_EVIDENCE_PAPER_TRIAL": "1",
+            "MULTI_LANE_VELOCITY": "0",
+        }
+    )
+
+    assert len([spec for spec in specs if spec.is_primary]) == 1
 
 
 def test_pre_registered_trial_manifest_exists_and_is_paper_only():

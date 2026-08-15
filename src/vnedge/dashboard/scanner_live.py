@@ -24,6 +24,12 @@ from vnedge.dashboard.app import (
 )
 from vnedge.dashboard.scanner_bridge import dashboard_scanner_payload
 from vnedge.research.event_continuity import qualify_event_continuity
+from vnedge.research.strategy_evidence_registry import (
+    DEFAULT_REGISTRY,
+    attach_verified_lane_evidence,
+    dashboard_metric_semantics,
+    relabel_uncalibrated_edge_fields,
+)
 
 HOST = os.environ.get("DASHBOARD_HOST", "127.0.0.1")
 PORT = int(os.environ.get("DASHBOARD_PORT", "8080"))
@@ -165,6 +171,9 @@ EVENT_CONTINUITY_CONTRACT_PATH = Path(
 EVENT_CONTINUITY_REFRESH_SECONDS = max(
     60.0, float(os.environ.get("DASHBOARD_EVENT_CONTINUITY_REFRESH_SECONDS", "300"))
 )
+REFRESH_EVENT_CONTINUITY_IN_DASHBOARD = os.environ.get(
+    "DASHBOARD_REFRESH_EVENT_CONTINUITY", "0"
+).strip().lower() in {"1", "true", "yes", "on"}
 EVENT_CONTINUITY_CODE_VERSION = os.environ.get(
     "DASHBOARD_EVENT_CONTINUITY_CODE_VERSION", "local-runtime"
 )
@@ -178,6 +187,18 @@ FAILED_AUCTION_READINESS_PATH = Path(
     os.environ.get(
         "DASHBOARD_FAILED_AUCTION_READINESS_PATH",
         "research/live_research/failed_auction_response_v1_readiness_latest.json",
+    )
+)
+EVENT_RESPONSE_ATLAS_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_EVENT_RESPONSE_ATLAS_PATH",
+        "research/live_research/event_response_atlas_latest.json",
+    )
+)
+POST_ABSORPTION_DIRECTION_PATH = Path(
+    os.environ.get(
+        "DASHBOARD_POST_ABSORPTION_DIRECTION_PATH",
+        "research/live_research/post_absorption_direction_study_latest.json",
     )
 )
 KRONOS_MATRIX_PATH = Path(
@@ -198,6 +219,12 @@ FORCED_FLOW_DIR = Path(
         "research/live_research/delta_forced_flow_panel",
     )
 )
+STRATEGY_EVIDENCE_REGISTRY_PATH = Path(
+    os.environ.get(
+        "VNEDGE_STRATEGY_REGISTRY",
+        os.environ.get("DASHBOARD_STRATEGY_EVIDENCE_REGISTRY", str(DEFAULT_REGISTRY)),
+    )
+)
 
 
 def _read_payload(path: Path) -> dict[str, Any]:
@@ -208,8 +235,10 @@ def _read_payload(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
-    primary = _read_payload(path)
+def read_scanner_payload(
+    path: Path = SCANNER_PATH, *, include_legacy_research: bool = True
+) -> dict[str, Any]:
+    primary = _read_payload(path) if include_legacy_research else {}
     scalper = _read_payload(DELTA_SCALPER_PATH)
     attribution = _read_payload(DELTA_SCALPER_ATTRIBUTION_PATH)
     threshold_sweep = _read_payload(DELTA_SCALPER_SWEEP_PATH)
@@ -235,11 +264,23 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
     bridges = [
         dashboard_scanner_payload(payload, now=current) for payload in (primary, scalper) if payload
     ]
-    rows = [row for bridge in bridges for row in bridge.get("rows", []) if isinstance(row, dict)]
+    raw_rows = [
+        row for bridge in bridges for row in bridge.get("rows", []) if isinstance(row, dict)
+    ]
+    rows, withheld_lanes, registry = attach_verified_lane_evidence(
+        raw_rows,
+        registry_path=STRATEGY_EVIDENCE_REGISTRY_PATH,
+    )
     generated_values = [
         bridge.get("generated_at") for bridge in bridges if bridge.get("generated_at")
     ]
-    return {
+    source_ages = [
+        float(row["source_age_seconds"])
+        for row in rows
+        if isinstance(row.get("source_age_seconds"), (int, float))
+        and not isinstance(row.get("source_age_seconds"), bool)
+    ]
+    result = {
         "generated_at": max(generated_values, default=None),
         "scanner_id": "vnedge_combined_research_scanners_v1",
         "mode": "combined_research_scanners",
@@ -247,9 +288,15 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
             "connected_symbols": len(rows),
             "firing": sum(row.get("state") == "FIRING" for row in rows),
             "waiting": sum(row.get("state") == "WAITING" for row in rows),
+            "stale": sum(row.get("state") == "DATA_STALE" for row in rows),
             "errors": sum(row.get("state") == "DATA_ERROR" for row in rows),
+            "source_age_seconds": max(source_ages, default=None),
+            "withheld_unverified_lanes": len(withheld_lanes),
         },
         "rows": rows,
+        "withheld_lanes": withheld_lanes,
+        "strategy_evidence_registry": registry,
+        "metric_semantics": dashboard_metric_semantics(),
         "sources": [bridge.get("mode") for bridge in bridges],
         "delta_scalper": {
             "summary": scalper.get("summary"),
@@ -282,6 +329,7 @@ def read_scanner_payload(path: Path = SCANNER_PATH) -> dict[str, Any]:
         "can_trade": False,
         "can_promote": False,
     }
+    return relabel_uncalibrated_edge_fields(result)
 
 
 def publish_combined_payload(payload: dict[str, Any]) -> None:
@@ -319,7 +367,11 @@ def build_scanner_snapshot(
         if int(summary.get("errors") or 0) > 0
         else "ok"
     )
-    rows = bridge.get("rows") if isinstance(bridge.get("rows"), list) else []
+    raw_rows = bridge.get("rows") if isinstance(bridge.get("rows"), list) else []
+    rows, withheld_lanes, registry = attach_verified_lane_evidence(
+        [row for row in raw_rows if isinstance(row, dict)],
+        registry_path=STRATEGY_EVIDENCE_REGISTRY_PATH,
+    )
     lanes = []
     for row in rows:
         if not isinstance(row, dict):
@@ -340,6 +392,23 @@ def build_scanner_snapshot(
                 "lane_id": f"scanner_{str(row.get('symbol') or '').lower()}",
                 "mode": "research_observation",
                 "strategy_id": row.get("strategy_id"),
+                "strategy_label": (
+                    registry.get("strategies", {})
+                    .get(str(row.get("strategy_id") or ""), {})
+                    .get("label")
+                ),
+                "hypothesis_class": row.get("hypothesis_class"),
+                "trade_horizon": row.get("trade_horizon"),
+                "lifecycle": row.get("lifecycle"),
+                "edge_claim": row.get("edge_claim"),
+                "evidence": {
+                    "artifact": row.get("evidence_artifact"),
+                    "sha256": row.get("evidence_sha256"),
+                    "verified": row.get("registry_verified") is True,
+                    "metrics": row.get("evidence_metrics") or {},
+                    "warnings": row.get("evidence_warnings") or [],
+                },
+                "route_cost_contract": row.get("route_cost_contract"),
                 "exchange": "delta_india",
                 "symbol": row.get("symbol"),
                 "timeframe": row.get("timeframe"),
@@ -372,7 +441,7 @@ def build_scanner_snapshot(
             }
         )
 
-    return {
+    result = {
         "ts": current.isoformat(),
         "mode": "research scanner observation",
         "symbol": ",".join(
@@ -387,6 +456,7 @@ def build_scanner_snapshot(
             "connected_symbols": summary.get("connected_symbols", 0),
             "firing": summary.get("firing", 0),
             "errors": summary.get("errors", 0),
+            "withheld_unverified_lanes": len(withheld_lanes),
         },
         "trial": None,
         "live_trading_enabled": False,
@@ -415,11 +485,15 @@ def build_scanner_snapshot(
         "last_risk_reject": None,
         "last_journal_write": "scanner snapshot only",
         "lanes": lanes,
+        "withheld_lanes": withheld_lanes,
+        "strategy_evidence_registry": registry,
+        "metric_semantics": dashboard_metric_semantics(),
         "can_trade": False,
         "can_promote": False,
         "orders_sent": 0,
         "research_infrastructure": research_infrastructure or {},
     }
+    return relabel_uncalibrated_edge_fields(result)
 
 
 async def main() -> None:
@@ -429,8 +503,11 @@ async def main() -> None:
             "VNEDGE_ALLOW_DEMO_TOKEN=true."
         )
     provider = SnapshotProvider()
-    initial = read_scanner_payload()
-    publish_combined_payload(initial)
+    combined = read_scanner_payload()
+    publish_combined_payload(combined)
+    # The operator homepage and readiness contract are Delta BTCUSD/ETHUSD.
+    # Legacy multi-market research remains available on /realtime-scanner.
+    initial = read_scanner_payload(include_legacy_research=False)
     infrastructure = event_research_infrastructure_payload(
         event_root=DELTA_EVENT_ROOT,
         event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
@@ -443,6 +520,8 @@ async def main() -> None:
         forced_flow_dir=FORCED_FLOW_DIR,
         htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
         failed_auction_readiness_path=FAILED_AUCTION_READINESS_PATH,
+        event_response_atlas_path=EVENT_RESPONSE_ATLAS_PATH,
+        post_absorption_direction_path=POST_ABSORPTION_DIRECTION_PATH,
     )
     provider.publish(build_scanner_snapshot(initial, research_infrastructure=infrastructure))
     app = create_app(
@@ -464,13 +543,16 @@ async def main() -> None:
         forced_flow_dir=FORCED_FLOW_DIR,
         htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
         failed_auction_readiness_path=FAILED_AUCTION_READINESS_PATH,
+        event_response_atlas_path=EVENT_RESPONSE_ATLAS_PATH,
+        post_absorption_direction_path=POST_ABSORPTION_DIRECTION_PATH,
     )
     server = uvicorn.Server(uvicorn.Config(app, host=HOST, port=PORT, log_level="warning"))
 
     async def publish_forever() -> None:
         while True:
-            payload = read_scanner_payload()
-            publish_combined_payload(payload)
+            combined = read_scanner_payload()
+            publish_combined_payload(combined)
+            payload = read_scanner_payload(include_legacy_research=False)
             infrastructure = event_research_infrastructure_payload(
                 event_root=DELTA_EVENT_ROOT,
                 event_trigger_telemetry_path=EVENT_TRIGGER_TELEMETRY_PATH,
@@ -483,6 +565,8 @@ async def main() -> None:
                 forced_flow_dir=FORCED_FLOW_DIR,
                 htf_structure_v2_path=HTF_STRUCTURE_V2_PATH,
                 failed_auction_readiness_path=FAILED_AUCTION_READINESS_PATH,
+                event_response_atlas_path=EVENT_RESPONSE_ATLAS_PATH,
+                post_absorption_direction_path=POST_ABSORPTION_DIRECTION_PATH,
             )
             provider.publish(
                 build_scanner_snapshot(payload, research_infrastructure=infrastructure)
@@ -505,7 +589,13 @@ async def main() -> None:
             await asyncio.sleep(EVENT_CONTINUITY_REFRESH_SECONDS)
 
     print(f"VNEDGE scanner dashboard: http://{HOST}:{PORT}/?token={TOKEN}")
-    await asyncio.gather(server.serve(), publish_forever(), refresh_continuity_forever())
+    tasks = [server.serve(), publish_forever()]
+    # Continuity qualification is CPU-heavy research work.  It is disabled in
+    # the read-only web process by default so evidence refresh cannot starve
+    # health checks or the operator UI.  A dedicated publisher may opt in.
+    if REFRESH_EVENT_CONTINUITY_IN_DASHBOARD:
+        tasks.append(refresh_continuity_forever())
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

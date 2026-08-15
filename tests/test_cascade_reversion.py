@@ -363,6 +363,12 @@ def test_maker_first_cost_math_and_flag():
     assert model.net_bps("sell", 100.0, 100.0) == pytest.approx(-8.0, abs=0.01)
 
 
+def test_delta_costs_use_canonical_gst_inclusive_contract():
+    models = cost_models_for("delta_india")
+    assert models["taker_taker"].round_trip_cost_bps == pytest.approx(14.8)
+    assert models["maker_first"].round_trip_cost_bps == pytest.approx(9.76)
+
+
 def test_cost_model_slippage_always_adverse():
     model = cost_models_for("binanceusdm")["taker_taker"]
     up = model.net_bps("buy", 100.0, 101.0)

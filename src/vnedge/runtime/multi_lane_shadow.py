@@ -46,6 +46,10 @@ from vnedge.runtime.multi_lane import (
     MultiLaneShadowRunner,
 )
 from vnedge.runtime.runner_config import RunnerMode
+from vnedge.research.strategy_evidence_registry import (
+    DEFAULT_REGISTRY,
+    strategy_authority_blockers,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -1318,6 +1322,21 @@ def _pruned_lane(spec: LaneSpec) -> bool:
     """True for a lane the evidence says never helps — excluded from the roster."""
     strat = str(spec.strategy_id or "")
     base_symbol = str(spec.symbol or "").split("/")[0].upper()
+    frozen_paper_trials = {
+        (strategy_id, _delta_india_symbol(symbol), timeframe)
+        for strategy_id, symbol, timeframe in EVIDENCE_PAPER_TRIAL_LANES
+    }
+    # The 2026-08-03 family-wide hard cut remains in force for general shadow
+    # and ad-hoc paper lanes. Only these exact, human-preregistered Delta paper
+    # cells are restored for live-forward evidence collection. This does not
+    # grant promotion or live-order authority.
+    if (
+        spec.mode is RunnerMode.PAPER
+        and spec.exchange == DELTA_EXCHANGE
+        and (strat, str(spec.symbol), str(spec.timeframe)) in frozen_paper_trials
+        and dict(spec.strategy_params or {}) == {}
+    ):
+        return False
     if strat in _PRUNED_STRATEGIES:
         return True
     # quant_signal_pack: paper-positive on ETH/SOL, worst single loser on DOGE (-$44).
@@ -1372,6 +1391,35 @@ def desired_lane_specs(environ: Mapping[str, str] = os.environ) -> list[LaneSpec
     # proposal (a stale governor file resurrected a cut luxara probe on 2026-08-03).
     if prune:
         roster = [spec for spec in roster if not _pruned_lane(spec)]
+    registry_path = Path(
+        environ.get("VNEDGE_STRATEGY_REGISTRY", str(DEFAULT_REGISTRY))
+    )
+    canonical_roster: list[LaneSpec] = []
+    for spec in roster:
+        if spec.mode is not RunnerMode.PAPER:
+            canonical_roster.append(spec)
+            continue
+        blockers = strategy_authority_blockers(
+            spec.strategy_id,
+            purpose="paper",
+            registry_path=registry_path,
+        )
+        if blockers:
+            logger.warning(
+                "paper lane %s withheld by canonical strategy registry: %s",
+                spec.lane_id,
+                "; ".join(blockers),
+            )
+            continue
+        canonical_roster.append(spec)
+    roster = canonical_roster
+    if not roster:
+        raise ValueError("multi-lane policy produced no runnable lanes")
+    if not any(spec.is_primary for spec in roster):
+        # Pruning/governance may remove the primary chosen by the initial env
+        # expansion. Reassign deterministically so the read-only dashboard and
+        # paper runtime cannot crash with a hidden StopIteration.
+        roster[0] = replace(roster[0], is_primary=True)
     return roster
 
 

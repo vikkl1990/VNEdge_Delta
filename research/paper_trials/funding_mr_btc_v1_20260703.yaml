@@ -3,6 +3,8 @@
 
 trial_id: funding_mr_btc_v1_20260703
 strategy: funding_mean_reversion_v1
+strategy_registry_path: ../../configs/strategy_registry.yaml
+cost_contract: taker_full_14_8
 symbol: "BTC/USDT:USDT"
 timeframe: 1h
 mode: live_data_paper

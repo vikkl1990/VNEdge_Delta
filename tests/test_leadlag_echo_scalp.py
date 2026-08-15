@@ -356,25 +356,25 @@ def test_overlapping_impulse_is_suppressed():
 
 def test_taker_taker_cost_math():
     model = cost_models_for("delta_india")["taker_taker"]
-    assert model.round_trip_fee_bps == pytest.approx(10.0)   # 5 + 5 taker
+    assert model.round_trip_fee_bps == pytest.approx(11.8)   # GST-inclusive
     assert not model.assumed_queue_fill
-    assert model.net_bps("buy", 100.0, 100.0) == pytest.approx(-10.0)
-    assert model.net_bps("sell", 100.0, 100.0) == pytest.approx(-10.0)
-    # a 20 bps favorable move nets 10 after the 10 bps round-trip fee
+    assert model.net_bps("buy", 100.0, 100.0) == pytest.approx(-11.8)
+    assert model.net_bps("sell", 100.0, 100.0) == pytest.approx(-11.8)
+    # Book walking models impact; this object applies fee-only friction.
     assert model.net_bps("buy", 100.0, 100.2) == pytest.approx(
-        (0.2 / 100.0 * 10_000.0) - 10.0)
+        (0.2 / 100.0 * 10_000.0) - 11.8)
 
 
 def test_maker_first_cost_math_and_flag():
     model = cost_models_for("delta_india")["maker_first"]
-    assert model.round_trip_fee_bps == pytest.approx(7.0)    # 2 maker + 5 taker
+    assert model.round_trip_fee_bps == pytest.approx(8.26)   # GST-inclusive
     assert model.assumed_queue_fill
     assert "ASSUMED_QUEUE_FILL" in model.to_dict()["caveat"]
-    assert model.net_bps("buy", 100.0, 100.0) == pytest.approx(-7.0)
-    # maker is 3 bps cheaper round-trip than taker on the same prices
+    assert model.net_bps("buy", 100.0, 100.0) == pytest.approx(-8.26)
+    # GST-inclusive maker entry is 3.54 bps cheaper than taker entry.
     taker = cost_models_for("delta_india")["taker_taker"]
     assert model.net_bps("buy", 100.0, 100.1) - taker.net_bps("buy", 100.0, 100.1) \
-        == pytest.approx(3.0)
+        == pytest.approx(3.54)
     with pytest.raises(ValueError):
         model.net_bps("hold", 100.0, 100.0)
 

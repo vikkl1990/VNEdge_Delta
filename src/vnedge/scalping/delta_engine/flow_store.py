@@ -76,11 +76,15 @@ class L2TradeFlowStore:
         *,
         imbalance_history: int = 240,
         trade_window_seconds: int = 15,
+        contract_values: dict[str, float] | None = None,
     ) -> None:
         if imbalance_history < 2 or trade_window_seconds < 1:
             raise ValueError("flow-store windows must be positive")
         self.imbalance_history = imbalance_history
         self.trade_window_seconds = trade_window_seconds
+        self._contract_values: dict[str, float] = {}
+        for symbol, value in (contract_values or {}).items():
+            self.set_contract_value(symbol, value)
         self.sequence = ChannelSequenceTracker()
         self._imbalances: dict[str, deque[float]] = defaultdict(
             lambda: deque(maxlen=self.imbalance_history)
@@ -90,6 +94,19 @@ class L2TradeFlowStore:
         self._mid: dict[str, float] = {}
         self._previous_mid: dict[str, float] = {}
         self._depth: dict[str, float] = {}
+
+    def set_contract_value(self, symbol: str, contract_value: float) -> None:
+        """Set the base-asset value represented by one venue contract."""
+
+        value = float(contract_value)
+        if value <= 0:
+            raise ValueError("contract_value must be positive")
+        self._contract_values[symbol.upper()] = value
+
+    def _contract_value(self, symbol: str) -> float:
+        # Generic/synthetic callers use base quantity directly. Delta runtime
+        # explicitly installs exchange product metadata before market events.
+        return self._contract_values.get(symbol.upper(), 1.0)
 
     @staticmethod
     def _level(level: object) -> tuple[float, float] | None:
@@ -123,7 +140,10 @@ class L2TradeFlowStore:
         history.append(imbalance)
         self._previous_mid[native] = self._mid.get(native, 0.0)
         self._mid[native] = (bid_levels[0][0] + ask_levels[0][0]) / 2.0
-        self._depth[native] = sum(px * size for px, size in bid_levels + ask_levels)
+        contract_value = self._contract_value(native)
+        self._depth[native] = sum(
+            px * size * contract_value for px, size in bid_levels + ask_levels
+        )
         self._last_at[native] = observed_at.astimezone(UTC)
         self.sequence.observe("l2_orderbook", native, sequence)
         return self.snapshot(native, now=observed_at)
@@ -142,7 +162,8 @@ class L2TradeFlowStore:
             raise ValueError("invalid aggressor trade")
         native = symbol.upper()
         sign = 1.0 if side == "buy" else -1.0
-        self._trades[native].append((observed_at.astimezone(UTC), sign * price * size))
+        notional_usd = price * size * self._contract_value(native)
+        self._trades[native].append((observed_at.astimezone(UTC), sign * notional_usd))
         self._last_at[native] = observed_at.astimezone(UTC)
         self.sequence.observe("all_trades", native, sequence)
         self._prune(native, observed_at)

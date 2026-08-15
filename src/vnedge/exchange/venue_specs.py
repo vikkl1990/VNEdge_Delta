@@ -14,10 +14,9 @@ The Bybit contract specs below were verified against the Bybit V5
 interval is 480m (8h) for all of these symbols, so the codebase-wide 8h funding
 assumption is correct for our universe (kept as a note, not a code path).
 
-Bybit and Binance USDT-M specs are tabulated from their live APIs; other venues
-(Delta and any untabulated symbol) fall through to the historical default, so
-their behaviour is unchanged. Fees are still routed per-venue: Bybit taker 5.5,
-Binance/others 5.0.
+Bybit and Binance USDT-M specs are tabulated from their live APIs. Delta India
+fees use the GST-inclusive canonical taker rate; untabulated venues retain the
+historical fallback.
 """
 
 from __future__ import annotations
@@ -32,8 +31,12 @@ from vnedge.risk.position_sizer import SymbolLimits
 _DEFAULT_TAKER_BPS = 5.0  # Binance USDT-M standard tier
 _TAKER_BPS_BY_EXCHANGE: dict[str, float] = {
     "bybit": 5.5,  # Bybit linear-perp standard taker = 0.055%
+    "delta_india": 5.9,  # 5.0 bps base fee + mandatory 18% GST
 }
-_SLIPPAGE_BPS = 2.0  # venue-agnostic pessimistic paper slippage (unchanged)
+_SLIPPAGE_BPS_BY_EXCHANGE: dict[str, float] = {
+    "delta_india": 1.5,
+}
+_DEFAULT_SLIPPAGE_BPS = 2.0
 
 
 def venue_taker_bps(exchange: str) -> float:
@@ -45,7 +48,9 @@ def venue_fill_model(exchange: str) -> FillModel:
     """Paper FillModel with the venue's real taker fee wired in."""
     return FillModel(
         taker_fee_bps=venue_taker_bps(exchange),
-        slippage_bps=_SLIPPAGE_BPS,
+        slippage_bps=_SLIPPAGE_BPS_BY_EXCHANGE.get(
+            exchange.lower(), _DEFAULT_SLIPPAGE_BPS
+        ),
     )
 
 

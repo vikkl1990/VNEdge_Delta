@@ -196,6 +196,8 @@ def test_replay_is_deterministic_and_uses_shared_scanner_path(tmp_path: Path) ->
     assert first.summary_metrics["selected_candidates"] == 1
     assert first.summary_metrics["event_forward_outcomes"] == 1
     assert first.summary_metrics["event_net_expectancy_bps"] > 0
+    assert first.summary_metrics["event_breakdown"]["by_symbol"]["BTCUSD"]["trades"] == 1
+    assert first.summary_metrics["event_breakdown"]["by_side"]["long"]["trades"] == 1
     assert first.research_only and not first.can_trade and not first.can_promote
     assert first.to_dict()["order_route"] == "absent"
     assert Path(first.journal_path or "").is_file()
@@ -371,6 +373,9 @@ def test_mixed_symbol_replay_preserves_receive_order_despite_exchange_regression
     assert [event.symbol for event in events] == ["BTCUSD", "ETHUSD"]
     assert report.passed
     assert report.timestamp_regressions == 1
+    assert report.exchange_timestamp_regressions_blocking is False
+    assert report.ordering_policy == "local_receive_availability_order"
+    assert report.source_delay_classification_by_channel["ob_updates"]["ON_TIME"] == 2
 
 
 def test_code_version_and_sealed_holdout_fail_closed(tmp_path: Path) -> None:

@@ -11,6 +11,7 @@ from vnedge.scalping.delta_engine.change_point import (
     CausalCusumConfig,
     CausalCusumDetector,
 )
+from vnedge.scalping.delta_engine.forming_candles import MultiTimeframeCandleEngine
 from vnedge.scalping.delta_engine.regime import (
     RegimeEngine,
     RegimeProfileConfig,
@@ -33,6 +34,7 @@ class MarketContextBuilder:
         regime_engine: RegimeEngine | None = None,
         regime_profile_config: RegimeProfileConfig | None = None,
         change_point_config: CausalCusumConfig | None = None,
+        forming_candle_engine: MultiTimeframeCandleEngine | None = None,
         *,
         max_l2_age_seconds: float = 2.0,
     ) -> None:
@@ -42,6 +44,7 @@ class MarketContextBuilder:
         self.regime_engine = regime_engine or RegimeEngine()
         self.regime_profile_config = regime_profile_config or RegimeProfileConfig()
         self.change_point_config = change_point_config or CausalCusumConfig()
+        self.forming_candle_engine = forming_candle_engine
         self.max_l2_age_seconds = max_l2_age_seconds
         self._funding: dict[str, deque[tuple[datetime, float]]] = defaultdict(
             lambda: deque(maxlen=24)
@@ -164,6 +167,23 @@ class MarketContextBuilder:
             ),
             change_point=change_point,
         )
+        forming_candles = {}
+        context_available_at = current
+        if self.forming_candle_engine is not None:
+            try:
+                forming_snapshot = self.forming_candle_engine.snapshot(native)
+            except RuntimeError:
+                forming_snapshot = None
+            if forming_snapshot is not None:
+                if current > forming_snapshot.available_at:
+                    forming_snapshot = self.forming_candle_engine.snapshot(
+                        native, as_of=current
+                    )
+                context_available_at = max(current, forming_snapshot.available_at)
+                forming_candles = {
+                    timeframe: state.forming
+                    for timeframe, state in forming_snapshot.states.items()
+                }
         return MarketContext(
             symbol=native,
             ts=latest,
@@ -178,4 +198,6 @@ class MarketContextBuilder:
             l2=l2,
             regime_profile=profile,
             features=features,
+            available_at=context_available_at,
+            forming_candles=forming_candles,
         )

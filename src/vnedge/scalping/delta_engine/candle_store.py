@@ -10,6 +10,7 @@ from vnedge.scalping.delta_engine.types import Candle
 
 TIMEFRAME_SECONDS: dict[str, int] = {
     "1m": 60,
+    "3m": 180,
     "5m": 300,
     "15m": 900,
     "30m": 1_800,

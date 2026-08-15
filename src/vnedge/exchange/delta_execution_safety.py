@@ -460,6 +460,17 @@ class DeltaExecutionSafetyWrapper:
     async def cancel_order(self, order: ManagedOrder) -> str:
         return await self._adapter.cancel_order(order)
 
+    async def close(self) -> None:
+        """Disable heartbeat before closing underlying transports."""
+
+        if self._snapshot.created:
+            await self.disable()
+        close = getattr(self._adapter, "close", None)
+        if close is not None:
+            result = close()
+            if hasattr(result, "__await__"):
+                await result
+
     async def fetch_order_status(self, order: ManagedOrder) -> dict[str, Any] | None:
         return await self._adapter.fetch_order_status(order)
 

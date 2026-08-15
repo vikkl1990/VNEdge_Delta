@@ -35,7 +35,7 @@ from vnedge.execution.live_reconciliation import LiveReconciler
 from vnedge.execution.order_manager import FlattenTarget, OrderManager
 from vnedge.execution.order_state import OrderState
 from vnedge.risk.position_sizer import SymbolLimits, size_position
-from vnedge.risk.risk_manager import AccountState, OrderIntent
+from vnedge.risk.risk_manager import AccountState, OrderIntent, ServerSideBracket
 from vnedge.runtime.run_report import RunReport
 from vnedge.strategy.base_strategy import BaseStrategy, SignalIntent
 
@@ -81,6 +81,7 @@ class LiveTraderSession:
         private_stream_health: PrivateStreamHealthProvider | None = None,
         require_private_stream: bool = False,
         max_private_stream_age_seconds: float = 5.0,
+        execution_entry_ready=None,
     ) -> None:
         # --- THE GATE: no live trader without all three live gates open ---
         if not settings.is_live:
@@ -110,6 +111,7 @@ class LiveTraderSession:
         self.private_stream_health = private_stream_health
         self.require_private_stream = require_private_stream
         self.max_private_stream_age_seconds = max_private_stream_age_seconds
+        self.execution_entry_ready = execution_entry_ready
         self.signals = self.orders_submitted = self.risk_rejects = 0
         self.sizing_skips = self.recon_mismatches = 0
         self._plan: SignalIntent | None = None
@@ -141,6 +143,15 @@ class LiveTraderSession:
             return False
         return health.age_seconds(now) <= self.max_private_stream_age_seconds
 
+    def execution_interlock_ready(self) -> bool:
+        if self.execution_entry_ready is None:
+            return True
+        try:
+            return bool(self.execution_entry_ready())
+        except Exception:  # noqa: BLE001 — a broken interlock blocks entries
+            logger.exception("execution entry interlock failed")
+            return False
+
     async def _submit_entry(self, sig: SignalIntent, now: datetime) -> None:
         account = await self.accounts.account_state()
         if account.equity_usd >= self.settings.live_small_capital_cap_usd \
@@ -162,6 +173,15 @@ class LiveTraderSession:
             notional_usd=sizing.notional_usd,
             leverage=max(sizing.required_leverage, 1.0),
             reduce_only=False, strategy_id=self.strategy.strategy_id,
+            server_side_bracket=(
+                ServerSideBracket(
+                    stop_loss_trigger_price=sig.stop_price,
+                    take_profit_trigger_price=sig.take_profit_price,
+                    trigger_method="mark_price",
+                )
+                if sig.take_profit_price is not None
+                else None
+            ),
         )
         from vnedge.execution.idempotency import make_intent_key
 
@@ -290,6 +310,7 @@ class LiveTraderSession:
             if (self.entries_allowed and self._plan is None
                     and not self.om.has_unresolved_orders
                     and self.private_stream_ready(now)
+                    and self.execution_interlock_ready()
                     and len(self.candles) > self.strategy.warmup_bars):
                 df = self.strategy.prepare(self.candles)
                 sig = self.strategy.signal(df, len(df) - 1)

@@ -10,6 +10,7 @@ from vnedge.scalping.delta_engine.change_point import CausalCusumConfig
 from vnedge.scalping.delta_engine.config import DeltaScalperConfig
 from vnedge.scalping.delta_engine.context import MarketContextBuilder
 from vnedge.scalping.delta_engine.fee_model import DeltaFeeModel
+from vnedge.scalping.delta_engine.forming_candles import MultiTimeframeCandleEngine
 from vnedge.scalping.delta_engine.regime import (
     RegimeConfig,
     RegimeEngine,
@@ -46,6 +47,7 @@ def build_delta_scalper_assembly(
     deto_enabled: bool = False,
     scalper_opted_in: bool = False,
     slippage_bps: float | None = None,
+    forming_candle_engine: MultiTimeframeCandleEngine | None = None,
 ) -> DeltaScalperAssembly:
     """Build identical context, scanner, fee, and gate modules for live/replay."""
 
@@ -80,6 +82,7 @@ def build_delta_scalper_assembly(
             threshold_z=config.features.change_point_cusum_threshold_z,
             cooldown_bars=config.features.change_point_cooldown_bars,
         ),
+        forming_candle_engine=forming_candle_engine,
         max_l2_age_seconds=config.features.max_l2_age_seconds,
     )
     fee_model = DeltaFeeModel(

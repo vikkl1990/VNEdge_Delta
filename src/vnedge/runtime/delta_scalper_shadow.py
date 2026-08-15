@@ -16,6 +16,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from vnedge.data.delta_native_history import fetch_delta_candle_history
+from vnedge.exchange.delta_contracts import fetch_india_contract_spec
 from vnedge.exchange.delta_ws import DeltaPublicWsClient
 from vnedge.execution.journal import DecisionJournal
 from vnedge.scalping.delta_engine.architecture import architecture_manifest
@@ -26,8 +27,9 @@ from vnedge.scalping.delta_engine.candle_store import (
 from vnedge.scalping.delta_engine.config import DeltaScalperConfig, load_delta_scalper_config
 from vnedge.scalping.delta_engine.factory import build_delta_scalper_assembly
 from vnedge.scalping.delta_engine.flow_store import FlowSnapshot, L2TradeFlowStore
+from vnedge.scalping.delta_engine.forming_candles import MultiTimeframeCandleEngine
 from vnedge.scalping.delta_engine.forward_tracker import ForwardOutcomeTracker
-from vnedge.scalping.delta_engine.types import Candle
+from vnedge.scalping.delta_engine.types import Candle, SignalCandidate
 
 DEFAULT_SYMBOLS = ("BTCUSD", "ETHUSD")
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
@@ -67,6 +69,7 @@ class DeltaScalperShadowService:
         self.store = MultiTimeframeCandleStore(
             max_bars_per_timeframe=settings.features.max_bars_per_timeframe
         )
+        self.forming_candles = MultiTimeframeCandleEngine(input_mode="tick")
         self.journal = DecisionJournal(journal_path)
         assembly = build_delta_scalper_assembly(
             self.store,
@@ -74,6 +77,7 @@ class DeltaScalperShadowService:
             journal=self.journal,
             deto_enabled=deto_enabled,
             scalper_opted_in=scalper_opted_in,
+            forming_candle_engine=self.forming_candles,
         )
         self.context = assembly.context
         self.fee_model = assembly.fee_model
@@ -90,6 +94,7 @@ class DeltaScalperShadowService:
         self.evaluations: dict[str, int] = defaultdict(int)
         self.alerts: dict[str, int] = defaultdict(int)
         self.started_at = datetime.now(UTC)
+        self.seed_status: dict[str, dict[str, object]] = {}
         self._gap_backfills: set[tuple[str, str]] = set()
         self._background_tasks: set[asyncio.Task] = set()
         self.ws = DeltaPublicWsClient(
@@ -104,25 +109,61 @@ class DeltaScalperShadowService:
         current = now or datetime.now(UTC)
         lookback_days = {"1m": 3, "5m": 5, "15m": 14, "1h": 60, "4h": 120}
         for symbol in self.symbols:
-            for timeframe in DEFAULT_TIMEFRAMES:
-                frame = await fetch_delta_candle_history(
-                    symbol,
-                    resolution=timeframe,
-                    start_s=int((current - timedelta(days=lookback_days[timeframe])).timestamp()),
-                    end_s=int(current.timestamp()),
+            symbol_status: dict[str, object] = {
+                "contract_loaded": False,
+                "seeded_bars": {},
+                "errors": [],
+            }
+            self.seed_status[symbol] = symbol_status
+            try:
+                spec = await asyncio.to_thread(fetch_india_contract_spec, symbol)
+                self.flow_store.set_contract_value(symbol, spec.contract_value)
+                symbol_status["contract_loaded"] = True
+            except Exception as exc:  # noqa: BLE001 - public-data startup boundary
+                error = f"contract:{type(exc).__name__}:{exc}"
+                errors = symbol_status["errors"]
+                assert isinstance(errors, list)
+                errors.append(error)
+                self.journal.append(
+                    "delta_scalper_seed_failed",
+                    {"symbol": symbol, "stage": "contract", "error": error},
                 )
-                step = timedelta(seconds=TIMEFRAME_SECONDS[timeframe])
-                for row in frame.itertuples(index=False):
-                    closed = Candle(
-                        ts=row.timestamp.to_pydatetime() + step,
-                        open=float(row.open),
-                        high=float(row.high),
-                        low=float(row.low),
-                        close=float(row.close),
-                        volume=float(row.volume),
-                        tf=timeframe,
+            for timeframe in DEFAULT_TIMEFRAMES:
+                try:
+                    frame = await fetch_delta_candle_history(
+                        symbol,
+                        resolution=timeframe,
+                        start_s=int(
+                            (current - timedelta(days=lookback_days[timeframe])).timestamp()
+                        ),
+                        end_s=int(current.timestamp()),
                     )
-                    self.store.append_closed(symbol, closed, observed_at=current)
+                    step = timedelta(seconds=TIMEFRAME_SECONDS[timeframe])
+                    seeded = 0
+                    for row in frame.itertuples(index=False):
+                        closed = Candle(
+                            ts=row.timestamp.to_pydatetime() + step,
+                            open=float(row.open),
+                            high=float(row.high),
+                            low=float(row.low),
+                            close=float(row.close),
+                            volume=float(row.volume),
+                            tf=timeframe,
+                        )
+                        self.store.append_closed(symbol, closed, observed_at=current)
+                        seeded += 1
+                    seeded_bars = symbol_status["seeded_bars"]
+                    assert isinstance(seeded_bars, dict)
+                    seeded_bars[timeframe] = seeded
+                except Exception as exc:  # noqa: BLE001 - public-data startup boundary
+                    error = f"{timeframe}:{type(exc).__name__}:{exc}"
+                    errors = symbol_status["errors"]
+                    assert isinstance(errors, list)
+                    errors.append(error)
+                    self.journal.append(
+                        "delta_scalper_seed_failed",
+                        {"symbol": symbol, "stage": timeframe, "error": error},
+                    )
 
     def _on_book(self, symbol: str, bids: list, asks: list, _raw: dict) -> None:
         raw_sequence = _raw.get("sequence") or _raw.get("sequence_number")
@@ -157,17 +198,58 @@ class DeltaScalperShadowService:
         )
 
     def _on_trade(self, symbol: str, trade: dict) -> None:
+        local_receive_ts = datetime.now(UTC)
         raw_sequence = trade.get("sequence")
+        try:
+            exchange_ts = datetime.fromtimestamp(
+                float(trade.get("ts_ms") or 0) / 1000.0, tz=UTC
+            )
+            price = float(trade.get("price") or 0)
+            size = float(trade.get("size") or 0)
+            side = str(trade.get("side") or "")
+            sequence = int(raw_sequence) if raw_sequence is not None else None
+        except (TypeError, ValueError):
+            return
+        try:
+            self.forming_candles.on_tick(
+                symbol,
+                exchange_ts=exchange_ts,
+                price=price,
+                volume=size,
+                local_recv_ts=local_receive_ts,
+                event_id=(
+                    str(trade.get("trade_id") or trade.get("id"))
+                    if trade.get("trade_id") is not None
+                    or trade.get("id") is not None
+                    else (
+                        f"{trade.get('ts_ms')}:{raw_sequence}:"
+                        f"{trade.get('price')}:{trade.get('size')}"
+                        if raw_sequence is not None
+                        else None
+                    )
+                ),
+            )
+        except ValueError as exc:
+            # The confirmed flow store continues to see the event. Forming
+            # state is separately fail-closed and never allowed to suppress
+            # the existing public-flow telemetry path.
+            self.journal.append(
+                "delta_forming_candle_event_rejected",
+                {
+                    "symbol": symbol,
+                    "exchange_ts": exchange_ts.isoformat(),
+                    "reason": str(exc),
+                    "research_only": True,
+                },
+            )
         try:
             snapshot = self.flow_store.on_trade(
                 symbol,
-                price=float(trade.get("price") or 0),
-                size=float(trade.get("size") or 0),
-                side=str(trade.get("side") or ""),
-                observed_at=datetime.fromtimestamp(
-                    float(trade.get("ts_ms") or 0) / 1000.0, tz=UTC
-                ),
-                sequence=int(raw_sequence) if raw_sequence is not None else None,
+                price=price,
+                size=size,
+                side=side,
+                observed_at=exchange_ts,
+                sequence=sequence,
             )
         except (TypeError, ValueError):
             return
@@ -235,9 +317,36 @@ class DeltaScalperShadowService:
         self.evaluations[symbol] += 1
         if decision.selected is not None:
             self.alerts[symbol] += 1
+            self._journal_candidate_forming_context(symbol, decision.selected)
             self.forward_tracker.register(decision.selected)
         self.latest_decision[symbol] = decision.to_dict()
         self.publish()
+
+    def _journal_candidate_forming_context(
+        self, symbol: str, candidate: SignalCandidate
+    ) -> None:
+        """Bind the point-in-time forming state to a selected research candidate."""
+
+        try:
+            forming_snapshot = self.forming_candles.snapshot(
+                symbol,
+                as_of=candidate.decision_ts,
+                completed_limit=1,
+            ).to_dict()
+        except (RuntimeError, ValueError):
+            forming_snapshot = None
+        self.journal.append(
+            "delta_scalper_candidate_forming_context",
+            {
+                "candidate_key": candidate.dedup_key,
+                "symbol": symbol,
+                "decision_ts": candidate.decision_ts.isoformat(),
+                "forming_candles": forming_snapshot,
+                "forming_candles_context_only": True,
+                "used_for_signal": False,
+                "used_for_execution": False,
+            },
+        )
 
     async def _backfill_gap(
         self,
@@ -306,6 +415,17 @@ class DeltaScalperShadowService:
                 live_context = self.context.build(symbol, now=now)
             except (RuntimeError, ValueError):
                 live_context = None
+            try:
+                point_in_time = self.forming_candles.snapshot(
+                    symbol, completed_limit=1
+                )
+                if now > point_in_time.available_at:
+                    point_in_time = self.forming_candles.snapshot(
+                        symbol, as_of=now, completed_limit=1
+                    )
+                forming_state = point_in_time.to_dict()
+            except RuntimeError:
+                forming_state = None
             evidence = market_evidence.get(symbol, {}) if isinstance(market_evidence, dict) else {}
             evidence_summary = (
                 evidence.get("summary") if isinstance(evidence.get("summary"), dict) else {}
@@ -396,6 +516,8 @@ class DeltaScalperShadowService:
                         "research_only": True,
                         "can_trade": False,
                         "can_promote": False,
+                        "forming_candles": forming_state,
+                        "forming_candles_used_for_current_scanners": False,
                     },
                     "why": (
                         "fee-adjusted closed-candle setup passed research gates"
@@ -423,7 +545,15 @@ class DeltaScalperShadowService:
                     "completed_forward_outcomes": sum(
                         len(items) for items in self.recent_outcomes.values()
                     ),
+                    "enabled_scanners": [
+                        scanner.scanner_id for scanner in self.generator.scanners
+                    ],
+                    "websocket_healthy": self.ws.healthy,
+                    "last_market_event_at": (
+                        self.ws.last_event_at.isoformat() if self.ws.last_event_at else None
+                    ),
                 },
+                "seed_status": self.seed_status,
                 "fee_model": {
                     "maker_bps_including_gst": self.fee_model.maker_bps,
                     "taker_bps_including_gst": self.fee_model.taker_bps,
@@ -456,6 +586,9 @@ class DeltaScalperShadowService:
             while True:
                 for symbol, rate in self.ws.funding_rate.items():
                     self.context.update_funding(symbol, rate, datetime.now(UTC))
+                # This heartbeat proves process liveness only. Data freshness
+                # remains tied to latest_bar_ts in each row.
+                self.publish()
                 await asyncio.sleep(5)
         finally:
             for task in self._background_tasks:

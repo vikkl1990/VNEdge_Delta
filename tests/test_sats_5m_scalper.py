@@ -179,19 +179,11 @@ def test_sats_5m_delta_lanes_are_shadow_first_and_5m():
     assert all(lane.mode is RunnerMode.SHADOW for lane in lanes)
 
 
-def test_sats_5m_lanes_can_be_paper_observed_without_promotion():
-    # tests the paper-observation mirroring of sats_5m lanes; sats_5m_scalper_v1
-    # was evidence-pruned 2026-08-02 (-$681 ledger), so run the mirror logic with
-    # the prune off.
+def test_sats_5m_lanes_cannot_bypass_canonical_paper_authority():
+    # Prune-off can restore the rejected shadow benchmark, but paper authority
+    # remains fail-closed because the strategy is absent from the registry.
     specs = desired_lane_specs({"MULTI_LANE_PAPER_OBSERVE_ALL": "1", "MULTI_LANE_PRUNE_DEAD": "0"})
     ids = {spec.lane_id for spec in specs}
 
     assert "sats_5m_scalper_delta_india_eth_usd_usd_shadow" in ids
-    assert "sats_5m_scalper_delta_india_eth_usd_usd_paper_observation" in ids
-    observed = next(
-        spec for spec in specs
-        if spec.lane_id == "sats_5m_scalper_delta_india_eth_usd_usd_paper_observation"
-    )
-    assert observed.mode is RunnerMode.PAPER
-    assert observed.timeframe == "5m"
-    assert observed.is_primary is False
+    assert "sats_5m_scalper_delta_india_eth_usd_usd_paper_observation" not in ids

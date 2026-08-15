@@ -12,6 +12,8 @@ import math
 from urllib.request import Request, urlopen
 import json
 
+from vnedge.risk.position_sizer import SymbolLimits
+
 
 INDIA_PRODUCTS_URL = "https://api.india.delta.exchange/v2/products"
 VNEDGE_HIGH_LEVERAGE_THRESHOLD = 10.0
@@ -82,6 +84,42 @@ def fetch_india_contract_spec(symbol: str) -> DeltaContractSpec:
     if not payload.get("success"):
         raise ValueError(f"Delta product lookup failed for {symbol}: {payload}")
     return DeltaContractSpec.from_delta_product(payload["result"])
+
+
+def delta_symbol_limits(
+    spec: DeltaContractSpec,
+    *,
+    reference_price: float,
+) -> SymbolLimits:
+    """Translate Delta integer-contract constraints to VNEDGE base units.
+
+    The conversion is price-dependent for quote-denominated contracts, so a
+    current, closed-candle reference is mandatory.  Rounding at the native
+    adapter remains the final venue boundary.
+    """
+
+    one_step = base_quantity_from_contracts(
+        contracts=spec.contract_step,
+        entry_price=reference_price,
+        spec=spec,
+    )
+    minimum = base_quantity_from_contracts(
+        contracts=spec.min_contracts,
+        entry_price=reference_price,
+        spec=spec,
+    )
+    minimum_notional = notional_usd_from_contracts(
+        contracts=spec.min_contracts,
+        entry_price=reference_price,
+        spec=spec,
+    )
+    maintenance = float(spec.maintenance_margin_pct or 0.5) / 100.0
+    return SymbolLimits(
+        min_qty=minimum,
+        qty_step=one_step,
+        min_notional_usd=minimum_notional,
+        maintenance_margin_rate=maintenance,
+    )
 
 
 def contracts_from_base_quantity(

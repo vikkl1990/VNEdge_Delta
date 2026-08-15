@@ -50,6 +50,28 @@ def replay_economic_summary(
     event_net = [row.net_bps for row in event_completed]
     event_gains = sum(value for value in event_net if value > 0)
     event_losses = abs(sum(value for value in event_net if value < 0))
+
+    def event_group_summary(rows: list[ReplayForwardOutcome]) -> dict[str, object]:
+        realized = [
+            row for row in rows if row.exit_reason in {"target_1", "stop", "time_stop"}
+        ]
+        values = [row.net_bps for row in realized]
+        gross = [row.gross_bps for row in realized]
+        gains = sum(value for value in values if value > 0)
+        losses = abs(sum(value for value in values if value < 0))
+        return {
+            "trades": len(realized),
+            "average_gross_bps": fmean(gross) if gross else 0.0,
+            "average_net_bps": fmean(values) if values else 0.0,
+            "average_mfe_bps": fmean(row.mfe_bps for row in realized) if realized else 0.0,
+            "average_mae_bps": fmean(row.mae_bps for row in realized) if realized else 0.0,
+            "profit_factor": gains / losses if losses else (None if gains else 0.0),
+            "win_rate": fmean(value > 0 for value in values) if values else 0.0,
+        }
+
+    symbols = sorted({row.symbol for row in event_completed})
+    sides = sorted({row.side for row in event_completed})
+    exit_reasons = sorted({row.exit_reason for row in event_completed})
     return {
         "decisions": decisions,
         "evaluated_candidates": evaluated_candidates,
@@ -88,6 +110,9 @@ def replay_economic_summary(
             fmean(row.mae_bps for row in event_completed) if event_completed else 0.0
         ),
         "event_net_expectancy_bps": fmean(event_net) if event_net else 0.0,
+        "event_average_gross_bps": (
+            fmean(row.gross_bps for row in event_completed) if event_completed else 0.0
+        ),
         "event_profit_factor": (
             event_gains / event_losses
             if event_losses
@@ -96,6 +121,26 @@ def replay_economic_summary(
         "event_win_rate": (
             fmean(row.net_bps > 0 for row in event_completed) if event_completed else 0.0
         ),
+        "event_breakdown": {
+            "by_symbol": {
+                symbol: event_group_summary(
+                    [row for row in event_completed if row.symbol == symbol]
+                )
+                for symbol in symbols
+            },
+            "by_side": {
+                side: event_group_summary(
+                    [row for row in event_completed if row.side == side]
+                )
+                for side in sides
+            },
+            "by_exit_reason": {
+                reason: event_group_summary(
+                    [row for row in event_completed if row.exit_reason == reason]
+                )
+                for reason in exit_reasons
+            },
+        },
         "research_only": True,
         "can_trade": False,
     }

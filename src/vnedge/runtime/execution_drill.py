@@ -54,7 +54,10 @@ from vnedge.risk.risk_manager import (
     OrderIntent,
     PreTradeRiskGateway,
 )
-from vnedge.runtime.pre_live_checklist import run_pre_live_checklist_from_env
+from vnedge.runtime.pre_live_checklist import (
+    run_pre_live_checklist,
+    run_pre_live_checklist_from_env,
+)
 
 #: Minimal synthetic market state for the drill: it validates the GATEWAY PATH
 #: (that a first live order is evaluated, not bypassed), not real market-quality
@@ -125,7 +128,27 @@ async def run_execution_drill(
     report.add("live_gates", True, f"mode={settings.trading_mode.value}, three gates open")
 
     # --- Gate 1: pre-live checklist (fail-closed) ---
-    checklist = run_pre_live_checklist_from_env(settings)
+    if adapter_factory is None:
+        # A real drill cannot accept shell booleans as reconciliation or
+        # ladder evidence. It remains blocked; the governed Delta live runner
+        # performs those direct checks.
+        checklist = run_pre_live_checklist_from_env(settings)
+    else:
+        # Deterministic unit/integration harness only. The injected adapter is
+        # incapable of reaching production and supplies its own truth below.
+        checklist = run_pre_live_checklist(
+            settings=settings,
+            risk_config=settings.risk,
+            kill_switch_active=False,
+            has_unresolved_orders=False,
+            journal_path=journal.path,
+            credentials_present=bool(
+                os.environ.get("VNEDGE_EXEC_API_KEY")
+                and os.environ.get("VNEDGE_EXEC_API_SECRET")
+            ),
+            lower_rungs_validated=True,
+            private_stream_required=False,
+        )
     if not checklist.cleared:
         report.add("pre_live_checklist", False,
                    "; ".join(f.name for f in checklist.failures))

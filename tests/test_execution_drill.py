@@ -144,7 +144,7 @@ async def test_drill_blocked_by_checklist(tmp_path, monkeypatch):
     assert fake.submitted == []
 
 
-async def test_delta_drill_requires_native_read_surfaces(tmp_path, monkeypatch):
+async def test_legacy_delta_drill_is_blocked_by_governed_precheck(tmp_path, monkeypatch):
     _env(monkeypatch, tmp_path)
     settings = Settings(**LIVE_ENV)
     report = await run_execution_drill(
@@ -153,9 +153,9 @@ async def test_delta_drill_requires_native_read_surfaces(tmp_path, monkeypatch):
         journal=DecisionJournal(tmp_path / "drill.jsonl"),
     )
     assert not report.cleared
-    check = next(s for s in report.steps if s.name == "delta_native_drill")
+    check = next(s for s in report.steps if s.name == "pre_live_checklist")
     assert not check.ok
-    assert "balance" in check.detail and "position" in check.detail
+    assert "reconciliation_clean" in check.detail
 
 
 async def test_drill_order_routes_through_the_gateway(tmp_path, monkeypatch):

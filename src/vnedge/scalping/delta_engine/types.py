@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -12,6 +13,26 @@ from types import MappingProxyType
 class Side(str, Enum):
     LONG = "long"
     SHORT = "short"
+
+
+SCALPER_MAX_HOLD_SECONDS = 30 * 60
+
+
+class TradeHorizon(str, Enum):
+    SCALP = "scalp"
+    SWING = "swing"
+
+
+def classify_trade_horizon(maximum_hold_seconds: float) -> TradeHorizon:
+    """Classify by the hard exit deadline, never the optimistic expected hold."""
+
+    if maximum_hold_seconds <= 0:
+        raise ValueError("maximum hold must be positive")
+    return (
+        TradeHorizon.SCALP
+        if maximum_hold_seconds <= SCALPER_MAX_HOLD_SECONDS
+        else TradeHorizon.SWING
+    )
 
 
 class Regime(str, Enum):
@@ -113,6 +134,188 @@ class Candle:
 
 
 @dataclass(frozen=True)
+class FormingCandle:
+    """Point-in-time view of an incomplete candle.
+
+    This is intentionally a different type from :class:`Candle`.  It must
+    never be inserted into the closed-candle store or used by indicators that
+    require settled bars.
+    """
+
+    tf: str
+    start_ts: datetime
+    end_ts: datetime
+    available_at: datetime
+    last_update_ts: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    elapsed_seconds: float
+    remaining_seconds: float
+    progress: float
+    source_observations: int
+    continuity_ok: bool
+    complete: bool = False
+    local_received_at: datetime | None = None
+    feed_delay_ms: float | None = None
+
+    def __post_init__(self) -> None:
+        for name in ("start_ts", "end_ts", "available_at", "last_update_ts"):
+            object.__setattr__(self, name, _utc(getattr(self, name)))
+        if self.local_received_at is not None:
+            object.__setattr__(self, "local_received_at", _utc(self.local_received_at))
+        if not self.tf:
+            raise ValueError("forming candle timeframe is required")
+        if self.start_ts >= self.end_ts:
+            raise ValueError("forming candle end must be after start")
+        if self.available_at < self.start_ts or self.available_at > self.end_ts:
+            raise ValueError("forming candle availability must be inside its interval")
+        if self.last_update_ts > self.available_at:
+            raise ValueError("forming candle contains a future update")
+        if min(self.open, self.high, self.low, self.close) <= 0:
+            raise ValueError("forming candle prices must be positive")
+        if self.high < max(self.open, self.close) or self.low > min(self.open, self.close):
+            raise ValueError("invalid forming candle OHLC ordering")
+        if self.volume < 0:
+            raise ValueError("forming candle volume cannot be negative")
+        if not 0.0 <= self.progress <= 1.0:
+            raise ValueError("forming candle progress must be in [0, 1]")
+        if self.elapsed_seconds < 0 or self.remaining_seconds < 0:
+            raise ValueError("forming candle elapsed/remaining time cannot be negative")
+        if self.source_observations < 1:
+            raise ValueError("forming candle requires at least one source observation")
+        if self.complete:
+            raise ValueError("forming candle snapshots must be explicitly incomplete")
+        if self.feed_delay_ms is not None and not math.isfinite(self.feed_delay_ms):
+            raise ValueError("forming candle feed delay must be finite")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "timeframe": self.tf,
+            "start_time": self.start_ts.isoformat(),
+            "end_time": self.end_ts.isoformat(),
+            "available_at": self.available_at.isoformat(),
+            "last_update_at": self.last_update_ts.isoformat(),
+            "local_received_at": (
+                self.local_received_at.isoformat()
+                if self.local_received_at is not None
+                else None
+            ),
+            "feed_delay_ms": self.feed_delay_ms,
+            "clock_skew_suspected": (
+                self.feed_delay_ms is not None and self.feed_delay_ms < 0
+            ),
+            "open": self.open,
+            "high": self.high,
+            "low": self.low,
+            "close": self.close,
+            "volume": self.volume,
+            "elapsed_seconds": self.elapsed_seconds,
+            "remaining_seconds": self.remaining_seconds,
+            "progress": self.progress,
+            "source_observations": self.source_observations,
+            "continuity_ok": self.continuity_ok,
+            "complete": False,
+            "causal": True,
+        }
+
+
+@dataclass(frozen=True)
+class TimeframeCandleState:
+    timeframe: str
+    completed: tuple[Candle, ...] = ()
+    forming: FormingCandle | None = None
+    incomplete_buckets_dropped: int = 0
+
+    def __post_init__(self) -> None:
+        if any(row.tf != self.timeframe for row in self.completed):
+            raise ValueError("completed candle timeframe mismatch")
+        if self.forming is not None and self.forming.tf != self.timeframe:
+            raise ValueError("forming candle timeframe mismatch")
+        if self.incomplete_buckets_dropped < 0:
+            raise ValueError("dropped bucket count cannot be negative")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "timeframe": self.timeframe,
+            "completed_count": len(self.completed),
+            "completed": [
+                {
+                    "close_time": row.ts.isoformat(),
+                    "open": row.open,
+                    "high": row.high,
+                    "low": row.low,
+                    "close": row.close,
+                    "volume": row.volume,
+                    "timeframe": row.tf,
+                    "complete": True,
+                }
+                for row in self.completed
+            ],
+            "forming": self.forming.to_dict() if self.forming is not None else None,
+            "incomplete_buckets_dropped": self.incomplete_buckets_dropped,
+        }
+
+
+@dataclass(frozen=True)
+class MultiTimeframeCandleSnapshot:
+    symbol: str
+    available_at: datetime
+    input_mode: str
+    states: Mapping[str, TimeframeCandleState]
+    continuity_ok: bool = True
+    last_gap_reason: str | None = None
+    last_exchange_ts: datetime | None = None
+    last_local_receive_ts: datetime | None = None
+    feed_delay_ms: float | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "available_at", _utc(self.available_at))
+        if self.last_exchange_ts is not None:
+            object.__setattr__(self, "last_exchange_ts", _utc(self.last_exchange_ts))
+        if self.last_local_receive_ts is not None:
+            object.__setattr__(
+                self, "last_local_receive_ts", _utc(self.last_local_receive_ts)
+            )
+        if self.feed_delay_ms is not None and not math.isfinite(self.feed_delay_ms):
+            raise ValueError("snapshot feed delay must be finite")
+        object.__setattr__(self, "states", MappingProxyType(dict(self.states)))
+        for timeframe, state in self.states.items():
+            if timeframe != state.timeframe:
+                raise ValueError("snapshot timeframe key mismatch")
+            if state.forming is not None and state.forming.available_at > self.available_at:
+                raise ValueError("snapshot contains future forming-candle data")
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "symbol": self.symbol,
+            "available_at": self.available_at.isoformat(),
+            "input_mode": self.input_mode,
+            "continuity_ok": self.continuity_ok,
+            "last_gap_reason": self.last_gap_reason,
+            "last_exchange_ts": (
+                self.last_exchange_ts.isoformat()
+                if self.last_exchange_ts is not None
+                else None
+            ),
+            "last_local_receive_ts": (
+                self.last_local_receive_ts.isoformat()
+                if self.last_local_receive_ts is not None
+                else None
+            ),
+            "feed_delay_ms": self.feed_delay_ms,
+            "clock_skew_suspected": (
+                self.feed_delay_ms is not None and self.feed_delay_ms < 0
+            ),
+            "timeframes": {key: value.to_dict() for key, value in self.states.items()},
+            "causal": True,
+            "research_only": True,
+        }
+
+
+@dataclass(frozen=True)
 class L2Confirmation:
     """Optional context. It is explicitly forbidden from becoming a trigger."""
 
@@ -187,20 +390,34 @@ class MarketContext:
     l2: L2Confirmation = L2Confirmation()
     regime_profile: RegimeProfile = RegimeProfile()
     features: Mapping[str, float] = field(default_factory=dict)
+    available_at: datetime | None = None
+    forming_candles: Mapping[str, FormingCandle | None] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "ts", _utc(self.ts))
+        available_at = _utc(self.available_at) if self.available_at is not None else self.ts
+        object.__setattr__(self, "available_at", available_at)
         object.__setattr__(
             self,
             "candles",
             MappingProxyType({key: tuple(value) for key, value in self.candles.items()}),
         )
         object.__setattr__(self, "features", MappingProxyType(dict(self.features)))
+        object.__setattr__(self, "forming_candles", MappingProxyType(dict(self.forming_candles)))
         for tf, rows in self.candles.items():
             if any(c.tf != tf for c in rows):
                 raise ValueError(f"candle timeframe mismatch in {tf}")
             if any(c.ts > self.ts for c in rows):
                 raise ValueError("market context contains a future candle")
+        if self.available_at < self.ts:
+            raise ValueError("market context availability predates its latest closed candle")
+        for timeframe, forming in self.forming_candles.items():
+            if forming is None:
+                continue
+            if forming.tf != timeframe:
+                raise ValueError("forming candle timeframe mismatch in market context")
+            if forming.available_at > self.available_at:
+                raise ValueError("market context contains future forming-candle data")
 
     @property
     def l2_imbalance(self) -> float:
@@ -249,7 +466,11 @@ class SignalCandidate:
     def __post_init__(self) -> None:
         object.__setattr__(self, "decision_ts", _utc(self.decision_ts))
         object.__setattr__(self, "take_profits", tuple(self.take_profits))
-        object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
+        metadata = dict(self.metadata)
+        horizon = classify_trade_horizon(self.time_stop_seconds)
+        metadata["trade_horizon"] = horizon.value
+        metadata["scalper_max_hold_seconds"] = SCALPER_MAX_HOLD_SECONDS
+        object.__setattr__(self, "metadata", MappingProxyType(metadata))
         if self.entry_price <= 0 or self.stop_loss <= 0:
             raise ValueError("entry and stop must be positive")
         if not self.take_profits or any(price <= 0 for price in self.take_profits):
@@ -277,6 +498,10 @@ class SignalCandidate:
         return self.fee_adjusted_expectancy_bps * self.confidence
 
     @property
+    def trade_horizon(self) -> TradeHorizon:
+        return classify_trade_horizon(self.time_stop_seconds)
+
+    @property
     def dedup_key(self) -> str:
         return f"{self.scanner_id}:{self.symbol}:{self.side.value}:{self.decision_ts.isoformat()}"
 
@@ -301,6 +526,8 @@ class SignalCandidate:
             "take_profits": list(self.take_profits),
             "time_stop_seconds": self.time_stop_seconds,
             "expected_hold_seconds": self.expected_hold_seconds,
+            "trade_horizon": self.trade_horizon.value,
+            "scalper_max_hold_seconds": SCALPER_MAX_HOLD_SECONDS,
             "expected_move_bps": self.expected_move_bps,
             "raw_expectancy_bps": self.raw_expectancy_bps,
             "modeled_cost_bps": self.modeled_cost_bps,

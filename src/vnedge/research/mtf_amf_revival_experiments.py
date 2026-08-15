@@ -1,4 +1,4 @@
-"""Preregistered selection-only successors to confirmed MTF rejection v2.
+"""Preregistered selection-only swing successors to confirmed MTF rejection v2.
 
 The frozen v2 report remains untouched.  This module publishes three distinct
 research lines so frequency, direction permission, and exit protection are not
@@ -8,8 +8,9 @@ silently optimized as one strategy:
 * v3 adds a causal completed-4h permission filter to short setups;
 * v3.1 adds fee-aware stop protection after a completed 15m close at +1R.
 
-None of these scanners is registered for paper or live execution.  All reports
-stop before the sealed untouched window.
+None of these scanners is registered for paper or live execution. All reports
+stop before the sealed untouched window. V3/V3.1 are sparse multi-hour swing
+hypotheses (up to 12 hours), never scalping-edge claims.
 """
 
 from __future__ import annotations
@@ -43,6 +44,33 @@ V31_SCANNER_ID = "mtf_amf_directional_rejection_protected_v3_1"
 
 V21_CONFIG = replace(DEFAULT_CONFIG, confirmation_window_bars=8)
 DEFAULT_OUTPUT = Path("research/live_research/mtf_amf_revival_matrix_latest.json")
+
+
+def _mark_swing_hypothesis(report: dict[str, Any]) -> dict[str, Any]:
+    marked = dict(report)
+    contract = dict(marked.get("contract") or {})
+    contract.update(
+        {
+            "trade_horizon": "swing",
+            "maximum_hold_seconds": 43_200,
+            "edge_claim": "unproven_sparse_swing_hypothesis_not_scalping_edge",
+        }
+    )
+    policy = dict(marked.get("policy") or {})
+    policy.update(
+        {
+            "observation_collection_allowed": True,
+            "paper_route": "absent",
+            "order_route": "absent",
+            "can_trade": False,
+            "can_promote": False,
+        }
+    )
+    marked["contract"] = contract
+    marked["policy"] = policy
+    marked["can_trade"] = False
+    marked["can_promote"] = False
+    return marked
 
 
 def _directional_feature_enricher(
@@ -155,7 +183,7 @@ def build_revival_matrix(
             "frozen_v2_modified": False,
         },
     )
-    v3 = build_selection_report(
+    v3 = _mark_swing_hypothesis(build_selection_report(
         **common,
         scanner_id=V3_SCANNER_ID,
         schema_version="vnedge.mtf_amf_directional_rejection.v3",
@@ -168,8 +196,8 @@ def build_revival_matrix(
             ),
             "long_permission": "unchanged",
         },
-    )
-    v31 = build_selection_report(
+    ))
+    v31 = _mark_swing_hypothesis(build_selection_report(
         **common,
         scanner_id=V31_SCANNER_ID,
         schema_version="vnedge.mtf_amf_directional_rejection_protected.v3_1",
@@ -184,7 +212,7 @@ def build_revival_matrix(
             ),
             "arming_candle_can_trigger_protected_stop": False,
         },
-    )
+    ))
     return {
         "schema_version": "vnedge.mtf_amf_revival_matrix.v1",
         "generated_at": generated.isoformat(),

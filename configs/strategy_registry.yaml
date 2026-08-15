@@ -1,0 +1,237 @@
+# VNEDGE Canonical Strategy & Evidence Registry
+# Every dashboard lane, paper trial and production authority must resolve here.
+schema_version: vnedge.strategy_registry.v1
+version: "1.0"
+updated: "2026-08-14T16:30:00Z"
+registry_id: vnedge_canonical_strategy_evidence_registry
+cost_contracts_file: configs/cost_contracts.yaml
+
+strategies:
+  mtf_amf_directional_rejection_v3:
+    id: mtf_amf_directional_rejection_v3
+    label: "AMF v3 sparse multi-hour structural hypothesis"
+    type: swing
+    status: shadow
+    timeframe: [15m, 1h, 4h]
+    max_hold_hours: 12
+    markets: [BTCUSD, ETHUSD]
+    hypothesis_class: sparse_structural_swing
+    edge_claim: unproven_swing_hypothesis_not_scalping_edge
+    display: true
+    evidence:
+      primary: research/live_research/mtf_amf_revival_matrix_latest.json
+      hash: sha256:3a015c47c5c1471aa864d93b406b750eb65c1a7d998a3aa22cd4db38619ff2d4
+      required_fields:
+        - experiments.mtf_amf_directional_rejection_v3.selection.metrics
+        - experiments.mtf_amf_directional_rejection_v3.selection.gate.passed
+        - can_trade
+        - can_promote
+      metrics:
+        n_trades:
+          path: experiments.mtf_amf_directional_rejection_v3.selection.metrics.trades
+          expected: 15
+        average_net_bps:
+          path: experiments.mtf_amf_directional_rejection_v3.selection.metrics.average_net_bps
+          expected: 55.72067711774496
+        total_net_bps:
+          path: experiments.mtf_amf_directional_rejection_v3.selection.metrics.net_bps
+          expected: 835.8101567661745
+        profit_factor:
+          path: experiments.mtf_amf_directional_rejection_v3.selection.metrics.profit_factor
+          expected: 2.8083646878406725
+      required_n: 60
+      sealed_holdout: true
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: true, paper: false, live: false}
+    notes: "Only current candidate with meaningful movement distance. Continue clean swing collection; do not promote."
+
+  delta_scalper_engine_v1:
+    id: delta_scalper_engine_v1
+    label: "Rejected closed-candle Delta scalper benchmark"
+    type: scalper
+    status: disabled
+    timeframe: [1m, 5m]
+    max_hold_hours: 0.5
+    markets: [BTCUSD, ETHUSD]
+    hypothesis_class: closed_candle_scalper_benchmark
+    edge_claim: signed_gross_return_near_zero_and_negative_after_costs
+    display: true
+    evidence:
+      primary: research/live_research/delta_scalper_backtest_latest.json
+      hash: sha256:efc45e9104422fa7df72f15f3f23081e343f5aa7cdd498c61bad7de565e06b1f
+      required_fields: [summary, robust_validation, untouched_window, can_trade, can_promote]
+      metrics:
+        n_trades: {path: summary.trades, expected: 19521}
+        total_net_bps: {path: summary.net_bps, expected: -124298.68717694731}
+        profit_factor: {path: summary.profit_factor, expected: 0.4020630648161759}
+      required_n: 60
+      sealed_holdout: false
+      single_window: false
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+    notes: "Disabled benchmark. It may be displayed as rejected evidence but cannot be evaluated or routed."
+
+  mtf_amf_rejection_scanner_v1:
+    id: mtf_amf_rejection_scanner_v1
+    label: "Rejected AMF rejection benchmark"
+    type: swing
+    status: disabled
+    timeframe: [1h]
+    max_hold_hours: 24
+    markets: [AAVEUSD, BNBUSD, BTCUSD, DOGEUSD, ETHUSD, LINKUSD, SOLUSD, XRPUSD]
+    hypothesis_class: multi_timeframe_rejection_benchmark
+    edge_claim: rejected_after_costs
+    display: true
+    evidence:
+      primary: research/live_research/mtf_amf_forward_evidence_latest.json
+      hash: sha256:6b85bba5e9cfbe85f0193f09f2e134418b7c4a955f1a71a52b3ca33da77a1e5d
+      required_fields: [summary, horizons, promotion, can_trade, can_promote]
+      metrics:
+        n_trades: {path: summary.resolved_outcomes, expected: 12}
+      required_n: 60
+      sealed_holdout: false
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+    notes: "Retained only as a rejected comparison artifact."
+
+  event_absorption_confirmed_reversal_v3_shadow:
+    id: event_absorption_confirmed_reversal_v3_shadow
+    label: "Absorption opportunity detector"
+    type: event
+    status: blocked
+    timeframe: [event]
+    max_hold_hours: 0.5
+    markets: [BTCUSD, ETHUSD]
+    hypothesis_class: event_time_opportunity_detector
+    edge_claim: no_stable_after_cost_direction_rule
+    display: false
+    evidence:
+      primary: research/live_research/event_response_atlas_latest.json
+      hash: sha256:6d5f18fcd923b28223dc64957798912db992e6b93a5c562b9f05b4a7a394a937
+      required_fields: [control_qualification.passed, source.independent_episodes, can_trade, can_promote]
+      metrics:
+        independent_episodes: {path: source.independent_episodes, expected: 1506}
+        matched_pairs: {path: control_qualification.matched_pairs, expected: 415}
+        control_uplift_bps: {path: control_qualification.average_uplift_bps, expected: -2.1215664836865074}
+      required_n: 1000
+      sealed_holdout: false
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+    notes: "Blocked before exit testing because independent episodes did not beat matched nearby controls."
+
+  funding_mean_reversion_v1:
+    id: funding_mean_reversion_v1
+    label: "Legacy funding mean-reversion paper preregistration"
+    type: swing
+    status: blocked
+    timeframe: [1h]
+    max_hold_hours: 24
+    markets: [BTCUSD]
+    hypothesis_class: legacy_paper_preregistration
+    edge_claim: no_current_hash_linked_performance_artifact
+    display: false
+    evidence:
+      primary: research/paper_trials/funding_mr_btc_v1_20260703.yaml
+      hash: sha256:56e6d8466e7b584dfe8b365fe0e12fae83716512ea9b4708c8bc26bf11aec435
+      required_fields: [trial_id, strategy, cost_contract]
+      required_n: 60
+      sealed_holdout: false
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+    notes: "Hash-verified preregistration only; no current performance evidence or signed paper authority."
+
+  vnedge_algo_ml_pro_v1:
+    id: vnedge_algo_ml_pro_v1
+    label: "Legacy evidence-survivor paper preregistration"
+    type: swing
+    status: blocked
+    timeframe: [1h, 4h]
+    max_hold_hours: 24
+    markets: [ETHUSD, DOGEUSD]
+    hypothesis_class: legacy_paper_preregistration
+    edge_claim: single_window_grid_claim_not_current_authority
+    display: false
+    evidence:
+      primary: research/paper_trials/vnedge_algo_ml_pro_eth_4h_20260726.yaml
+      hash: sha256:e887f9886de3122f45923b51688e2ab4a5e8ad0bc397df13c427940a1d5e88bd
+      required_fields: [trial_id, strategy, cost_contract]
+      required_n: 60
+      sealed_holdout: false
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+    notes: "Blocked until current performance evidence and signed eligibility are registered."
+
+  stealth_trail_bbp_v1:
+    id: stealth_trail_bbp_v1
+    label: "Legacy evidence-survivor paper preregistration"
+    type: swing
+    status: blocked
+    timeframe: [4h]
+    max_hold_hours: 24
+    markets: [ETHUSD]
+    hypothesis_class: legacy_paper_preregistration
+    edge_claim: single_window_grid_claim_not_current_authority
+    display: false
+    evidence:
+      primary: research/paper_trials/evidence_survivors_20260726.yaml
+      hash: sha256:5621441d85238cb0fef8f79744b231a3945b0b52cc6fa88f9337c2e3fef0b04d
+      required_fields: [trial_set_id, candidates]
+      required_n: 60
+      sealed_holdout: false
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+
+  luxy_ut_bot_forecast_v1:
+    id: luxy_ut_bot_forecast_v1
+    label: "Legacy evidence-survivor paper preregistration"
+    type: swing
+    status: blocked
+    timeframe: [1h]
+    max_hold_hours: 24
+    markets: [XRPUSD]
+    hypothesis_class: legacy_paper_preregistration
+    edge_claim: single_window_grid_claim_not_current_authority
+    display: false
+    evidence:
+      primary: research/paper_trials/evidence_survivors_20260726.yaml
+      hash: sha256:5621441d85238cb0fef8f79744b231a3945b0b52cc6fa88f9337c2e3fef0b04d
+      required_fields: [trial_set_id, candidates]
+      required_n: 60
+      sealed_holdout: false
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+
+  quant_signal_pack_v1:
+    id: quant_signal_pack_v1
+    label: "Legacy evidence-survivor paper preregistration"
+    type: swing
+    status: blocked
+    timeframe: [4h]
+    max_hold_hours: 24
+    markets: [BNBUSD]
+    hypothesis_class: legacy_paper_preregistration
+    edge_claim: single_window_grid_claim_not_current_authority
+    display: false
+    evidence:
+      primary: research/paper_trials/evidence_survivors_20260726.yaml
+      hash: sha256:5621441d85238cb0fef8f79744b231a3945b0b52cc6fa88f9337c2e3fef0b04d
+      required_fields: [trial_set_id, candidates]
+      required_n: 60
+      sealed_holdout: false
+      single_window: true
+    cost_contract: taker_full_14_8
+    authority: {observation: false, paper: false, live: false}
+
+global_authority:
+  paper_trials_enabled: false
+  can_trade: false
+  can_promote: false
+  live_orders_enabled: false
+  order_route: absent

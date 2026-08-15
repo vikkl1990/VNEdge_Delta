@@ -1,0 +1,46 @@
+contract_id: event_absorption_confirmed_reversal_v3_shadow
+version: 3.0.0
+status: development_replay_only
+research_only: true
+can_trade: false
+can_promote: false
+
+setup:
+  source: verified_displayed_absorption
+  entry_on_detection: false
+  pending_expiry_ms: 5000
+
+confirmation:
+  minimum_reclaim_ticks: 2.0
+  maximum_adverse_ticks: 2.0
+  minimum_confirmation_ms: 400
+  minimum_confirmation_samples: 3
+  minimum_flow_imbalance: 0.60
+  minimum_book_imbalance: 0.40
+  required_event_trend_coverage_seconds: 300
+  five_minute_trend_veto_bps: 5.0
+
+position_policy:
+  one_active_observation_per_symbol: true
+  conservative_lock_for_full_vertical_barrier: true
+
+exit:
+  target_bps: 45.0
+  stop_bps: 20.0
+  vertical_barrier_seconds: 900
+  minimum_target_cost_multiple: 2.5
+  trade_horizon: scalp
+  scalper_maximum_hold_seconds: 1800
+
+costs:
+  execution: taker_taker
+  gst_included: true
+  slippage_bps_per_leg: 1.5
+  modeled_round_trip_bps: 14.8
+
+authority:
+  live_market_observation: false
+  simulated_fills: true
+  delta_testnet_orders: false
+  delta_production_orders: false
+  real_capital: false

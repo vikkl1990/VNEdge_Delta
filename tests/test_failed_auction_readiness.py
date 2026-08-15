@@ -32,6 +32,10 @@ def _validation(**overrides: object) -> RecordingValidationReport:
         "negative_delay_samples": 0,
         "channel_timestamp_regressions": {},
         "clock_delay_by_channel_us": {},
+        "source_delay_classification_by_channel": {},
+        "ordering_policy": "local_receive_availability_order",
+        "exchange_timestamp_regressions_blocking": False,
+        "latency_interpretation": "test",
         "issues": (),
     }
     defaults.update(overrides)

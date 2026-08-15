@@ -11,16 +11,18 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- python app stage --------------------------------------------------------
-FROM python:3.12-slim
+FROM python:3.12-slim AS runtime
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml requirements-production.lock README.md ./
 COPY src ./src
-RUN pip install .
+RUN pip install --requirement requirements-production.lock \
+    && pip install --no-deps .
 
 COPY research ./research
+COPY configs ./configs
 # docs/ ships too: the dashboard's /runbooks route serves docs/RUNBOOKS.md at
 # runtime (without this the route 404s in-container — caught 2026-07-11).
 COPY docs ./docs
@@ -35,8 +37,26 @@ COPY --from=frontend /ui/dist ./frontend/dist
 ARG VNEDGE_BUILD_SHA=dev
 RUN echo "$VNEDGE_BUILD_SHA" > /app/BUILD_SHA
 
+FROM runtime AS production
+
+# The real-order target never runs as root. Bind-mounted state directories
+# must be owned by uid/gid 10001 on the host (production runbook).
+RUN groupadd --gid 10001 vnedge \
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin vnedge \
+    && mkdir -p /app/logs /app/data /app/research/live_research \
+    && chown -R 10001:10001 /app
+USER 10001:10001
+
 # Runtime state lives in mounted volumes: /app/logs, /app/data,
 # /app/research/paper_trials (account resume + reports survive the container).
-CMD ["python", "-m", "vnedge.runtime.paper_trial", \
-     "research/paper_trials/funding_mr_btc_v1_20260703.yaml", \
-     "--hours", "720", "--dashboard"]
+CMD ["python", "-m", "vnedge.runtime.scanner_authority", \
+     "--manifest", "configs/production_live.yaml", \
+     "--interval-seconds", "30"]
+
+# Existing research services retain their current runtime identity. They have
+# numerous historical bind mounts; migrating those owners is a separate,
+# reversible operations change and cannot be coupled to live execution.
+FROM runtime AS default
+CMD ["python", "-m", "vnedge.runtime.scanner_authority", \
+     "--manifest", "configs/production_live.yaml", \
+     "--interval-seconds", "30"]
