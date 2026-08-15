@@ -9,6 +9,7 @@ QUANTIFIED = ROOT / "src/vnedge/dashboard/static/quantified_strategy_lab.html"
 APP = ROOT / "src/vnedge/dashboard/app.py"
 README = ROOT / "README.md"
 DELTA_LAUNCHER = ROOT / "scripts/start_delta_research_dashboard.sh"
+KRONOS_FORWARD_LAUNCHER = ROOT / "scripts/start_kronos_forward_collector.sh"
 
 
 def _index() -> str:
@@ -35,6 +36,15 @@ def test_delta_dashboard_launcher_is_read_only_and_does_not_start_paper_runtime(
     assert "vnedge.runtime.multi_lane_shadow" not in text
     assert "MULTI_LANE_MODES" not in text
     assert DELTA_LAUNCHER.stat().st_mode & 0o111
+
+
+def test_kronos_forward_launcher_is_offline_research_only():
+    text = KRONOS_FORWARD_LAUNCHER.read_text()
+    assert "vnedge.research.kronos_forward_collector" in text
+    assert "HF_HUB_OFFLINE=1" in text
+    assert "paper" not in text.lower()
+    assert "live" not in text.lower()
+    assert KRONOS_FORWARD_LAUNCHER.stat().st_mode & 0o111
 
 
 def test_promote_view_has_joined_operator_lifecycle_console():

@@ -1661,6 +1661,7 @@ def create_app(
     event_continuity_path: Path | None = None,
     kronos_matrix_path: Path | None = None,
     kronos_confirmation_path: Path | None = None,
+    kronos_forward_path: Path | None = None,
     forced_flow_dir: Path | None = None,
     htf_structure_path: Path | None = None,
     htf_structure_v2_path: Path | None = None,
@@ -1939,6 +1940,9 @@ def create_app(
     )
     kronos_confirmation_file = kronos_confirmation_path or Path(
         "research/live_research/kronos_permutation_confirmation_latest.json"
+    )
+    kronos_forward_file = kronos_forward_path or Path(
+        "research/live_research/kronos_ethusd_1h_forward_latest.json"
     )
     forced_flow_output_dir = forced_flow_dir or Path(
         "research/live_research/delta_forced_flow_panel"
@@ -3314,6 +3318,27 @@ def create_app(
             headers=_identity(user),
         )
 
+    @app.get("/kronos-forward-evidence")
+    async def kronos_forward_evidence(request: Request) -> JSONResponse:
+        """Prospective ETHUSD 1h/12h research telemetry; never authority."""
+
+        user = _authorized(request)
+        payload = _read_json_payload(
+            kronos_forward_file,
+            {
+                "schema_version": "vnedge.kronos_forward_evidence.v1",
+                "strategy_id": "kronos_ethusd_1h_forward_v1",
+                "status": "COLLECTOR_NOT_RUNNING",
+                "summary": {"resolved_outcomes": 0, "required_observations": 60},
+                "research_only": True,
+                "can_trade": False,
+                "can_promote": False,
+            },
+        )
+        payload["can_trade"] = False
+        payload["can_promote"] = False
+        return JSONResponse(payload, headers=_identity(user))
+
     @app.get("/production-readiness")
     async def production_readiness(request: Request) -> JSONResponse:
         """Canonical fail-closed production-readiness projection."""
@@ -3462,6 +3487,34 @@ def create_app(
         }
         embedded_panels["indicator_score_calibration"] = indicator_calibration
         embedded_panels["production_readiness"] = production_readiness
+        kronos_forward = _read_json_payload(
+            kronos_forward_file,
+            {
+                "schema_version": "vnedge.kronos_forward_evidence.v1",
+                "strategy_id": "kronos_ethusd_1h_forward_v1",
+                "status": "COLLECTOR_NOT_RUNNING",
+                "summary": {
+                    "evaluations": 0,
+                    "gate_passes": 0,
+                    "journaled_observations": 0,
+                    "resolved_outcomes": 0,
+                    "required_observations": 60,
+                    "active_observation": False,
+                },
+                "selection_gate": {
+                    "passed": False,
+                    "sealed_holdout_opened": False,
+                    "paper_authorized": False,
+                    "live_authorized": False,
+                },
+                "research_only": True,
+                "can_trade": False,
+                "can_promote": False,
+            },
+        )
+        kronos_forward["can_trade"] = False
+        kronos_forward["can_promote"] = False
+        embedded_panels["kronos_forward_evidence"] = kronos_forward
         revived_evidence = _read_json_payload(
             revived_scanner_evidence_file,
             {

@@ -417,6 +417,7 @@ def test_delta_scalper_endpoint_exposes_research_panels_only(tmp_path):
     lane_ids = {lane["lane_id"] for lane in payload["lanes"]}
     assert lane_ids == {
         "delta_scalper_btcusd",
+        "registry_kronos_ethusd_1h_forward_v1",
         "registry_mtf_amf_directional_rejection_v3",
     }
     delta_lane = next(

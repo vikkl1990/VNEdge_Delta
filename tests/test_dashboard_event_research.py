@@ -175,6 +175,49 @@ def test_indicator_calibration_is_read_only_and_embedded_in_delta_home(tmp_path:
     assert embedded["can_trade"] is False
 
 
+def test_kronos_forward_evidence_is_embedded_and_cannot_claim_authority(tmp_path: Path) -> None:
+    forward = tmp_path / "kronos-forward.json"
+    forward.write_text(
+        json.dumps(
+            {
+                "schema_version": "vnedge.kronos_forward_evidence.v1",
+                "strategy_id": "kronos_ethusd_1h_forward_v1",
+                "status": "OBSERVATION_ACTIVE",
+                "summary": {
+                    "evaluations": 3,
+                    "gate_passes": 1,
+                    "resolved_outcomes": 0,
+                    "required_observations": 60,
+                },
+                "can_trade": True,
+                "can_promote": True,
+            }
+        )
+    )
+    delta = tmp_path / "delta.json"
+    delta.write_text(json.dumps({"rows": [], "delta_scalper": {}}))
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(
+        create_app(
+            provider,
+            token="token",
+            delta_scalper_path=delta,
+            kronos_forward_path=forward,
+        )
+    )
+
+    assert client.get("/kronos-forward-evidence").status_code == 401
+    direct = client.get("/kronos-forward-evidence?token=token").json()
+    embedded = client.get("/delta-scalper?token=token").json()["panels"][
+        "kronos_forward_evidence"
+    ]
+    assert direct["summary"]["evaluations"] == 3
+    assert embedded["status"] == "OBSERVATION_ACTIVE"
+    assert direct["can_trade"] is False and direct["can_promote"] is False
+    assert embedded["can_trade"] is False and embedded["can_promote"] is False
+
+
 def test_event_research_endpoint_reports_fresh_active_recorder(tmp_path: Path) -> None:
     event_root = tmp_path / "events"
     event_root.mkdir()

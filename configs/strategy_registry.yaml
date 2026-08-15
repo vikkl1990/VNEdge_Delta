@@ -2,11 +2,43 @@
 # Every dashboard lane, paper trial and production authority must resolve here.
 schema_version: vnedge.strategy_registry.v1
 version: "1.0"
-updated: "2026-08-15T06:20:40Z"
+updated: "2026-08-15T08:15:00Z"
 registry_id: vnedge_canonical_strategy_evidence_registry
 cost_contracts_file: configs/cost_contracts.yaml
 
 strategies:
+  kronos_ethusd_1h_forward_v1:
+    id: kronos_ethusd_1h_forward_v1
+    label: "Pinned Kronos ETHUSD prospective 1h/12h evidence lane"
+    type: swing
+    status: shadow
+    timeframe: [1h]
+    max_hold_hours: 12
+    markets: [ETHUSD]
+    hypothesis_class: foundation_forecast_prospective_swing
+    edge_claim: historical_diagnostic_promising_forward_edge_unproven
+    display: true
+    evidence:
+      primary: research/prereg/kronos_ethusd_1h_forward_v1.json
+      hash: sha256:b519d70212e7c7906dfa6fe8b9f4529d628bca497cefd07be1fd4ed6d4793b8d
+      required_fields:
+        - inference.source_revision
+        - inference.model_revision
+        - selection.required_independent_observations
+        - collection_baseline.resolved_outcomes
+        - can_trade
+        - can_promote
+      metrics:
+        n_trades:
+          path: collection_baseline.resolved_outcomes
+          expected: 0
+      required_n: 60
+      sealed_holdout: true
+      single_window: false
+    cost_contract: taker_full_14_8
+    authority: {observation: true, paper: false, live: false}
+    notes: "Prospective, non-overlapping 12h observations only. Historical diagnostic is not promotion proof."
+
   mtf_amf_directional_rejection_v3:
     id: mtf_amf_directional_rejection_v3
     label: "AMF v3 sparse multi-hour structural hypothesis"

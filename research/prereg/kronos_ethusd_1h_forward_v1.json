@@ -1,0 +1,54 @@
+{
+  "schema_version": "vnedge.kronos_forward_preregistration.v1",
+  "strategy_id": "kronos_ethusd_1h_forward_v1",
+  "frozen_at": "2026-08-15T08:15:00Z",
+  "hypothesis": "Pinned Kronos-mini forecasts on closed ETHUSD 1h candles select non-overlapping 12h directions with positive after-cost forward expectancy.",
+  "market": "ETHUSD",
+  "timeframe": "1h",
+  "decision": "after a completed 1h candle",
+  "entry": "next 1h open",
+  "exit": "close of the twelfth 1h bar after entry",
+  "one_active_observation": true,
+  "no_historical_backfill": true,
+  "cost_contract": "taker_full_14_8",
+  "round_trip_cost_bps": 14.8,
+  "inference": {
+    "source_revision": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+    "model_id": "NeoQuasar/Kronos-mini",
+    "model_revision": "f4e68697d9d5aed55cef5c96aabc3376bcad9f81",
+    "tokenizer_id": "NeoQuasar/Kronos-Tokenizer-2k",
+    "tokenizer_revision": "26966d0035065a0cae0ebad7af8ece35bc1fb51c",
+    "lookback_bars": 128,
+    "horizon_bars": 12,
+    "sample_paths": 4,
+    "seed": 42,
+    "temperature": 1.0,
+    "top_k": 0,
+    "top_p": 0.9,
+    "local_files_only": true
+  },
+  "forecast_gate": {
+    "route": "taker_taker",
+    "minimum_projected_net_bps": 25.0,
+    "minimum_confidence": 0.55,
+    "minimum_reward_risk": 1.2,
+    "maximum_adverse_bps": 180.0,
+    "safety_buffer_bps": 5.0
+  },
+  "selection": {
+    "required_independent_observations": 60,
+    "minimum_average_net_bps": 10.0,
+    "minimum_profit_factor": 1.3,
+    "sealed_holdout_opened": false,
+    "paper_authorized": false,
+    "live_authorized": false
+  },
+  "collection_baseline": {
+    "evaluations": 0,
+    "resolved_outcomes": 0
+  },
+  "historical_diagnostic_is_not_forward_proof": true,
+  "research_only": true,
+  "can_trade": false,
+  "can_promote": false
+}
