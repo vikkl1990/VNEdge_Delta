@@ -3903,6 +3903,7 @@ def create_app(
 
         response_payload = {
             "generated_at": payload.get("generated_at"),
+            "code_version": payload.get("code_version"),
             "freshness": freshness,
             "rows": rows,
             "lanes": lanes,
