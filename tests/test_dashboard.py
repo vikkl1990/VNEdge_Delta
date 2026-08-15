@@ -213,7 +213,8 @@ def test_dashboard_home_is_delta_research_sidecar(client):
     assert "Checking Delta publisher freshness" in html
     assert "No validated after-cost edge" in html
     assert "Historical values are never presented as live" in html
-    assert "Provisional event scanner is collecting simulated outcomes." in html
+    assert "Provisional event scanner is collecting research outcomes." in html
+    assert "No paper or exchange order route exists" in html
     assert 'authorizedFetch("/delta-scalper"' in html
     assert 'authorizedFetch("/event-research-infrastructure"' in html
     assert 'href="/research-lab"' in html

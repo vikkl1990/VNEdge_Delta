@@ -3634,6 +3634,25 @@ def create_app(
         }:
             enabled_scanners.append(scanner_state)
 
+        if not enabled_scanners:
+            rows = [
+                {
+                    **row,
+                    "state": (
+                        row.get("state") if row.get("state") == "DATA_STALE" else "MONITORING"
+                    ),
+                    "why": (
+                        row.get("why")
+                        if row.get("state") == "DATA_STALE"
+                        else (
+                            "All closed-candle primary scanner hypotheses are rejected and "
+                            "disabled; this lane publishes context only."
+                        )
+                    ),
+                }
+                for row in rows
+            ]
+
         lanes: list[dict] = []
         for row in rows:
             latest_eval = row.get("latest_eval")
