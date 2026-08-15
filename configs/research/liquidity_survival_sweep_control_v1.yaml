@@ -1,0 +1,67 @@
+contract_id: liquidity_survival_sweep_control_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+source:
+  event_quality_artifact: research/live_research/event_episode_quality_latest.json
+  candle_cache: data/delta_scalper_cache
+  event_root: data/delta_events
+  symbols: [BTCUSD, ETHUSD]
+  candle_history_days: 45
+  completed_candles_only: true
+  genuine_trade_and_l2_truth_required: true
+
+location:
+  merge_tolerance_bps: 5.0
+  maximum_event_distance_bps: 8.0
+  invalidation_close_bps: 2.0
+  interaction_cooldown_bars: 2
+  minimum_merged_members: 2
+  scales:
+    - {name: fast_15m, timeframe: 15m, pivot_left: 2, pivot_right: 2, maximum_age_bars: 192}
+    - {name: medium_15m, timeframe: 15m, pivot_left: 4, pivot_right: 4, maximum_age_bars: 384}
+    - {name: slow_1h, timeframe: 1h, pivot_left: 3, pivot_right: 3, maximum_age_bars: 240}
+
+survival:
+  beta_prior_alpha: 2.0
+  beta_prior_beta: 2.0
+  minimum_resolved_interactions: 20
+  minimum_direction_probability: 0.55
+  age_buckets_bars: [16, 48, 192]
+  touch_buckets: [1, 2, 4]
+
+quality:
+  minimum_abnormal_score: 0.65
+  require_market_truth_complete: true
+  require_directional_confirmation: true
+  allowed_direction_states: [reversal_reclaim, continuation_failure]
+
+economics:
+  cost_contract_id: taker_full_14_8
+  minimum_target_cost_multiple: 5.0
+  stop_buffer_bps: 2.0
+  minimum_prior_expected_net_bps: 0.0
+
+controls:
+  entry_delay_ms: 250
+  horizon_ms: 900000
+  pre_event_volatility_ms: 300000
+  event_exclusion_ms: 60000
+  maximum_volatility_ratio: 1.75
+  prior_offsets_ms: [-1800000, -3600000, -86400000, -172800000, -259200000]
+  minimum_pairs: 30
+  minimum_average_uplift_bps: 0.0
+  minimum_outperformance_rate: 0.50
+  require_outcome_known_before_episode: true
+
+policy:
+  availability_clock: local_receive
+  entry: first_public_trade_at_or_after_quality_available_plus_delay
+  candle_orderflow_proxy_allowed: false
+  parameters_may_change_after_first_run: false
+  exits_before_control_pass: forbidden
+  sealed_tail_auto_open: false
+  registry_enrollment_before_selection_pass: forbidden
+  amf_v3_evidence_mixing: forbidden

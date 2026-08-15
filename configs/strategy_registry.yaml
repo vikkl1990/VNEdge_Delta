@@ -2,7 +2,7 @@
 # Every dashboard lane, paper trial and production authority must resolve here.
 schema_version: vnedge.strategy_registry.v1
 version: "1.0"
-updated: "2026-08-14T16:30:00Z"
+updated: "2026-08-15T06:20:40Z"
 registry_id: vnedge_canonical_strategy_evidence_registry
 cost_contracts_file: configs/cost_contracts.yaml
 
@@ -58,13 +58,15 @@ strategies:
     edge_claim: signed_gross_return_near_zero_and_negative_after_costs
     display: true
     evidence:
-      primary: research/live_research/delta_scalper_backtest_latest.json
-      hash: sha256:efc45e9104422fa7df72f15f3f23081e343f5aa7cdd498c61bad7de565e06b1f
-      required_fields: [summary, robust_validation, untouched_window, can_trade, can_promote]
+      primary: research/live_research/delta_active_cost_evidence_latest.json
+      hash: sha256:5d7510230b3d8b33b2dc01484acc901cae4a361b09863016a78270ae32b20aaa
+      required_fields: [metrics, markets, route_cost_contract, can_trade, can_promote]
       metrics:
-        n_trades: {path: summary.trades, expected: 19521}
-        total_net_bps: {path: summary.net_bps, expected: -124298.68717694731}
-        profit_factor: {path: summary.profit_factor, expected: 0.4020630648161759}
+        n_trades: {path: metrics.trades, expected: 19521}
+        average_gross_bps: {path: metrics.average_gross_bps, expected: -1.0074344130396657}
+        average_net_bps: {path: metrics.average_net_bps, expected: -15.807434413039667}
+        total_net_bps: {path: metrics.net_bps, expected: -308576.92717694736}
+        profit_factor: {path: metrics.profit_factor, expected: 0.06902969131144003}
       required_n: 60
       sealed_holdout: false
       single_window: false

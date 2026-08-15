@@ -1,0 +1,91 @@
+contract_id: liquidity_pool_squeeze_cleanroom_v1
+status: preregistered
+research_only: true
+can_trade: false
+can_promote: false
+
+data:
+  symbols: [BTCUSD, ETHUSD]
+  source_timeframe: 1m
+  decision_timeframe: 15m
+  start: "2025-01-01T00:00:00+00:00"
+  selection_end_exclusive: "2026-04-02T00:00:00+00:00"
+  sealed_tail_start: "2026-04-02T00:00:00+00:00"
+  require_closed_candles: true
+  require_zero_missing_minutes: true
+
+pool:
+  pivot_left_bars: 3
+  pivot_right_bars: 3
+  minimum_touches: 2
+  merge_tolerance_atr: 0.20
+  maximum_age_bars: 192
+  minimum_sweep_bps: 2.0
+  minimum_rejection_wick_ratio: 0.40
+
+squeeze:
+  bollinger_window_bars: 20
+  percentile_history_bars: 200
+  maximum_width_percentile: 0.20
+  recent_lookback_bars: 8
+
+volume:
+  history_bars: 20
+  minimum_relative_volume: 1.25
+
+target_room:
+  cost_multiple: 5.0
+  fallback_reward_risk: 2.0
+
+exit:
+  stop_buffer_bps: 2.0
+  maximum_stop_bps: 80.0
+  vertical_barrier_bars: 16
+  cooldown_bars: 16
+  same_bar_resolution: stop_first
+
+costs:
+  contract_id: taker_full_14_8
+  total_roundtrip_bps: 14.8
+
+controls:
+  horizon_bars: 4
+  maximum_lookback_bars: 672
+  minimum_matched_pairs: 30
+  minimum_average_mfe_uplift_bps: 0.0
+  minimum_pair_win_rate: 0.50
+  require_same_symbol: true
+  require_same_utc_session: true
+  require_same_causal_volatility_bucket: true
+  require_control_outcome_known_before_event: true
+
+selection:
+  minimum_trades: 60
+  minimum_average_gross_bps: 14.8
+  minimum_average_net_bps: 0.0
+  minimum_profit_factor: 1.15
+  open_sealed_tail_only_after_selection_and_control_pass: true
+
+variants:
+  testing_order:
+    - pool_sweep_standalone
+    - pool_squeeze_full
+    - ablate_squeeze
+    - ablate_volume
+    - ablate_target_room
+  pool_sweep_standalone: {squeeze: false, volume: false, target_room: false}
+  pool_squeeze_full: {squeeze: true, volume: true, target_room: true}
+  ablate_squeeze: {squeeze: false, volume: true, target_room: true}
+  ablate_volume: {squeeze: true, volume: false, target_room: true}
+  ablate_target_room: {squeeze: true, volume: true, target_room: false}
+
+policy:
+  entry: next completed 15m bar open
+  pool_availability: pivot becomes available only after right-side confirmation bars
+  future_pivots_may_rewrite_history: false
+  active_observation: one per symbol and variant
+  parameter_search: forbidden on this selection window
+  exit_optimization_before_matched_control_pass: forbidden
+  sealed_tail_auto_open: false
+  amf_v3_evidence_mixing: forbidden
+

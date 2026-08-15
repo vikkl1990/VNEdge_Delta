@@ -32,6 +32,7 @@ from vnedge.exchange.delta_public_schema import (
     parse_ticker_open_interest,
 )
 from vnedge.execution.journal import DecisionJournal
+from vnedge.runtime_version import code_version
 from vnedge.scalping.delta_engine.absorption import (
     AbsorptionDetector,
     AbsorptionDetectorConfig,
@@ -49,6 +50,7 @@ from vnedge.scalping.delta_engine.types import Side, SignalCandidate
 
 BookSideName = Literal["bid", "ask"]
 AggressorSide = Literal["buy", "sell"]
+_CODE_VERSION = code_version()
 
 
 def _utc(ts: datetime) -> datetime:
@@ -65,6 +67,7 @@ class EventTriggerConfig(BaseModel):
     confirmation_ms: int = Field(default=400, ge=100, le=5_000)
     max_book_age_ms: int = Field(default=1_000, ge=50, le=30_000)
     max_trade_book_join_ms: int = Field(default=1_000, ge=10, le=10_000)
+    trade_book_price_tolerance_ticks: float = Field(default=0.51, ge=0.0, le=2.0)
     max_reference_age_ms: int = Field(default=10_000, ge=500, le=300_000)
     max_funding_age_ms: int = Field(default=32_400_000, ge=60_000, le=86_400_000)
     max_open_interest_age_ms: int = Field(default=10_000, ge=500, le=300_000)
@@ -975,10 +978,18 @@ class EventDrivenTriggerLayer:
             state.last_trade_book_join_reason = "trade_book_join_stale"
             return False, 0.0, 0.0
         side = matched.asks if event.side == "buy" else matched.bids
-        size = next((level.size for level in side if level.price == event.price), 0.0)
+        instrument = self.config.absorption.instrument(event.symbol)
+        tick_size = instrument.tick_size if instrument is not None else 0.0
+        nearest = min(side, key=lambda level: abs(level.price - event.price), default=None)
+        tolerance = tick_size * self.config.trade_book_price_tolerance_ticks
+        if nearest is None or abs(nearest.price - event.price) > tolerance + 1e-12:
+            state.last_trade_book_join_ok = False
+            state.last_trade_book_join_reason = "trade_price_outside_causal_book_band"
+            return False, 0.0, 0.0
+        size = nearest.size
         if size <= 0:
             state.last_trade_book_join_ok = False
-            state.last_trade_book_join_reason = "trade_price_absent_from_resting_book"
+            state.last_trade_book_join_reason = "causal_book_level_has_no_size"
             return False, 0.0, 0.0
         mid = (matched.bids[0].price + matched.asks[0].price) / 2.0
         state.last_trade_book_join_ok = True
@@ -1546,6 +1557,7 @@ class EventDrivenTriggerLayer:
 
         return {
             "schema_version": "vnedge.delta_event_trigger_telemetry.v1",
+            "code_version": _CODE_VERSION,
             "counts": dict(self._counts),
             "feed_delay": self._feed_latency.summary(),
             "receive_to_decision": self._decision_latency.summary(),

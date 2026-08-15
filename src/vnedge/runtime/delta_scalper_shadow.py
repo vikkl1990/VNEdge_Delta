@@ -19,6 +19,7 @@ from vnedge.data.delta_native_history import fetch_delta_candle_history
 from vnedge.exchange.delta_contracts import fetch_india_contract_spec
 from vnedge.exchange.delta_ws import DeltaPublicWsClient
 from vnedge.execution.journal import DecisionJournal
+from vnedge.runtime_version import code_version
 from vnedge.scalping.delta_engine.architecture import architecture_manifest
 from vnedge.scalping.delta_engine.candle_store import (
     TIMEFRAME_SECONDS,
@@ -33,6 +34,7 @@ from vnedge.scalping.delta_engine.types import Candle, SignalCandidate
 
 DEFAULT_SYMBOLS = ("BTCUSD", "ETHUSD")
 DEFAULT_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h")
+_CODE_VERSION = code_version()
 
 
 def _proven_decision_time(local_now: datetime, close_ts: datetime) -> datetime:
@@ -435,13 +437,13 @@ class DeltaScalperShadowService:
             outcome_expected = [float(item["expected_net_bps"]) for item in outcomes]
             live_evidence = {
                 "completed_alerts": len(outcomes),
-                "average_expected_net_bps": (
+                "average_structural_net_headroom_bps": (
                     sum(outcome_expected) / len(outcome_expected) if outcome_expected else None
                 ),
                 "average_realized_net_bps": (
                     sum(outcome_net) / len(outcome_net) if outcome_net else None
                 ),
-                "expectation_error_bps": (
+                "headroom_capture_error_bps": (
                     sum(realized - expected for realized, expected in zip(outcome_net, outcome_expected))
                     / len(outcomes)
                     if outcomes
@@ -534,6 +536,7 @@ class DeltaScalperShadowService:
             self.snapshot_path,
             {
                 "generated_at": now.isoformat(),
+                "code_version": _CODE_VERSION,
                 "mode": "delta_scalper_research_shadow",
                 "summary": {
                     "connected_symbols": len(self.symbols),

@@ -451,10 +451,12 @@ def test_dashboard_surfaces_response_atlas_without_granting_authority(tmp_path: 
 
     response = client.get("/event-research-infrastructure?token=token").json()["response_atlas"]
 
-    assert response["status"] == "NO_AFTER_COST_DIRECTIONAL_CELL_FOUND"
+    assert response["status"] == "WITHHELD_STALE_EPISODE_SOURCE"
     assert response["source"]["independent_episodes"] == 500
     assert response["control_qualification"]["passed"] is True
-    assert response["diagnosis"]["best_cell"]["average_net_bps"] == -8.0
+    assert response["source_aligned_with_quality"] is False
+    assert response["opportunity_atlas"] == []
+    assert response["direction_entry_exit_matrix"] == []
     assert response["scanner_implementation_authorized"] is False
     assert response["can_trade"] is False
     assert response["can_promote"] is False
@@ -567,10 +569,11 @@ def test_dashboard_surfaces_post_event_direction_failure_without_authority(
         "post_absorption_direction"
     ]
 
-    assert response["status"] == "NO_STABLE_AFTER_COST_DIRECTION_RULE_FOUND"
+    assert response["status"] == "WITHHELD_STALE_EPISODE_SOURCE"
     assert response["source"]["independent_episodes"] == 8_907
     assert response["control_qualification"]["passed"] is True
-    assert response["diagnosis"]["best_comparison"]["validation"]["average_net_bps"] == -14.26
+    assert response["source_aligned_with_quality"] is False
+    assert response["best_comparisons"] == []
     assert response["scanner_implementation_authorized"] is False
     assert response["paper_authorized"] is False
     assert response["can_trade"] is False

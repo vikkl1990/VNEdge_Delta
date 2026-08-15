@@ -50,16 +50,16 @@ from vnedge.paper.account_store import PaperAccountStore
 from vnedge.paper.fill_model import FillModel
 from vnedge.paper.paper_broker import PaperBroker
 from vnedge.paper.simulated_exchange import SimulatedExchange
-from vnedge.risk.kill_switch import KillSwitch
-from vnedge.risk.risk_manager import PreTradeRiskGateway
-from vnedge.runtime.live_paper import LivePaperSession
-from vnedge.runtime.runner_config import RunnerConfig, RunnerMode
 from vnedge.research.strategy_evidence_registry import (
     DEFAULT_REGISTRY,
     build_registry_snapshot,
     route_cost_contract,
     strategy_authority_blockers,
 )
+from vnedge.risk.kill_switch import KillSwitch
+from vnedge.risk.risk_manager import PreTradeRiskGateway
+from vnedge.runtime.live_paper import LivePaperSession
+from vnedge.runtime.runner_config import RunnerConfig, RunnerMode
 from vnedge.strategy.funding_mean_reversion import FundingMeanReversion
 
 logger = logging.getLogger(__name__)
@@ -109,9 +109,10 @@ class TrialManifest:
             )
         )
         keyring = load_governance_keyring(trust_path)
-        registry_locator = str(raw.get("strategy_registry_path") or DEFAULT_REGISTRY)
+        configured_registry = raw.get("strategy_registry_path")
+        registry_locator = str(configured_registry or DEFAULT_REGISTRY)
         registry_path = Path(registry_locator)
-        if not registry_path.is_absolute():
+        if configured_registry and not registry_path.is_absolute():
             registry_path = path.parent / registry_path
         registry = build_registry_snapshot(registry_path)
         cost_contract_id = str(raw.get("cost_contract") or "").strip()

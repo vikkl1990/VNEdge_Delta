@@ -1,0 +1,86 @@
+{
+  "can_promote": false,
+  "can_trade": false,
+  "config": "configs/delta_scalper.yaml",
+  "cost_contract": "taker_full_14_8",
+  "data_contract": "per-trade gross_bps repriced with one canonical route-cost contract; source maker/taker flags are diagnostic only",
+  "fee_model": {
+    "default_slippage_bps_per_leg": 1.5,
+    "deto_enabled": false,
+    "gst_rate": 0.18,
+    "maker_fee_bps_pre_tax": 2.0,
+    "scalper_opted_in": false,
+    "taker_fee_bps_pre_tax": 5.0
+  },
+  "generated_at": "2026-08-15T06:20:39.803025+00:00",
+  "markets": {
+    "BTCUSD": {
+      "average_cost_bps": 14.8,
+      "average_gross_bps": -1.0873015530016719,
+      "average_net_bps": -15.887301553001674,
+      "cost_bps": 78839.6,
+      "gross_bps": -5792.055372839906,
+      "net_bps": -84631.65537283992,
+      "profit_factor": 0.05316302835900423,
+      "trades": 5327,
+      "win_rate": 0.18753519804768162
+    },
+    "ETHUSD": {
+      "average_cost_bps": 14.800000000000002,
+      "average_gross_bps": -0.9774603215518818,
+      "average_net_bps": -15.777460321551882,
+      "cost_bps": 210071.20000000004,
+      "gross_bps": -13874.07180410741,
+      "net_bps": -223945.2718041074,
+      "profit_factor": 0.07488831352508324,
+      "trades": 14194,
+      "win_rate": 0.229744962660279
+    }
+  },
+  "metrics": {
+    "average_cost_bps": 14.799999999999999,
+    "average_gross_bps": -1.0074344130396657,
+    "average_net_bps": -15.807434413039667,
+    "cost_bps": 288910.8,
+    "gross_bps": -19666.127176947317,
+    "net_bps": -308576.92717694736,
+    "profit_factor": 0.06902969131144003,
+    "trades": 19521,
+    "win_rate": 0.21822652528046718
+  },
+  "order_route": "absent",
+  "positive_markets": 0,
+  "research_only": true,
+  "route_cost_contract": {
+    "base_entry_fee_bps": 5.0,
+    "base_exit_fee_bps": 5.0,
+    "calibration_status": "verified_fee_schedule_plus_conservative_slippage_reserve",
+    "contract_id": "taker_full_14_8",
+    "description": "Delta India taker entry + taker exit; GST included; 1.5 bps adverse slippage per leg",
+    "entry_liquidity": "taker",
+    "entry_route": "taker",
+    "exit_liquidity": "taker",
+    "exit_route": "taker",
+    "fee_bps": 11.8,
+    "gst_bps": 1.8,
+    "includes_gst": true,
+    "label": "Delta India taker entry + taker exit; GST included; 1.5 bps adverse slippage per leg",
+    "maker_fee_bps": 2.36,
+    "round_trip_cost_bps": 14.8,
+    "route": "taker_taker",
+    "safety_buffer_bps": 0.0,
+    "slippage_bps": 3.0,
+    "slippage_bps_per_leg": 1.5,
+    "slippage_reserve_bps": 3.0,
+    "taker_fee_bps": 5.9,
+    "total_roundtrip_bps": 14.8
+  },
+  "schema_version": "vnedge.delta_active_cost_evidence.v1",
+  "source": "research/live_research/delta_scalper_with_tb_labels.parquet",
+  "source_route_diagnostics": {
+    "source_entry_route_used_for_pricing": false,
+    "trades_marked_maker_entry": 19521,
+    "trades_marked_taker_entry": 0
+  },
+  "source_sha256": "696abb8b27095e1b30c454508e60ff18b31e6977942cd38a232e322158932913"
+}

@@ -1,0 +1,3870 @@
+{
+  "atlas_id": "delta_absorption_response_atlas_v1",
+  "best_discovery_cells": [],
+  "can_promote": false,
+  "can_trade": false,
+  "chronological_stability": [],
+  "contract": {
+    "code_version": "canonical-registry-v1",
+    "control_gate_required": true,
+    "directions": [
+      "reversal",
+      "continuation"
+    ],
+    "entry_delays_ms": [
+      0,
+      250,
+      1000
+    ],
+    "episode_separation_ms": 30000,
+    "horizons_ms": [
+      60000,
+      180000,
+      300000,
+      600000,
+      900000,
+      1800000
+    ],
+    "maximum_entry_wait_ms": 2000,
+    "minimum_cell_observations": 30,
+    "route_cost_contract": {
+      "base_entry_fee_bps": 5.0,
+      "base_exit_fee_bps": 5.0,
+      "calibration_status": "verified_fee_schedule_plus_conservative_slippage_reserve",
+      "contract_id": "taker_full_14_8",
+      "description": "Delta India taker entry + taker exit; GST included; 1.5 bps adverse slippage per leg",
+      "entry_liquidity": "taker",
+      "entry_route": "taker",
+      "exit_liquidity": "taker",
+      "exit_route": "taker",
+      "fee_bps": 11.8,
+      "gst_bps": 1.8,
+      "includes_gst": true,
+      "label": "Delta India taker entry + taker exit; GST included; 1.5 bps adverse slippage per leg",
+      "maker_fee_bps": 2.36,
+      "round_trip_cost_bps": 14.8,
+      "route": "taker_taker",
+      "safety_buffer_bps": 0.0,
+      "slippage_bps": 3.0,
+      "slippage_bps_per_leg": 1.5,
+      "slippage_reserve_bps": 3.0,
+      "taker_fee_bps": 5.9,
+      "total_roundtrip_bps": 14.8
+    }
+  },
+  "control_qualification": {
+    "average_control_best_mfe_bps": 18.451258482878472,
+    "average_event_best_mfe_bps": 16.329691999191965,
+    "average_uplift_bps": -2.1215664836865074,
+    "checks": {
+      "minimum_pairs": true,
+      "pair_win_rate": false,
+      "positive_mean_uplift": false
+    },
+    "delay_ms": 250,
+    "event_exclusion_ms": 60000,
+    "event_outperformance_rate": 0.39518072289156625,
+    "excluded_control_candidates": 1440,
+    "exit_testing_authorized": false,
+    "horizon_ms": 900000,
+    "matched_pairs": 415,
+    "method": "one_to_one_nearby_non_event_direction_neutral_mfe",
+    "minimum_pair_win_rate": 0.5,
+    "minimum_pairs": 30,
+    "minimum_uplift_bps": 0.0,
+    "nearby_offset_ms": 1800000,
+    "pairs": [
+      {
+        "control_best_mfe_bps": 20.793346129239776,
+        "control_ts_us": 1786375755210940,
+        "event_best_mfe_bps": 92.46539152488631,
+        "event_key": "absorption:ETHUSD:1323870704405750:-1:1892.6",
+        "event_ts_us": 1786373955210940,
+        "symbol": "ETHUSD",
+        "uplift_bps": 71.67204539564653
+      },
+      {
+        "control_best_mfe_bps": 23.070290592448472,
+        "control_ts_us": 1786375758186901,
+        "event_best_mfe_bps": 15.015247441989565,
+        "event_key": "absorption:BTCUSD:1323873680371291:1:64600.0",
+        "event_ts_us": 1786373958186901,
+        "symbol": "BTCUSD",
+        "uplift_bps": -8.055043150458907
+      },
+      {
+        "control_best_mfe_bps": 11.589468362307453,
+        "control_ts_us": 1786376247853152,
+        "event_best_mfe_bps": 28.072726147849725,
+        "event_key": "absorption:BTCUSD:1324363325163333:-1:64668.5",
+        "event_ts_us": 1786374447853152,
+        "symbol": "BTCUSD",
+        "uplift_bps": 16.48325778554227
+      },
+      {
+        "control_best_mfe_bps": 13.458845495566418,
+        "control_ts_us": 1786376314330526,
+        "event_best_mfe_bps": 32.71158129176,
+        "event_key": "absorption:BTCUSD:1324429802414416:-1:64657.0",
+        "event_ts_us": 1786374514330526,
+        "symbol": "BTCUSD",
+        "uplift_bps": 19.25273579619358
+      },
+      {
+        "control_best_mfe_bps": 25.411676937543426,
+        "control_ts_us": 1786376547342886,
+        "event_best_mfe_bps": 53.45731924308761,
+        "event_key": "absorption:BTCUSD:1324662814346583:1:64631.0",
+        "event_ts_us": 1786374747342886,
+        "symbol": "BTCUSD",
+        "uplift_bps": 28.045642305544185
+      },
+      {
+        "control_best_mfe_bps": 41.96911706480178,
+        "control_ts_us": 1786373583433014,
+        "event_best_mfe_bps": 24.80198415873214,
+        "event_key": "absorption:ETHUSD:1325298884435833:-1:1874.9250000000002",
+        "event_ts_us": 1786375383433014,
+        "symbol": "ETHUSD",
+        "uplift_bps": -17.16713290606964
+      },
+      {
+        "control_best_mfe_bps": 30.557737016849718,
+        "control_ts_us": 1786377820194351,
+        "event_best_mfe_bps": 26.01436614249608,
+        "event_key": "absorption:BTCUSD:1325935637650000:-1:64387.5",
+        "event_ts_us": 1786376020194351,
+        "symbol": "BTCUSD",
+        "uplift_bps": -4.543370874353638
+      },
+      {
+        "control_best_mfe_bps": 87.8028139215059,
+        "control_ts_us": 1786374456299750,
+        "event_best_mfe_bps": 29.612634724147657,
+        "event_key": "absorption:ETHUSD:1326171741713916:-1:1874.375",
+        "event_ts_us": 1786376256299750,
+        "symbol": "ETHUSD",
+        "uplift_bps": -58.19017919735825
+      },
+      {
+        "control_best_mfe_bps": 41.533546325878135,
+        "control_ts_us": 1786374845188756,
+        "event_best_mfe_bps": 17.831953796609845,
+        "event_key": "absorption:ETHUSD:1326560628521750:-1:1878.65",
+        "event_ts_us": 1786376645188756,
+        "symbol": "ETHUSD",
+        "uplift_bps": -23.70159252926829
+      },
+      {
+        "control_best_mfe_bps": 48.95179312546571,
+        "control_ts_us": 1786374943829380,
+        "event_best_mfe_bps": 15.451009643561164,
+        "event_key": "absorption:ETHUSD:1326659268587916:-1:1876.95",
+        "event_ts_us": 1786376743829380,
+        "symbol": "ETHUSD",
+        "uplift_bps": -33.50078348190455
+      },
+      {
+        "control_best_mfe_bps": 44.7141488342373,
+        "control_ts_us": 1786375032791263,
+        "event_best_mfe_bps": 19.43919260778193,
+        "event_key": "absorption:ETHUSD:1326748229692291:-1:1877.75",
+        "event_ts_us": 1786376832791263,
+        "symbol": "ETHUSD",
+        "uplift_bps": -25.27495622645537
+      },
+      {
+        "control_best_mfe_bps": 35.69716021098679,
+        "control_ts_us": 1786375276708785,
+        "event_best_mfe_bps": 21.564921061739682,
+        "event_key": "absorption:ETHUSD:1326992145822000:1:1877.95",
+        "event_ts_us": 1786377076708785,
+        "symbol": "ETHUSD",
+        "uplift_bps": -14.132239149247106
+      },
+      {
+        "control_best_mfe_bps": 18.161423000908616,
+        "control_ts_us": 1786378954216487,
+        "event_best_mfe_bps": 27.406008035548712,
+        "event_key": "absorption:ETHUSD:1327069653081958:1:1879.05",
+        "event_ts_us": 1786377154216487,
+        "symbol": "ETHUSD",
+        "uplift_bps": 9.244585034640096
+      },
+      {
+        "control_best_mfe_bps": 37.077832420608914,
+        "control_ts_us": 1786375386768733,
+        "event_best_mfe_bps": 19.676619043544896,
+        "event_key": "absorption:BTCUSD:1327102205141916:-1:64289.5",
+        "event_ts_us": 1786377186768733,
+        "symbol": "BTCUSD",
+        "uplift_bps": -17.401213377064018
+      },
+      {
+        "control_best_mfe_bps": 29.63160704751777,
+        "control_ts_us": 1786375535804157,
+        "event_best_mfe_bps": 12.258167670414766,
+        "event_key": "absorption:ETHUSD:1327251239717083:1:1876.3",
+        "event_ts_us": 1786377335804157,
+        "symbol": "ETHUSD",
+        "uplift_bps": -17.373439377103004
+      },
+      {
+        "control_best_mfe_bps": 19.348973105703937,
+        "control_ts_us": 1786375540350897,
+        "event_best_mfe_bps": 20.40323648285547,
+        "event_key": "absorption:BTCUSD:1327255786430250:-1:64206.5",
+        "event_ts_us": 1786377340350897,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.054263377151532
+      },
+      {
+        "control_best_mfe_bps": 29.629234177721564,
+        "control_ts_us": 1786375597415410,
+        "event_best_mfe_bps": 12.7965875766467,
+        "event_key": "absorption:ETHUSD:1327312850618083:1:1875.5",
+        "event_ts_us": 1786377397415410,
+        "symbol": "ETHUSD",
+        "uplift_bps": -16.832646601074863
+      },
+      {
+        "control_best_mfe_bps": 20.434644103090037,
+        "control_ts_us": 1786375688841906,
+        "event_best_mfe_bps": 15.01723480574868,
+        "event_key": "absorption:BTCUSD:1327404276593791:1:64258.5",
+        "event_ts_us": 1786377488841906,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.417409297341356
+      },
+      {
+        "control_best_mfe_bps": 19.46303356706869,
+        "control_ts_us": 1786375701971770,
+        "event_best_mfe_bps": 10.39473333511065,
+        "event_key": "absorption:ETHUSD:1327417406381916:1:1875.85",
+        "event_ts_us": 1786377501971770,
+        "symbol": "ETHUSD",
+        "uplift_bps": -9.068300231958037
+      },
+      {
+        "control_best_mfe_bps": 22.12625293239512,
+        "control_ts_us": 1786375768881238,
+        "event_best_mfe_bps": 13.854843866566435,
+        "event_key": "absorption:ETHUSD:1327484315468625:-1:1876.6",
+        "event_ts_us": 1786377568881238,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.271409065828683
+      },
+      {
+        "control_best_mfe_bps": 21.324803411968407,
+        "control_ts_us": 1786375801525799,
+        "event_best_mfe_bps": 12.7965875766467,
+        "event_key": "absorption:ETHUSD:1327516959843833:1:1875.575",
+        "event_ts_us": 1786377601525799,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.528215835321706
+      },
+      {
+        "control_best_mfe_bps": 22.605277672045343,
+        "control_ts_us": 1786375891724067,
+        "event_best_mfe_bps": 16.814965319134068,
+        "event_key": "absorption:BTCUSD:1327607157597083:-1:64229.5",
+        "event_ts_us": 1786377691724067,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.790312352911275
+      },
+      {
+        "control_best_mfe_bps": 22.89974703767794,
+        "control_ts_us": 1786376035941117,
+        "event_best_mfe_bps": 23.967404330110796,
+        "event_key": "absorption:ETHUSD:1327751356845708:-1:1877.525",
+        "event_ts_us": 1786377835941117,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.0676572924328553
+      },
+      {
+        "control_best_mfe_bps": 13.458845495566418,
+        "control_ts_us": 1786376317792786,
+        "event_best_mfe_bps": 51.63417498075362,
+        "event_key": "absorption:BTCUSD:1328033206119458:-1:64298.5",
+        "event_ts_us": 1786378117792786,
+        "symbol": "BTCUSD",
+        "uplift_bps": 38.175329485187206
+      },
+      {
+        "control_best_mfe_bps": 43.97654584221699,
+        "control_ts_us": 1786380003904924,
+        "event_best_mfe_bps": 41.84769571127678,
+        "event_key": "absorption:ETHUSD:1328119317525625:1:1875.625",
+        "event_ts_us": 1786378203904924,
+        "symbol": "ETHUSD",
+        "uplift_bps": -2.128850130940215
+      },
+      {
+        "control_best_mfe_bps": 22.969471969230824,
+        "control_ts_us": 1786380311375170,
+        "event_best_mfe_bps": 34.94171934597667,
+        "event_key": "absorption:ETHUSD:1328426785161375:1:1874.55",
+        "event_ts_us": 1786378511375170,
+        "symbol": "ETHUSD",
+        "uplift_bps": 11.972247376745848
+      },
+      {
+        "control_best_mfe_bps": 24.03525170249665,
+        "control_ts_us": 1786380462452305,
+        "event_best_mfe_bps": 35.473288347158686,
+        "event_key": "absorption:ETHUSD:1328577852358958:1:1874.6750000000002",
+        "event_ts_us": 1786378662452305,
+        "symbol": "ETHUSD",
+        "uplift_bps": 11.438036644662034
+      },
+      {
+        "control_best_mfe_bps": 17.687479455914534,
+        "control_ts_us": 1786381103197608,
+        "event_best_mfe_bps": 10.373363075507624,
+        "event_key": "absorption:BTCUSD:1329218591115583:-1:64106.25",
+        "event_ts_us": 1786379303197608,
+        "symbol": "BTCUSD",
+        "uplift_bps": -7.31411638040691
+      },
+      {
+        "control_best_mfe_bps": 21.027546085372606,
+        "control_ts_us": 1786377626260962,
+        "event_best_mfe_bps": 27.61439692965384,
+        "event_key": "absorption:BTCUSD:1329341653243458:1:64097.0",
+        "event_ts_us": 1786379426260962,
+        "symbol": "BTCUSD",
+        "uplift_bps": 6.5868508442812335
+      },
+      {
+        "control_best_mfe_bps": 19.33267064799571,
+        "control_ts_us": 1786381278919017,
+        "event_best_mfe_bps": 30.111553163273406,
+        "event_key": "absorption:BTCUSD:1329394310774083:-1:64096.0",
+        "event_ts_us": 1786379478919017,
+        "symbol": "BTCUSD",
+        "uplift_bps": 10.778882515277697
+      },
+      {
+        "control_best_mfe_bps": 12.26274258903981,
+        "control_ts_us": 1786377694944192,
+        "event_best_mfe_bps": 18.135267761894003,
+        "event_key": "absorption:ETHUSD:1329410335789000:-1:1874.8",
+        "event_ts_us": 1786379494944192,
+        "symbol": "ETHUSD",
+        "uplift_bps": 5.872525172854193
+      },
+      {
+        "control_best_mfe_bps": 29.937558805919195,
+        "control_ts_us": 1786377848926214,
+        "event_best_mfe_bps": 32.83700832234837,
+        "event_key": "absorption:BTCUSD:1329564328059250:1:64103.5",
+        "event_ts_us": 1786379648926214,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.899449516429172
+      },
+      {
+        "control_best_mfe_bps": 43.22273702540458,
+        "control_ts_us": 1786377959932476,
+        "event_best_mfe_bps": 33.14796471496684,
+        "event_key": "absorption:BTCUSD:1329675333437666:-1:64106.5",
+        "event_ts_us": 1786379759932476,
+        "symbol": "BTCUSD",
+        "uplift_bps": -10.074772310437737
+      },
+      {
+        "control_best_mfe_bps": 12.816062798706174,
+        "control_ts_us": 1786381737228975,
+        "event_best_mfe_bps": 28.799999999999937,
+        "event_key": "absorption:ETHUSD:1329852628516416:-1:1875.0",
+        "event_ts_us": 1786379937228975,
+        "symbol": "ETHUSD",
+        "uplift_bps": 15.983937201293763
+      },
+      {
+        "control_best_mfe_bps": 37.86464721881488,
+        "control_ts_us": 1786378314264144,
+        "event_best_mfe_bps": 41.056813031539185,
+        "event_key": "absorption:ETHUSD:1330029662267166:1:1875.475",
+        "event_ts_us": 1786380114264144,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.192165812724305
+      },
+      {
+        "control_best_mfe_bps": 38.77568499817019,
+        "control_ts_us": 1786378366268903,
+        "event_best_mfe_bps": 45.93738788625568,
+        "event_key": "absorption:BTCUSD:1330081666609583:1:64109.0",
+        "event_ts_us": 1786380166268903,
+        "symbol": "BTCUSD",
+        "uplift_bps": 7.161702888085486
+      },
+      {
+        "control_best_mfe_bps": 36.53625623383117,
+        "control_ts_us": 1786378580990306,
+        "event_best_mfe_bps": 21.63692702211728,
+        "event_key": "absorption:ETHUSD:1330296386292541:-1:1871.8",
+        "event_ts_us": 1786380380990306,
+        "symbol": "ETHUSD",
+        "uplift_bps": -14.899329211713887
+      },
+      {
+        "control_best_mfe_bps": 31.485137947596662,
+        "control_ts_us": 1786378730635666,
+        "event_best_mfe_bps": 22.969471969230824,
+        "event_key": "absorption:ETHUSD:1330446038202416:-1:1872.15",
+        "event_ts_us": 1786380530635666,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.515665978365838
+      },
+      {
+        "control_best_mfe_bps": 26.428895592515154,
+        "control_ts_us": 1786378800369816,
+        "event_best_mfe_bps": 21.9034644870042,
+        "event_key": "absorption:ETHUSD:1330515771895416:1:1871.8249999999998",
+        "event_ts_us": 1786380600369816,
+        "symbol": "ETHUSD",
+        "uplift_bps": -4.525431105510954
+      },
+      {
+        "control_best_mfe_bps": 18.69658119658224,
+        "control_ts_us": 1786378936352321,
+        "event_best_mfe_bps": 25.103485111497292,
+        "event_key": "absorption:ETHUSD:1330651753486375:1:1872.075",
+        "event_ts_us": 1786380736352321,
+        "symbol": "ETHUSD",
+        "uplift_bps": 6.406903914915052
+      },
+      {
+        "control_best_mfe_bps": 12.545711768945367,
+        "control_ts_us": 1786378985610245,
+        "event_best_mfe_bps": 20.83945603676307,
+        "event_key": "absorption:ETHUSD:1330700931119416:1:1871.35",
+        "event_ts_us": 1786380785610245,
+        "symbol": "ETHUSD",
+        "uplift_bps": 8.293744267817704
+      },
+      {
+        "control_best_mfe_bps": 14.943694294711207,
+        "control_ts_us": 1786382981859452,
+        "event_best_mfe_bps": 20.039544701544454,
+        "event_key": "absorption:ETHUSD:1331097257622708:-1:1871.3",
+        "event_ts_us": 1786381181859452,
+        "symbol": "ETHUSD",
+        "uplift_bps": 5.095850406833247
+      },
+      {
+        "control_best_mfe_bps": 33.92527081724772,
+        "control_ts_us": 1786379853938825,
+        "event_best_mfe_bps": 16.510301332561816,
+        "event_key": "absorption:BTCUSD:1331569326387208:-1:63893.5",
+        "event_ts_us": 1786381653938825,
+        "symbol": "BTCUSD",
+        "uplift_bps": -17.414969484685905
+      },
+      {
+        "control_best_mfe_bps": 44.24189120759037,
+        "control_ts_us": 1786380008793993,
+        "event_best_mfe_bps": 8.540165465705796,
+        "event_key": "absorption:ETHUSD:1331724180329375:-1:1873.3",
+        "event_ts_us": 1786381808793993,
+        "symbol": "ETHUSD",
+        "uplift_bps": -35.70172574188457
+      },
+      {
+        "control_best_mfe_bps": 23.768828116654817,
+        "control_ts_us": 1786380284427066,
+        "event_best_mfe_bps": 12.005442467252214,
+        "event_key": "absorption:ETHUSD:1331999811217541:1:1874.1",
+        "event_ts_us": 1786382084427066,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.763385649402602
+      },
+      {
+        "control_best_mfe_bps": 9.873248832554804,
+        "control_ts_us": 1786383966265193,
+        "event_best_mfe_bps": 15.482355453526608,
+        "event_key": "absorption:ETHUSD:1332081648695875:1:1873.0",
+        "event_ts_us": 1786382166265193,
+        "symbol": "ETHUSD",
+        "uplift_bps": 5.609106620971804
+      },
+      {
+        "control_best_mfe_bps": 13.849115065019957,
+        "control_ts_us": 1786380493835602,
+        "event_best_mfe_bps": 12.281648713556859,
+        "event_key": "absorption:BTCUSD:1332209218093916:-1:63918.5",
+        "event_ts_us": 1786382293835602,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.5674663514630982
+      },
+      {
+        "control_best_mfe_bps": 17.05163202890936,
+        "control_ts_us": 1786380537879315,
+        "event_best_mfe_bps": 12.829940700640474,
+        "event_key": "absorption:BTCUSD:1332253273329791:1:63913.0",
+        "event_ts_us": 1786382337879315,
+        "symbol": "BTCUSD",
+        "uplift_bps": -4.221691328268886
+      },
+      {
+        "control_best_mfe_bps": 12.442482862240478,
+        "control_ts_us": 1786380616016195,
+        "event_best_mfe_bps": 12.281648713556859,
+        "event_key": "absorption:BTCUSD:1332331415167916:-1:63916.5",
+        "event_ts_us": 1786382416016195,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.16083414868361956
+      },
+      {
+        "control_best_mfe_bps": 18.769209112451392,
+        "control_ts_us": 1786380715401783,
+        "event_best_mfe_bps": 10.402246259493264,
+        "event_key": "absorption:BTCUSD:1332430800291625:-1:63933.0",
+        "event_ts_us": 1786382515401783,
+        "symbol": "BTCUSD",
+        "uplift_bps": -8.366962852958128
+      },
+      {
+        "control_best_mfe_bps": 16.114522626823337,
+        "control_ts_us": 1786380792854918,
+        "event_best_mfe_bps": 13.534975785693959,
+        "event_key": "absorption:BTCUSD:1332508253036666:1:63908.5",
+        "event_ts_us": 1786382592854918,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.5795468411293783
+      },
+      {
+        "control_best_mfe_bps": 19.661447113841213,
+        "control_ts_us": 1786380911822425,
+        "event_best_mfe_bps": 9.7759355570326,
+        "event_key": "absorption:BTCUSD:1332627219946125:-1:63931.5",
+        "event_ts_us": 1786382711822425,
+        "symbol": "BTCUSD",
+        "uplift_bps": -9.885511556808613
+      },
+      {
+        "control_best_mfe_bps": 24.993144513651977,
+        "control_ts_us": 1786380963748787,
+        "event_best_mfe_bps": 11.725895467550318,
+        "event_key": "absorption:BTCUSD:1332679146046875:-1:63961.0",
+        "event_ts_us": 1786382763748787,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.267249046101659
+      },
+      {
+        "control_best_mfe_bps": 21.914000908629383,
+        "control_ts_us": 1786381103273638,
+        "event_best_mfe_bps": 10.135495572389797,
+        "event_key": "absorption:ETHUSD:1332818670197250:1:1874.6",
+        "event_ts_us": 1786382903273638,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.778505336239586
+      },
+      {
+        "control_best_mfe_bps": 17.687479455914534,
+        "control_ts_us": 1786381103849837,
+        "event_best_mfe_bps": 12.043293293293456,
+        "event_key": "absorption:BTCUSD:1332819246393083:1:63938.0",
+        "event_ts_us": 1786382903849837,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.644186162621079
+      },
+      {
+        "control_best_mfe_bps": 20.1969594964857,
+        "control_ts_us": 1786381170961357,
+        "event_best_mfe_bps": 12.591404997457367,
+        "event_key": "absorption:BTCUSD:1332886357575291:1:63931.5",
+        "event_ts_us": 1786382970961357,
+        "symbol": "BTCUSD",
+        "uplift_bps": -7.605554499028333
+      },
+      {
+        "control_best_mfe_bps": 22.181837618258093,
+        "control_ts_us": 1786381288418074,
+        "event_best_mfe_bps": 10.66552901023865,
+        "event_key": "absorption:ETHUSD:1333003813703083:-1:1875.2",
+        "event_ts_us": 1786383088418074,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.516308608019443
+      },
+      {
+        "control_best_mfe_bps": 25.76734204775999,
+        "control_ts_us": 1786381340018309,
+        "event_best_mfe_bps": 11.88549266148975,
+        "event_key": "absorption:BTCUSD:1333055413677791:-1:63943.5",
+        "event_ts_us": 1786383140018309,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.88184938627024
+      },
+      {
+        "control_best_mfe_bps": 32.370251471374175,
+        "control_ts_us": 1786381364531206,
+        "event_best_mfe_bps": 12.539017688018017,
+        "event_key": "absorption:ETHUSD:1333079926451166:1:1874.05",
+        "event_ts_us": 1786383164531206,
+        "symbol": "ETHUSD",
+        "uplift_bps": -19.831233783356158
+      },
+      {
+        "control_best_mfe_bps": 25.610300509857353,
+        "control_ts_us": 1786381421762798,
+        "event_best_mfe_bps": 12.744530797980103,
+        "event_key": "absorption:BTCUSD:1333137157170791:-1:63942.5",
+        "event_ts_us": 1786383221762798,
+        "symbol": "BTCUSD",
+        "uplift_bps": -12.86576971187725
+      },
+      {
+        "control_best_mfe_bps": 29.223501022430654,
+        "control_ts_us": 1786381514219066,
+        "event_best_mfe_bps": 13.837638376383854,
+        "event_key": "absorption:BTCUSD:1333229604404375:1:63956.0",
+        "event_ts_us": 1786383314219066,
+        "symbol": "BTCUSD",
+        "uplift_bps": -15.3858626460468
+      },
+      {
+        "control_best_mfe_bps": 18.147851614626063,
+        "control_ts_us": 1786385219908007,
+        "event_best_mfe_bps": 10.133873806603688,
+        "event_key": "absorption:ETHUSD:1333335292632000:-1:1875.0",
+        "event_ts_us": 1786383419908007,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.013977808022375
+      },
+      {
+        "control_best_mfe_bps": 14.420380804871513,
+        "control_ts_us": 1786381728024453,
+        "event_best_mfe_bps": 10.936541385473397,
+        "event_key": "absorption:ETHUSD:1333443408370541:-1:1874.4",
+        "event_ts_us": 1786383528024453,
+        "symbol": "ETHUSD",
+        "uplift_bps": -3.483839419398116
+      },
+      {
+        "control_best_mfe_bps": 8.67675567506776,
+        "control_ts_us": 1786381867913226,
+        "event_best_mfe_bps": 18.753662824770867,
+        "event_key": "absorption:BTCUSD:1333583296227166:1:63986.5",
+        "event_ts_us": 1786383667913226,
+        "symbol": "BTCUSD",
+        "uplift_bps": 10.076907149703107
+      },
+      {
+        "control_best_mfe_bps": 12.80478045136757,
+        "control_ts_us": 1786381893858419,
+        "event_best_mfe_bps": 23.9820933702839,
+        "event_key": "absorption:ETHUSD:1333609241250291:-1:1876.4",
+        "event_ts_us": 1786383693858419,
+        "symbol": "ETHUSD",
+        "uplift_bps": 11.177312918916328
+      },
+      {
+        "control_best_mfe_bps": 13.126538266202692,
+        "control_ts_us": 1786382060247036,
+        "event_best_mfe_bps": 12.744530797980103,
+        "event_key": "absorption:BTCUSD:1333775628779041:-1:63950.0",
+        "event_ts_us": 1786383860247036,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.38200746822258935
+      },
+      {
+        "control_best_mfe_bps": 10.245661236205628,
+        "control_ts_us": 1786382219431252,
+        "event_best_mfe_bps": 15.651534241643006,
+        "event_key": "absorption:BTCUSD:1333934811952333:-1:63891.25",
+        "event_ts_us": 1786384019431252,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.405873005437378
+      },
+      {
+        "control_best_mfe_bps": 16.81928611474648,
+        "control_ts_us": 1786382454751323,
+        "event_best_mfe_bps": 15.202026936924629,
+        "event_key": "absorption:ETHUSD:1334170139287583:-1:1874.8",
+        "event_ts_us": 1786384254751323,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.6172591778218504
+      },
+      {
+        "control_best_mfe_bps": 10.138199669174064,
+        "control_ts_us": 1786382716894997,
+        "event_best_mfe_bps": 9.345045790725148,
+        "event_key": "absorption:ETHUSD:1334432281626125:1:1872.65",
+        "event_ts_us": 1786384516894997,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.7931538784489156
+      },
+      {
+        "control_best_mfe_bps": 9.334577943725941,
+        "control_ts_us": 1786382777732634,
+        "event_best_mfe_bps": 10.414163262035814,
+        "event_key": "absorption:ETHUSD:1334493118952833:1:1872.35",
+        "event_ts_us": 1786384577732634,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.0795853183098725
+      },
+      {
+        "control_best_mfe_bps": 18.419155922160257,
+        "control_ts_us": 1786383005267114,
+        "event_best_mfe_bps": 11.479217277556852,
+        "event_key": "absorption:ETHUSD:1334720652272708:-1:1872.95",
+        "event_ts_us": 1786384805267114,
+        "symbol": "ETHUSD",
+        "uplift_bps": -6.939938644603405
+      },
+      {
+        "control_best_mfe_bps": 15.72462350870385,
+        "control_ts_us": 1786383071311028,
+        "event_best_mfe_bps": 16.877900889215034,
+        "event_key": "absorption:BTCUSD:1334786695850041:1:63983.5",
+        "event_ts_us": 1786384871311028,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.1532773805111844
+      },
+      {
+        "control_best_mfe_bps": 26.707975001335484,
+        "control_ts_us": 1786386764422587,
+        "event_best_mfe_bps": 14.95007742004506,
+        "event_key": "absorption:ETHUSD:1334879806934416:1:1872.8249999999998",
+        "event_ts_us": 1786384964422587,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.757897581290424
+      },
+      {
+        "control_best_mfe_bps": 16.27644922999827,
+        "control_ts_us": 1786386894307250,
+        "event_best_mfe_bps": 14.713017890404245,
+        "event_key": "absorption:BTCUSD:1335009685486458:1:63889.0",
+        "event_ts_us": 1786385094307250,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.5634313395940254
+      },
+      {
+        "control_best_mfe_bps": 18.57526902789397,
+        "control_ts_us": 1786387089813853,
+        "event_best_mfe_bps": 9.382329945269996,
+        "event_key": "absorption:BTCUSD:1335205186915125:-1:63949.5",
+        "event_ts_us": 1786385289813853,
+        "symbol": "BTCUSD",
+        "uplift_bps": -9.192939082623974
+      },
+      {
+        "control_best_mfe_bps": 12.121591291223144,
+        "control_ts_us": 1786383581408939,
+        "event_best_mfe_bps": 10.241496040215292,
+        "event_key": "absorption:BTCUSD:1335296781389250:1:63949.75",
+        "event_ts_us": 1786385381408939,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.8800952510078517
+      },
+      {
+        "control_best_mfe_bps": 14.711175798551857,
+        "control_ts_us": 1786383928365696,
+        "event_best_mfe_bps": 12.28193694750912,
+        "event_key": "absorption:BTCUSD:1335643735771166:1:63917.0",
+        "event_ts_us": 1786385728365696,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.4292388510427365
+      },
+      {
+        "control_best_mfe_bps": 9.873248832554804,
+        "control_ts_us": 1786383968961319,
+        "event_best_mfe_bps": 13.627254509018805,
+        "event_key": "absorption:ETHUSD:1335684331122583:-1:1871.35",
+        "event_ts_us": 1786385768961319,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.7540056764640006
+      },
+      {
+        "control_best_mfe_bps": 35.78390792319919,
+        "control_ts_us": 1786388169997524,
+        "event_best_mfe_bps": 26.952020067246842,
+        "event_key": "absorption:ETHUSD:1336285387496416:-1:1873.8",
+        "event_ts_us": 1786386369997524,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.831887855952345
+      },
+      {
+        "control_best_mfe_bps": 8.68048767136198,
+        "control_ts_us": 1786384957215096,
+        "event_best_mfe_bps": 19.63468533656698,
+        "event_key": "absorption:BTCUSD:1336672603823750:-1:63920.0",
+        "event_ts_us": 1786386757215096,
+        "symbol": "BTCUSD",
+        "uplift_bps": 10.954197665205001
+      },
+      {
+        "control_best_mfe_bps": 13.093901982790257,
+        "control_ts_us": 1786386635790881,
+        "event_best_mfe_bps": 30.962231415987418,
+        "event_key": "absorption:ETHUSD:1338351189565083:-1:1873.325",
+        "event_ts_us": 1786388435790881,
+        "symbol": "ETHUSD",
+        "uplift_bps": 17.86832943319716
+      },
+      {
+        "control_best_mfe_bps": 14.210645491243845,
+        "control_ts_us": 1786417649371128,
+        "event_best_mfe_bps": 3.358850179659978,
+        "event_key": "absorption:BTCUSD:1339844049518125:1:64010.0",
+        "event_ts_us": 1786415849371128,
+        "symbol": "BTCUSD",
+        "uplift_bps": -10.851795311583867
+      },
+      {
+        "control_best_mfe_bps": 5.060998348516144,
+        "control_ts_us": 1786415532913346,
+        "event_best_mfe_bps": 4.523682810004814,
+        "event_key": "absorption:ETHUSD:1341327588454000:-1:1879.025",
+        "event_ts_us": 1786417332913346,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.5373155385113293
+      },
+      {
+        "control_best_mfe_bps": 4.9914988535149085,
+        "control_ts_us": 1786419229803326,
+        "event_best_mfe_bps": 11.787297820520237,
+        "event_key": "absorption:BTCUSD:1341424478502916:-1:64052.0",
+        "event_ts_us": 1786417429803326,
+        "symbol": "BTCUSD",
+        "uplift_bps": 6.795798967005329
+      },
+      {
+        "control_best_mfe_bps": 4.7945023040241175,
+        "control_ts_us": 1786415639225221,
+        "event_best_mfe_bps": 5.852464685696113,
+        "event_key": "absorption:ETHUSD:1341433900404041:1:1879.45",
+        "event_ts_us": 1786417439225221,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.0579623816719952
+      },
+      {
+        "control_best_mfe_bps": 2.7337769862834094,
+        "control_ts_us": 1786415701268650,
+        "event_best_mfe_bps": 11.474693227588872,
+        "event_key": "absorption:BTCUSD:1341495950330750:-1:64054.0",
+        "event_ts_us": 1786417501268650,
+        "symbol": "BTCUSD",
+        "uplift_bps": 8.740916241305463
+      },
+      {
+        "control_best_mfe_bps": 7.19347791335867,
+        "control_ts_us": 1786415889917907,
+        "event_best_mfe_bps": 11.177347242921076,
+        "event_key": "absorption:ETHUSD:1341684600716791:-1:1878.8",
+        "event_ts_us": 1786417689917907,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.983869329562406
+      },
+      {
+        "control_best_mfe_bps": 3.202574557497062,
+        "control_ts_us": 1786415915730929,
+        "event_best_mfe_bps": 11.552752365191488,
+        "event_key": "absorption:BTCUSD:1341710413790875:-1:64042.0",
+        "event_ts_us": 1786417715730929,
+        "symbol": "BTCUSD",
+        "uplift_bps": 8.350177807694426
+      },
+      {
+        "control_best_mfe_bps": 3.1955688112483838,
+        "control_ts_us": 1786416136893899,
+        "event_best_mfe_bps": 5.85168634961164,
+        "event_key": "absorption:ETHUSD:1341931577199000:-1:1879.775",
+        "event_ts_us": 1786417936893899,
+        "symbol": "ETHUSD",
+        "uplift_bps": 2.6561175383632563
+      },
+      {
+        "control_best_mfe_bps": 2.6552128074974757,
+        "control_ts_us": 1786416308234277,
+        "event_best_mfe_bps": 12.172949521276344,
+        "event_key": "absorption:BTCUSD:1342102917918291:-1:64077.0",
+        "event_ts_us": 1786418108234277,
+        "symbol": "BTCUSD",
+        "uplift_bps": 9.517736713778868
+      },
+      {
+        "control_best_mfe_bps": 5.5909054604508235,
+        "control_ts_us": 1786416429522168,
+        "event_best_mfe_bps": 5.585552038727126,
+        "event_key": "absorption:ETHUSD:1342224206049916:1:1879.75",
+        "event_ts_us": 1786418229522168,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.005353421723697238
+      },
+      {
+        "control_best_mfe_bps": 7.987645774536478,
+        "control_ts_us": 1786416509130260,
+        "event_best_mfe_bps": 7.445422394766199,
+        "event_key": "absorption:ETHUSD:1342303698149333:-1:1880.5",
+        "event_ts_us": 1786418309130260,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.5422233797702791
+      },
+      {
+        "control_best_mfe_bps": 22.604579421854343,
+        "control_ts_us": 1786420248308447,
+        "event_best_mfe_bps": 9.046884146666212,
+        "event_key": "absorption:ETHUSD:1342442995659541:1:1879.1",
+        "event_ts_us": 1786418448308447,
+        "symbol": "ETHUSD",
+        "uplift_bps": -13.55769527518813
+      },
+      {
+        "control_best_mfe_bps": 14.384656366541737,
+        "control_ts_us": 1786416708695227,
+        "event_best_mfe_bps": 9.046884146666212,
+        "event_key": "absorption:ETHUSD:1342503168741416:-1:1879.2",
+        "event_ts_us": 1786418508695227,
+        "symbol": "ETHUSD",
+        "uplift_bps": -5.337772219875525
+      },
+      {
+        "control_best_mfe_bps": 9.684549238904161,
+        "control_ts_us": 1786417197211716,
+        "event_best_mfe_bps": 4.289268250836642,
+        "event_key": "absorption:BTCUSD:1342991900315958:1:64112.5",
+        "event_ts_us": 1786418997211716,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.395280988067519
+      },
+      {
+        "control_best_mfe_bps": 10.461312660530186,
+        "control_ts_us": 1786417360406733,
+        "event_best_mfe_bps": 4.835439089065918,
+        "event_key": "absorption:BTCUSD:1343155095740083:-1:64110.0",
+        "event_ts_us": 1786419160406733,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.625873571464268
+      },
+      {
+        "control_best_mfe_bps": 8.780098443528228,
+        "control_ts_us": 1786417812348191,
+        "event_best_mfe_bps": 26.31788818884928,
+        "event_key": "absorption:ETHUSD:1343607019595875:-1:1880.875",
+        "event_ts_us": 1786419612348191,
+        "symbol": "ETHUSD",
+        "uplift_bps": 17.537789745321053
+      },
+      {
+        "control_best_mfe_bps": 5.5365804207796465,
+        "control_ts_us": 1786418281850612,
+        "event_best_mfe_bps": 15.988519463098205,
+        "event_key": "absorption:BTCUSD:1344076521707291:1:64108.5",
+        "event_ts_us": 1786420081850612,
+        "symbol": "BTCUSD",
+        "uplift_bps": 10.451939042318559
+      },
+      {
+        "control_best_mfe_bps": 7.976814060464132,
+        "control_ts_us": 1786418371298587,
+        "event_best_mfe_bps": 21.54312614697229,
+        "event_key": "absorption:ETHUSD:1344165969623291:-1:1879.8999999999999",
+        "event_ts_us": 1786420171298587,
+        "symbol": "ETHUSD",
+        "uplift_bps": 13.566312086508159
+      },
+      {
+        "control_best_mfe_bps": 24.4203520824382,
+        "control_ts_us": 1786464233005126,
+        "event_best_mfe_bps": 114.9977320632889,
+        "event_key": "absorption:ETHUSD:1345093648731208:1:1873.95",
+        "event_ts_us": 1786462433005126,
+        "symbol": "ETHUSD",
+        "uplift_bps": 90.5773799808507
+      },
+      {
+        "control_best_mfe_bps": 19.5856340554057,
+        "control_ts_us": 1786465949323462,
+        "event_best_mfe_bps": 9.90862049983443,
+        "event_key": "absorption:BTCUSD:1346809988297958:-1:63581.0",
+        "event_ts_us": 1786464149323462,
+        "symbol": "BTCUSD",
+        "uplift_bps": -9.677013555571268
+      },
+      {
+        "control_best_mfe_bps": 13.301430887654453,
+        "control_ts_us": 1786466060719571,
+        "event_best_mfe_bps": 9.904258831296975,
+        "event_key": "absorption:BTCUSD:1346921173220916:-1:63605.25",
+        "event_ts_us": 1786464260719571,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.397172056357478
+      },
+      {
+        "control_best_mfe_bps": 13.53723132137552,
+        "control_ts_us": 1786466105997451,
+        "event_best_mfe_bps": 10.296880281081,
+        "event_key": "absorption:BTCUSD:1346966662568458:-1:63611.5",
+        "event_ts_us": 1786464305997451,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.24035104029452
+      },
+      {
+        "control_best_mfe_bps": 16.680173410859034,
+        "control_ts_us": 1786466255883145,
+        "event_best_mfe_bps": 12.585740356176878,
+        "event_key": "absorption:BTCUSD:1347116548530375:1:63564.0",
+        "event_ts_us": 1786464455883145,
+        "symbol": "BTCUSD",
+        "uplift_bps": -4.094433054682156
+      },
+      {
+        "control_best_mfe_bps": 20.792804429496936,
+        "control_ts_us": 1786462790406123,
+        "event_best_mfe_bps": 7.311608160698313,
+        "event_key": "absorption:BTCUSD:1347251071750083:-1:63598.5",
+        "event_ts_us": 1786464590406123,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.481196268798623
+      },
+      {
+        "control_best_mfe_bps": 35.77095828514509,
+        "control_ts_us": 1786462845940155,
+        "event_best_mfe_bps": 14.74728515886814,
+        "event_key": "absorption:ETHUSD:1347306605881541:-1:1864.55",
+        "event_ts_us": 1786464645940155,
+        "symbol": "ETHUSD",
+        "uplift_bps": -21.023673126276954
+      },
+      {
+        "control_best_mfe_bps": 34.78120197363044,
+        "control_ts_us": 1786462923288858,
+        "event_best_mfe_bps": 13.413456379440802,
+        "event_key": "absorption:ETHUSD:1347383954723500:-1:1863.75",
+        "event_ts_us": 1786464723288858,
+        "symbol": "ETHUSD",
+        "uplift_bps": -21.367745594189635
+      },
+      {
+        "control_best_mfe_bps": 22.05575379477187,
+        "control_ts_us": 1786462959139711,
+        "event_best_mfe_bps": 8.020759613116546,
+        "event_key": "absorption:BTCUSD:1347419805640375:1:63585.166666666664",
+        "event_ts_us": 1786464759139711,
+        "symbol": "BTCUSD",
+        "uplift_bps": -14.034994181655325
+      },
+      {
+        "control_best_mfe_bps": 24.510464082743155,
+        "control_ts_us": 1786462961368181,
+        "event_best_mfe_bps": 16.90685130021574,
+        "event_key": "absorption:ETHUSD:1347422034114958:1:1863.05",
+        "event_ts_us": 1786464761368181,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.603612782527414
+      },
+      {
+        "control_best_mfe_bps": 21.262279639349124,
+        "control_ts_us": 1786463007374084,
+        "event_best_mfe_bps": 20.67169588445328,
+        "event_key": "absorption:ETHUSD:1347468040100500:1:1862.4875",
+        "event_ts_us": 1786464807374084,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.5905837548958459
+      },
+      {
+        "control_best_mfe_bps": 17.16359742703455,
+        "control_ts_us": 1786463049847928,
+        "event_best_mfe_bps": 10.61846669340838,
+        "event_key": "absorption:BTCUSD:1347510514020125:1:63567.5",
+        "event_ts_us": 1786464849847928,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.54513073362617
+      },
+      {
+        "control_best_mfe_bps": 22.862368541380906,
+        "control_ts_us": 1786463091799566,
+        "event_best_mfe_bps": 12.60763432495482,
+        "event_key": "absorption:ETHUSD:1347552465733375:-1:1864.0",
+        "event_ts_us": 1786464891799566,
+        "symbol": "ETHUSD",
+        "uplift_bps": -10.254734216426087
+      },
+      {
+        "control_best_mfe_bps": 28.526831368749228,
+        "control_ts_us": 1786463145893303,
+        "event_best_mfe_bps": 17.713365539451242,
+        "event_key": "absorption:ETHUSD:1347606559567750:1:1862.975",
+        "event_ts_us": 1786464945893303,
+        "symbol": "ETHUSD",
+        "uplift_bps": -10.813465829297986
+      },
+      {
+        "control_best_mfe_bps": 21.07365557154406,
+        "control_ts_us": 1786463208932828,
+        "event_best_mfe_bps": 6.839999056551527,
+        "event_key": "absorption:BTCUSD:1347669599205958:1:63597.5",
+        "event_ts_us": 1786465008932828,
+        "symbol": "BTCUSD",
+        "uplift_bps": -14.233656514992532
+      },
+      {
+        "control_best_mfe_bps": 26.069662438186203,
+        "control_ts_us": 1786463224695642,
+        "event_best_mfe_bps": 21.47881651721084,
+        "event_key": "absorption:ETHUSD:1347685362047833:-1:1862.4",
+        "event_ts_us": 1786465024695642,
+        "symbol": "ETHUSD",
+        "uplift_bps": -4.590845920975362
+      },
+      {
+        "control_best_mfe_bps": 25.622686295007078,
+        "control_ts_us": 1786463244715568,
+        "event_best_mfe_bps": 8.965224366535018,
+        "event_key": "absorption:BTCUSD:1347705382008875:-1:63583.0",
+        "event_ts_us": 1786465044715568,
+        "symbol": "BTCUSD",
+        "uplift_bps": -16.65746192847206
+      },
+      {
+        "control_best_mfe_bps": 14.8708829685118,
+        "control_ts_us": 1786463293722823,
+        "event_best_mfe_bps": 12.967008786131107,
+        "event_key": "absorption:BTCUSD:1347754389353416:-1:63623.0",
+        "event_ts_us": 1786465093722823,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.9038741823806937
+      },
+      {
+        "control_best_mfe_bps": 42.549753588452255,
+        "control_ts_us": 1786463675619945,
+        "event_best_mfe_bps": 23.046414406688864,
+        "event_key": "absorption:ETHUSD:1348136287158750:-1:1865.775",
+        "event_ts_us": 1786465475619945,
+        "symbol": "ETHUSD",
+        "uplift_bps": -19.50333918176339
+      },
+      {
+        "control_best_mfe_bps": 21.892866705517378,
+        "control_ts_us": 1786463707840369,
+        "event_best_mfe_bps": 19.023362575857348,
+        "event_key": "absorption:BTCUSD:1348168507640958:-1:63607.0",
+        "event_ts_us": 1786465507840369,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.8695041296600294
+      },
+      {
+        "control_best_mfe_bps": 20.78347398916769,
+        "control_ts_us": 1786463763489116,
+        "event_best_mfe_bps": 19.33719029052927,
+        "event_key": "absorption:BTCUSD:1348224156486875:-1:63608.0",
+        "event_ts_us": 1786465563489116,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.4462836986384175
+      },
+      {
+        "control_best_mfe_bps": 34.4234079173833,
+        "control_ts_us": 1786463852363629,
+        "event_best_mfe_bps": 13.947749584248825,
+        "event_key": "absorption:ETHUSD:1348313031160000:1:1864.05",
+        "event_ts_us": 1786465652363629,
+        "symbol": "ETHUSD",
+        "uplift_bps": -20.475658333134476
+      },
+      {
+        "control_best_mfe_bps": 22.025248455546098,
+        "control_ts_us": 1786463905387918,
+        "event_best_mfe_bps": 12.608310754620433,
+        "event_key": "absorption:ETHUSD:1348366055543791:1:1863.85",
+        "event_ts_us": 1786465705387918,
+        "symbol": "ETHUSD",
+        "uplift_bps": -9.416937700925665
+      },
+      {
+        "control_best_mfe_bps": 20.671140939596544,
+        "control_ts_us": 1786463975327814,
+        "event_best_mfe_bps": 12.611017199279928,
+        "event_key": "absorption:ETHUSD:1348435995565041:-1:1863.45",
+        "event_ts_us": 1786465775327814,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.060123740316616
+      },
+      {
+        "control_best_mfe_bps": 16.682929900218024,
+        "control_ts_us": 1786464015798814,
+        "event_best_mfe_bps": 12.981086949680476,
+        "event_key": "absorption:BTCUSD:1348476466637333:1:63554.0",
+        "event_ts_us": 1786465815798814,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.7018429505375483
+      },
+      {
+        "control_best_mfe_bps": 22.025248455546098,
+        "control_ts_us": 1786464138730433,
+        "event_best_mfe_bps": 11.536500952432638,
+        "event_key": "absorption:ETHUSD:1348599398476791:1:1863.55",
+        "event_ts_us": 1786465938730433,
+        "symbol": "ETHUSD",
+        "uplift_bps": -10.48874750311346
+      },
+      {
+        "control_best_mfe_bps": 27.096635724633835,
+        "control_ts_us": 1786464188791415,
+        "event_best_mfe_bps": 14.760741794368482,
+        "event_key": "absorption:ETHUSD:1348649459549166:1:1862.95",
+        "event_ts_us": 1786465988791415,
+        "symbol": "ETHUSD",
+        "uplift_bps": -12.335893930265353
+      },
+      {
+        "control_best_mfe_bps": 10.61713054351765,
+        "control_ts_us": 1786464518342020,
+        "event_best_mfe_bps": 18.879056047197416,
+        "event_key": "absorption:BTCUSD:1348979010745041:-1:63559.0",
+        "event_ts_us": 1786466318342020,
+        "symbol": "BTCUSD",
+        "uplift_bps": 8.261925503679766
+      },
+      {
+        "control_best_mfe_bps": 26.054957157053416,
+        "control_ts_us": 1786464539812525,
+        "event_best_mfe_bps": 13.676588897827413,
+        "event_key": "absorption:ETHUSD:1349000481287708:-1:1864.525",
+        "event_ts_us": 1786466339812525,
+        "symbol": "ETHUSD",
+        "uplift_bps": -12.378368259226002
+      },
+      {
+        "control_best_mfe_bps": 7.939502562651635,
+        "control_ts_us": 1786464689337837,
+        "event_best_mfe_bps": 12.673473082644993,
+        "event_key": "absorption:BTCUSD:1349150006868458:-1:63519.5",
+        "event_ts_us": 1786466489337837,
+        "symbol": "BTCUSD",
+        "uplift_bps": 4.733970519993358
+      },
+      {
+        "control_best_mfe_bps": 18.758709400793492,
+        "control_ts_us": 1786465165976637,
+        "event_best_mfe_bps": 5.095609729931505,
+        "event_key": "absorption:ETHUSD:1349626646522208:1:1864.35",
+        "event_ts_us": 1786466965976637,
+        "symbol": "ETHUSD",
+        "uplift_bps": -13.663099670861987
+      },
+      {
+        "control_best_mfe_bps": 15.717709929663481,
+        "control_ts_us": 1786465175518739,
+        "event_best_mfe_bps": 13.698198765588199,
+        "event_key": "absorption:BTCUSD:1349636188641916:-1:63512.0",
+        "event_ts_us": 1786466975518739,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.0195111640752827
+      },
+      {
+        "control_best_mfe_bps": 21.70592491357759,
+        "control_ts_us": 1786465211003874,
+        "event_best_mfe_bps": 6.1677080260647,
+        "event_key": "absorption:ETHUSD:1349671673840708:-1:1864.275",
+        "event_ts_us": 1786467011003874,
+        "symbol": "ETHUSD",
+        "uplift_bps": -15.53821688751289
+      },
+      {
+        "control_best_mfe_bps": 28.69555889294162,
+        "control_ts_us": 1786472735015702,
+        "event_best_mfe_bps": 16.885100908577975,
+        "event_key": "absorption:ETHUSD:1350082933534958:1:1865.45",
+        "event_ts_us": 1786470935015702,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.810457984363644
+      },
+      {
+        "control_best_mfe_bps": 24.43674642176097,
+        "control_ts_us": 1786473013949098,
+        "event_best_mfe_bps": 6.975371572677247,
+        "event_key": "absorption:ETHUSD:1350361866021916:-1:1863.725",
+        "event_ts_us": 1786471213949098,
+        "symbol": "ETHUSD",
+        "uplift_bps": -17.46137484908372
+      },
+      {
+        "control_best_mfe_bps": 40.87354402765864,
+        "control_ts_us": 1786473109265287,
+        "event_best_mfe_bps": 10.61345786457224,
+        "event_key": "absorption:BTCUSD:1350457181897875:-1:63598.75",
+        "event_ts_us": 1786471309265287,
+        "symbol": "BTCUSD",
+        "uplift_bps": -30.2600861630864
+      },
+      {
+        "control_best_mfe_bps": 36.165367917615484,
+        "control_ts_us": 1786473194204011,
+        "event_best_mfe_bps": 9.12107439966059,
+        "event_key": "absorption:BTCUSD:1350542120343208:1:63588.0",
+        "event_ts_us": 1786471394204011,
+        "symbol": "BTCUSD",
+        "uplift_bps": -27.044293517954895
+      },
+      {
+        "control_best_mfe_bps": 27.330173775670374,
+        "control_ts_us": 1786473228887946,
+        "event_best_mfe_bps": 10.220768601798547,
+        "event_key": "absorption:BTCUSD:1350576804164541:-1:63596.0",
+        "event_ts_us": 1786471428887946,
+        "symbol": "BTCUSD",
+        "uplift_bps": -17.109405173871828
+      },
+      {
+        "control_best_mfe_bps": 26.65699233414309,
+        "control_ts_us": 1786473280336951,
+        "event_best_mfe_bps": 6.134969325153339,
+        "event_key": "absorption:BTCUSD:1350628253001000:1:63569.0",
+        "event_ts_us": 1786471480336951,
+        "symbol": "BTCUSD",
+        "uplift_bps": -20.522023008989752
+      },
+      {
+        "control_best_mfe_bps": 36.165367917615484,
+        "control_ts_us": 1786473336496625,
+        "event_best_mfe_bps": 6.134969325153339,
+        "event_key": "absorption:BTCUSD:1350684412491041:1:63566.0",
+        "event_ts_us": 1786471536496625,
+        "symbol": "BTCUSD",
+        "uplift_bps": -30.030398592462145
+      },
+      {
+        "control_best_mfe_bps": 30.27388404471698,
+        "control_ts_us": 1786473401234828,
+        "event_best_mfe_bps": 4.877127843679885,
+        "event_key": "absorption:BTCUSD:1350749150481541:1:63561.75",
+        "event_ts_us": 1786471601234828,
+        "symbol": "BTCUSD",
+        "uplift_bps": -25.396756201037093
+      },
+      {
+        "control_best_mfe_bps": 31.21698961010333,
+        "control_ts_us": 1786473444858751,
+        "event_best_mfe_bps": 5.112997238981842,
+        "event_key": "absorption:BTCUSD:1350792774262625:-1:63564.5",
+        "event_ts_us": 1786471644858751,
+        "symbol": "BTCUSD",
+        "uplift_bps": -26.103992371121485
+      },
+      {
+        "control_best_mfe_bps": 27.993975381073177,
+        "control_ts_us": 1786473512308517,
+        "event_best_mfe_bps": 9.050557199521414,
+        "event_key": "absorption:BTCUSD:1350860223806875:1:63531.5",
+        "event_ts_us": 1786471712308517,
+        "symbol": "BTCUSD",
+        "uplift_bps": -18.943418181551763
+      },
+      {
+        "control_best_mfe_bps": 24.218041257444423,
+        "control_ts_us": 1786473558219383,
+        "event_best_mfe_bps": 8.420423067236893,
+        "event_key": "absorption:BTCUSD:1350906134523250:1:63536.0",
+        "event_ts_us": 1786471758219383,
+        "symbol": "BTCUSD",
+        "uplift_bps": -15.79761819020753
+      },
+      {
+        "control_best_mfe_bps": 16.342320293688537,
+        "control_ts_us": 1786473603308239,
+        "event_best_mfe_bps": 5.900679758308325,
+        "event_key": "absorption:BTCUSD:1350951223231166:-1:63550.0",
+        "event_ts_us": 1786471803308239,
+        "symbol": "BTCUSD",
+        "uplift_bps": -10.441640535380213
+      },
+      {
+        "control_best_mfe_bps": 12.403321246019505,
+        "control_ts_us": 1786473680883723,
+        "event_best_mfe_bps": 6.2155782848161145,
+        "event_key": "absorption:BTCUSD:1351028805564833:1:63549.0",
+        "event_ts_us": 1786471880883723,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.187742961203391
+      },
+      {
+        "control_best_mfe_bps": 23.91251780004877,
+        "control_ts_us": 1786473733196426,
+        "event_best_mfe_bps": 8.31656606304465,
+        "event_key": "absorption:ETHUSD:1351081118192250:-1:1863.75",
+        "event_ts_us": 1786471933196426,
+        "symbol": "ETHUSD",
+        "uplift_bps": -15.595951737004121
+      },
+      {
+        "control_best_mfe_bps": 17.072399620612355,
+        "control_ts_us": 1786473740952842,
+        "event_best_mfe_bps": 7.001368806934805,
+        "event_key": "absorption:BTCUSD:1351088874590750:-1:63559.0",
+        "event_ts_us": 1786471940952842,
+        "symbol": "BTCUSD",
+        "uplift_bps": -10.07103081367755
+      },
+      {
+        "control_best_mfe_bps": 12.24464000758374,
+        "control_ts_us": 1786473799300568,
+        "event_best_mfe_bps": 11.798574732172495,
+        "event_key": "absorption:BTCUSD:1351147222181625:1:63566.0",
+        "event_ts_us": 1786471999300568,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.44606527541124485
+      },
+      {
+        "control_best_mfe_bps": 10.109546413086257,
+        "control_ts_us": 1786473845378987,
+        "event_best_mfe_bps": 11.955700981626238,
+        "event_key": "absorption:BTCUSD:1351193300492458:1:63567.0",
+        "event_ts_us": 1786472045378987,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.8461545685399816
+      },
+      {
+        "control_best_mfe_bps": 10.821143091845897,
+        "control_ts_us": 1786473950201372,
+        "event_best_mfe_bps": 18.559879203498,
+        "event_key": "absorption:BTCUSD:1351298122631333:-1:63578.0",
+        "event_ts_us": 1786472150201372,
+        "symbol": "BTCUSD",
+        "uplift_bps": 7.738736111652102
+      },
+      {
+        "control_best_mfe_bps": 4.893564962075159,
+        "control_ts_us": 1786474114994556,
+        "event_best_mfe_bps": 20.449093554603117,
+        "event_key": "absorption:BTCUSD:1351462915429583:1:63571.5",
+        "event_ts_us": 1786472314994556,
+        "symbol": "BTCUSD",
+        "uplift_bps": 15.555528592527958
+      },
+      {
+        "control_best_mfe_bps": 5.1312008588833,
+        "control_ts_us": 1786474180227280,
+        "event_best_mfe_bps": 45.84594817756415,
+        "event_key": "absorption:BTCUSD:1351528148000541:-1:63583.5",
+        "event_ts_us": 1786472380227280,
+        "symbol": "BTCUSD",
+        "uplift_bps": 40.71474731868085
+      },
+      {
+        "control_best_mfe_bps": 10.377848011698942,
+        "control_ts_us": 1786471020871663,
+        "event_best_mfe_bps": 43.449171553386904,
+        "event_key": "absorption:BTCUSD:1351968790894041:1:63526.5",
+        "event_ts_us": 1786472820871663,
+        "symbol": "BTCUSD",
+        "uplift_bps": 33.07132354168796
+      },
+      {
+        "control_best_mfe_bps": 9.199632014719183,
+        "control_ts_us": 1786471059832906,
+        "event_best_mfe_bps": 44.24500078727745,
+        "event_key": "absorption:BTCUSD:1352007752043791:1:63509.75",
+        "event_ts_us": 1786472859832906,
+        "symbol": "BTCUSD",
+        "uplift_bps": 35.04536877255826
+      },
+      {
+        "control_best_mfe_bps": 10.995199656734789,
+        "control_ts_us": 1786471153365573,
+        "event_best_mfe_bps": 23.0909676726454,
+        "event_key": "absorption:ETHUSD:1352101284486000:1:1862.2",
+        "event_ts_us": 1786472953365573,
+        "symbol": "ETHUSD",
+        "uplift_bps": 12.095768015910613
+      },
+      {
+        "control_best_mfe_bps": 8.851693892329981,
+        "control_ts_us": 1786471321370347,
+        "event_best_mfe_bps": 21.470169882719105,
+        "event_key": "absorption:ETHUSD:1352269288854875:-1:1863.025",
+        "event_ts_us": 1786473121370347,
+        "symbol": "ETHUSD",
+        "uplift_bps": 12.618475990389124
+      },
+      {
+        "control_best_mfe_bps": 27.362716956838007,
+        "control_ts_us": 1786475216145479,
+        "event_best_mfe_bps": 27.341446416125905,
+        "event_key": "absorption:ETHUSD:1352564063277958:1:1865.3",
+        "event_ts_us": 1786473416145479,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.021270540712102104
+      },
+      {
+        "control_best_mfe_bps": 30.59170803703326,
+        "control_ts_us": 1786475765901645,
+        "event_best_mfe_bps": 13.956734124214165,
+        "event_key": "absorption:ETHUSD:1353113817549625:-1:1862.9",
+        "event_ts_us": 1786473965901645,
+        "symbol": "ETHUSD",
+        "uplift_bps": -16.634973912819095
+      },
+      {
+        "control_best_mfe_bps": 33.50667452956646,
+        "control_ts_us": 1786472591201795,
+        "event_best_mfe_bps": 8.31545064377659,
+        "event_key": "absorption:ETHUSD:1353539116640916:1:1863.95",
+        "event_ts_us": 1786474391201795,
+        "symbol": "ETHUSD",
+        "uplift_bps": -25.19122388578987
+      },
+      {
+        "control_best_mfe_bps": 37.26434046844362,
+        "control_ts_us": 1786473151867662,
+        "event_best_mfe_bps": 18.00052106771477,
+        "event_key": "absorption:BTCUSD:1354099793099791:-1:63332.5",
+        "event_ts_us": 1786474951867662,
+        "symbol": "BTCUSD",
+        "uplift_bps": -19.26381940072885
+      },
+      {
+        "control_best_mfe_bps": 35.694305458155995,
+        "control_ts_us": 1786473216033634,
+        "event_best_mfe_bps": 21.781850036697303,
+        "event_key": "absorption:BTCUSD:1354163959023666:-1:63356.5",
+        "event_ts_us": 1786475016033634,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.912455421458692
+      },
+      {
+        "control_best_mfe_bps": 26.65699233414309,
+        "control_ts_us": 1786473280243755,
+        "event_best_mfe_bps": 17.76409284699243,
+        "event_key": "absorption:BTCUSD:1354228169096250:1:63330.0",
+        "event_ts_us": 1786475080243755,
+        "symbol": "BTCUSD",
+        "uplift_bps": -8.892899487150661
+      },
+      {
+        "control_best_mfe_bps": 38.44154207300776,
+        "control_ts_us": 1786473320229907,
+        "event_best_mfe_bps": 17.29120280449137,
+        "event_key": "absorption:BTCUSD:1354268155218875:-1:63331.0",
+        "event_ts_us": 1786475120229907,
+        "symbol": "BTCUSD",
+        "uplift_bps": -21.15033926851639
+      },
+      {
+        "control_best_mfe_bps": 32.78843577092183,
+        "control_ts_us": 1786473421478831,
+        "event_best_mfe_bps": 12.875400875210774,
+        "event_key": "absorption:BTCUSD:1354369404067458:1:63308.166666666664",
+        "event_ts_us": 1786475221478831,
+        "symbol": "BTCUSD",
+        "uplift_bps": -19.913034895711057
+      },
+      {
+        "control_best_mfe_bps": 26.263693795300913,
+        "control_ts_us": 1786473496338455,
+        "event_best_mfe_bps": 11.770839916577236,
+        "event_key": "absorption:BTCUSD:1354444263635875:-1:63292.0",
+        "event_ts_us": 1786475296338455,
+        "symbol": "BTCUSD",
+        "uplift_bps": -14.492853878723677
+      },
+      {
+        "control_best_mfe_bps": 11.454210804875409,
+        "control_ts_us": 1786473785467659,
+        "event_best_mfe_bps": 15.648586490053518,
+        "event_key": "absorption:BTCUSD:1354733399947458:-1:63264.5",
+        "event_ts_us": 1786475585467659,
+        "symbol": "BTCUSD",
+        "uplift_bps": 4.194375685178109
+      },
+      {
+        "control_best_mfe_bps": 4.893564962075159,
+        "control_ts_us": 1786474121487408,
+        "event_best_mfe_bps": 7.660112137723996,
+        "event_key": "absorption:BTCUSD:1355069419835333:1:63315.0",
+        "event_ts_us": 1786475921487408,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.766547175648837
+      },
+      {
+        "control_best_mfe_bps": 8.541047963077641,
+        "control_ts_us": 1786499846332202,
+        "event_best_mfe_bps": 11.295357921654592,
+        "event_key": "absorption:BTCUSD:1356978993320958:-1:63743.0",
+        "event_ts_us": 1786498046332202,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.7543099585769504
+      },
+      {
+        "control_best_mfe_bps": 10.580517740002016,
+        "control_ts_us": 1786499977451142,
+        "event_best_mfe_bps": 11.062380844035768,
+        "event_key": "absorption:BTCUSD:1357110109985791:1:63728.5",
+        "event_ts_us": 1786498177451142,
+        "symbol": "BTCUSD",
+        "uplift_bps": 0.4818631040337529
+      },
+      {
+        "control_best_mfe_bps": 17.261525387719523,
+        "control_ts_us": 1786497017182764,
+        "event_best_mfe_bps": 15.933292614918049,
+        "event_key": "absorption:ETHUSD:1357749840868416:-1:1882.9",
+        "event_ts_us": 1786498817182764,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.3282327728014742
+      },
+      {
+        "control_best_mfe_bps": 11.906067394608089,
+        "control_ts_us": 1786500918033877,
+        "event_best_mfe_bps": 6.505313979370264,
+        "event_key": "absorption:BTCUSD:1358050685895375:1:63794.0",
+        "event_ts_us": 1786499118033877,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.4007534152378245
+      },
+      {
+        "control_best_mfe_bps": 13.93979262600653,
+        "control_ts_us": 1786501035255495,
+        "event_best_mfe_bps": 4.936994545796658,
+        "event_key": "absorption:BTCUSD:1358167907265083:1:63803.5",
+        "event_ts_us": 1786499235255495,
+        "symbol": "BTCUSD",
+        "uplift_bps": -9.002798080209873
+      },
+      {
+        "control_best_mfe_bps": 12.140770273127988,
+        "control_ts_us": 1786501105403617,
+        "event_best_mfe_bps": 5.405955953211583,
+        "event_key": "absorption:BTCUSD:1358238055238083:-1:63819.5",
+        "event_ts_us": 1786499305403617,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.734814319916405
+      },
+      {
+        "control_best_mfe_bps": 10.609235339362755,
+        "control_ts_us": 1786501231731571,
+        "event_best_mfe_bps": 14.585764294049453,
+        "event_key": "absorption:ETHUSD:1358364382925041:1:1885.3",
+        "event_ts_us": 1786499431731571,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.9765289546866978
+      },
+      {
+        "control_best_mfe_bps": 19.94378052419199,
+        "control_ts_us": 1786498354292995,
+        "event_best_mfe_bps": 8.227357137819968,
+        "event_key": "absorption:BTCUSD:1359086936011708:1:63810.0",
+        "event_ts_us": 1786500154292995,
+        "symbol": "BTCUSD",
+        "uplift_bps": -11.716423386372021
+      },
+      {
+        "control_best_mfe_bps": 26.05482147129967,
+        "control_ts_us": 1786498392042810,
+        "event_best_mfe_bps": 13.262599469496816,
+        "event_key": "absorption:ETHUSD:1359124685704291:1:1885.0",
+        "event_ts_us": 1786500192042810,
+        "symbol": "ETHUSD",
+        "uplift_bps": -12.792222001802855
+      },
+      {
+        "control_best_mfe_bps": 11.75438046578714,
+        "control_ts_us": 1786502112592643,
+        "event_best_mfe_bps": 9.639120724109773,
+        "event_key": "absorption:BTCUSD:1359245235146375:1:63801.5",
+        "event_ts_us": 1786500312592643,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.1152597416773666
+      },
+      {
+        "control_best_mfe_bps": 20.72318605701451,
+        "control_ts_us": 1786498597807277,
+        "event_best_mfe_bps": 12.731420083815781,
+        "event_key": "absorption:ETHUSD:1359330449504166:-1:1885.1",
+        "event_ts_us": 1786500397807277,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.991765973198728
+      },
+      {
+        "control_best_mfe_bps": 21.255679251799275,
+        "control_ts_us": 1786498673272348,
+        "event_best_mfe_bps": 15.106540867168006,
+        "event_key": "absorption:ETHUSD:1359405914330375:-1:1886.75",
+        "event_ts_us": 1786500473272348,
+        "symbol": "ETHUSD",
+        "uplift_bps": -6.14913838463127
+      },
+      {
+        "control_best_mfe_bps": 7.698025058398006,
+        "control_ts_us": 1786502384339726,
+        "event_best_mfe_bps": 18.28638062173704,
+        "event_key": "absorption:ETHUSD:1359516981348041:-1:1886.6750000000002",
+        "event_ts_us": 1786500584339726,
+        "symbol": "ETHUSD",
+        "uplift_bps": 10.588355563339036
+      },
+      {
+        "control_best_mfe_bps": 7.166746297180282,
+        "control_ts_us": 1786502454809370,
+        "event_best_mfe_bps": 15.110946157312899,
+        "event_key": "absorption:ETHUSD:1359587450763500:1:1885.95",
+        "event_ts_us": 1786500654809370,
+        "symbol": "ETHUSD",
+        "uplift_bps": 7.944199860132617
+      },
+      {
+        "control_best_mfe_bps": 7.4302091073141785,
+        "control_ts_us": 1786502657310372,
+        "event_best_mfe_bps": 12.198679360364562,
+        "event_key": "absorption:ETHUSD:1359789963448125:-1:1885.45",
+        "event_ts_us": 1786500857310372,
+        "symbol": "ETHUSD",
+        "uplift_bps": 4.768470253050383
+      },
+      {
+        "control_best_mfe_bps": 7.676280293892335,
+        "control_ts_us": 1786499508304782,
+        "event_best_mfe_bps": 14.969355925826822,
+        "event_key": "absorption:BTCUSD:1360240957643791:1:63796.75",
+        "event_ts_us": 1786501308304782,
+        "symbol": "BTCUSD",
+        "uplift_bps": 7.293075631934487
+      },
+      {
+        "control_best_mfe_bps": 14.585764294049453,
+        "control_ts_us": 1786499529888155,
+        "event_best_mfe_bps": 14.065070856112971,
+        "event_key": "absorption:ETHUSD:1360262540992458:1:1884.05",
+        "event_ts_us": 1786501329888155,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.5206934379364814
+      },
+      {
+        "control_best_mfe_bps": 9.874453378473369,
+        "control_ts_us": 1786499822896406,
+        "event_best_mfe_bps": 14.890865629531014,
+        "event_key": "absorption:BTCUSD:1360555548917958:1:63791.0",
+        "event_ts_us": 1786501622896406,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.016412251057645
+      },
+      {
+        "control_best_mfe_bps": 10.580517740002016,
+        "control_ts_us": 1786499907782685,
+        "event_best_mfe_bps": 16.056015915035804,
+        "event_key": "absorption:BTCUSD:1360640435102666:1:63838.0",
+        "event_ts_us": 1786501707782685,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.475498175033788
+      },
+      {
+        "control_best_mfe_bps": 14.190624779496508,
+        "control_ts_us": 1786503755205322,
+        "event_best_mfe_bps": 15.19709218524734,
+        "event_key": "absorption:BTCUSD:1360887866218166:1:63829.0",
+        "event_ts_us": 1786501955205322,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.0064674057508327
+      },
+      {
+        "control_best_mfe_bps": 16.17994217659957,
+        "control_ts_us": 1786503768296739,
+        "event_best_mfe_bps": 8.223902374320247,
+        "event_key": "absorption:ETHUSD:1360900957638875:1:1884.65",
+        "event_ts_us": 1786501968296739,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.956039802279324
+      },
+      {
+        "control_best_mfe_bps": 16.98243379504305,
+        "control_ts_us": 1786500317912712,
+        "event_best_mfe_bps": 7.958826338408942,
+        "event_key": "absorption:ETHUSD:1361050573659583:1:1884.7",
+        "event_ts_us": 1786502117912712,
+        "symbol": "ETHUSD",
+        "uplift_bps": -9.023607456634108
+      },
+      {
+        "control_best_mfe_bps": 11.058042961673564,
+        "control_ts_us": 1786504081367993,
+        "event_best_mfe_bps": 6.272443587210796,
+        "event_key": "absorption:BTCUSD:1361214028991500:-1:63772.0",
+        "event_ts_us": 1786502281367993,
+        "symbol": "BTCUSD",
+        "uplift_bps": -4.785599374462768
+      },
+      {
+        "control_best_mfe_bps": 7.613396438186371,
+        "control_ts_us": 1786504287927219,
+        "event_best_mfe_bps": 4.863469850409086,
+        "event_key": "absorption:BTCUSD:1361420588283125:1:63740.5",
+        "event_ts_us": 1786502487927219,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.749926587777285
+      },
+      {
+        "control_best_mfe_bps": 9.18367346938842,
+        "control_ts_us": 1786504362217698,
+        "event_best_mfe_bps": 5.490885130683409,
+        "event_key": "absorption:BTCUSD:1361494878785750:1:63742.0",
+        "event_ts_us": 1786502562217698,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.692788338705011
+      },
+      {
+        "control_best_mfe_bps": 9.969385352068816,
+        "control_ts_us": 1786504409999489,
+        "event_best_mfe_bps": 6.980227916205672,
+        "event_key": "absorption:BTCUSD:1361542660590458:1:63751.5",
+        "event_ts_us": 1786502609999489,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.9891574358631434
+      },
+      {
+        "control_best_mfe_bps": 10.810641431391321,
+        "control_ts_us": 1786500915711233,
+        "event_best_mfe_bps": 6.980227916205672,
+        "event_key": "absorption:BTCUSD:1361648374159333:-1:63752.5",
+        "event_ts_us": 1786502715711233,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.830413515185649
+      },
+      {
+        "control_best_mfe_bps": 14.096198725077613,
+        "control_ts_us": 1786501041780465,
+        "event_best_mfe_bps": 6.274805088867241,
+        "event_key": "absorption:BTCUSD:1361774443532250:-1:63748.0",
+        "event_ts_us": 1786502841780465,
+        "symbol": "BTCUSD",
+        "uplift_bps": -7.821393636210372
+      },
+      {
+        "control_best_mfe_bps": 13.001253132831625,
+        "control_ts_us": 1786501120730193,
+        "event_best_mfe_bps": 8.547477709903717,
+        "event_key": "absorption:BTCUSD:1361853393309541:-1:63761.5",
+        "event_ts_us": 1786502920730193,
+        "symbol": "BTCUSD",
+        "uplift_bps": -4.453775422927908
+      },
+      {
+        "control_best_mfe_bps": 11.910918864701525,
+        "control_ts_us": 1786502110272223,
+        "event_best_mfe_bps": 12.937827856319695,
+        "event_key": "absorption:BTCUSD:1362842965861000:-1:63766.5",
+        "event_ts_us": 1786503910272223,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.0269089916181695
+      },
+      {
+        "control_best_mfe_bps": 8.225648101467531,
+        "control_ts_us": 1786502600230885,
+        "event_best_mfe_bps": 7.969397513547527,
+        "event_key": "absorption:ETHUSD:1363332927181250:1:1882.2",
+        "event_ts_us": 1786504400230885,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.2562505879200039
+      },
+      {
+        "control_best_mfe_bps": 7.96051584142643,
+        "control_ts_us": 1786502655288689,
+        "event_best_mfe_bps": 8.501142341001966,
+        "event_key": "absorption:ETHUSD:1363387985283500:1:1882.1",
+        "event_ts_us": 1786504455288689,
+        "symbol": "ETHUSD",
+        "uplift_bps": 0.5406264995755361
+      },
+      {
+        "control_best_mfe_bps": 7.96051584142643,
+        "control_ts_us": 1786502710336266,
+        "event_best_mfe_bps": 6.640282610428372,
+        "event_key": "absorption:ETHUSD:1363443033158500:1:1882.45",
+        "event_ts_us": 1786504510336266,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.320233230998058
+      },
+      {
+        "control_best_mfe_bps": 7.45045447772319,
+        "control_ts_us": 1786503027348317,
+        "event_best_mfe_bps": 16.955805008243008,
+        "event_key": "absorption:BTCUSD:1363760034611333:1:63694.0",
+        "event_ts_us": 1786504827348317,
+        "symbol": "BTCUSD",
+        "uplift_bps": 9.505350530519818
+      },
+      {
+        "control_best_mfe_bps": 6.980227916205672,
+        "control_ts_us": 1786503261204369,
+        "event_best_mfe_bps": 14.199308077915695,
+        "event_key": "absorption:BTCUSD:1363993891467583:-1:63736.5",
+        "event_ts_us": 1786505061204369,
+        "symbol": "BTCUSD",
+        "uplift_bps": 7.219080161710023
+      },
+      {
+        "control_best_mfe_bps": 14.503774901413191,
+        "control_ts_us": 1786503772192431,
+        "event_best_mfe_bps": 8.54613738111798,
+        "event_key": "absorption:BTCUSD:1364504879414375:-1:63771.5",
+        "event_ts_us": 1786505572192431,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.957637520295211
+      },
+      {
+        "control_best_mfe_bps": 11.841372658192295,
+        "control_ts_us": 1786504106358588,
+        "event_best_mfe_bps": 15.276145710928501,
+        "event_key": "absorption:BTCUSD:1364839046623208:-1:63824.875",
+        "event_ts_us": 1786505906358588,
+        "symbol": "BTCUSD",
+        "uplift_bps": 3.4347730527362064
+      },
+      {
+        "control_best_mfe_bps": 11.684716547597507,
+        "control_ts_us": 1786504151195725,
+        "event_best_mfe_bps": 12.146383512263714,
+        "event_key": "absorption:BTCUSD:1364883883901208:1:63805.0",
+        "event_ts_us": 1786505951195725,
+        "symbol": "BTCUSD",
+        "uplift_bps": 0.4616669646662075
+      },
+      {
+        "control_best_mfe_bps": 16.6891838194394,
+        "control_ts_us": 1786555022260661,
+        "event_best_mfe_bps": 5.554380025392103,
+        "event_key": "absorption:ETHUSD:1365599514263458:-1:1890.475",
+        "event_ts_us": 1786553222260661,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.134803794047297
+      },
+      {
+        "control_best_mfe_bps": 10.48465928798814,
+        "control_ts_us": 1786555375151390,
+        "event_best_mfe_bps": 3.7014868951612545,
+        "event_key": "absorption:BTCUSD:1365952404524375:-1:63489.0",
+        "event_ts_us": 1786553575151390,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.783172392826886
+      },
+      {
+        "control_best_mfe_bps": 20.411950269065837,
+        "control_ts_us": 1786555743806683,
+        "event_best_mfe_bps": 7.937137868084809,
+        "event_key": "absorption:ETHUSD:1366321058242291:1:1889.75",
+        "event_ts_us": 1786553943806683,
+        "symbol": "ETHUSD",
+        "uplift_bps": -12.474812400981028
+      },
+      {
+        "control_best_mfe_bps": 12.971198644642357,
+        "control_ts_us": 1786556177269609,
+        "event_best_mfe_bps": 20.107947930997348,
+        "event_key": "absorption:ETHUSD:1366754520230083:1:1889.7",
+        "event_ts_us": 1786554377269609,
+        "symbol": "ETHUSD",
+        "uplift_bps": 7.136749286354991
+      },
+      {
+        "control_best_mfe_bps": 12.687655147956,
+        "control_ts_us": 1786556859339542,
+        "event_best_mfe_bps": 20.621477820105262,
+        "event_key": "absorption:BTCUSD:1367436601187916:-1:63526.0",
+        "event_ts_us": 1786555059339542,
+        "symbol": "BTCUSD",
+        "uplift_bps": 7.933822672149262
+      },
+      {
+        "control_best_mfe_bps": 12.452970165863775,
+        "control_ts_us": 1786556930316718,
+        "event_best_mfe_bps": 25.936904509845647,
+        "event_key": "absorption:ETHUSD:1367507578396375:-1:1889.3249999999998",
+        "event_ts_us": 1786555130316718,
+        "symbol": "ETHUSD",
+        "uplift_bps": 13.483934343981872
+      },
+      {
+        "control_best_mfe_bps": 16.673724327758155,
+        "control_ts_us": 1786557136835979,
+        "event_best_mfe_bps": 20.411950269065837,
+        "event_key": "absorption:ETHUSD:1367714097751583:-1:1886.05",
+        "event_ts_us": 1786555336835979,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.7382259413076824
+      },
+      {
+        "control_best_mfe_bps": 10.328389830508433,
+        "control_ts_us": 1786557447030768,
+        "event_best_mfe_bps": 24.92971940805111,
+        "event_key": "absorption:ETHUSD:1368024292681083:-1:1885.4",
+        "event_ts_us": 1786555647030768,
+        "symbol": "ETHUSD",
+        "uplift_bps": 14.601329577542677
+      },
+      {
+        "control_best_mfe_bps": 9.453880818075522,
+        "control_ts_us": 1786557554349061,
+        "event_best_mfe_bps": 9.1432895348742,
+        "event_key": "absorption:BTCUSD:1368131611024125:-1:63434.5",
+        "event_ts_us": 1786555754349061,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.31059128320132245
+      },
+      {
+        "control_best_mfe_bps": 10.163802680407397,
+        "control_ts_us": 1786557915454916,
+        "event_best_mfe_bps": 6.540480055476916,
+        "event_key": "absorption:BTCUSD:1368492732051875:1:63451.0",
+        "event_ts_us": 1786556115454916,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.6233226249304806
+      },
+      {
+        "control_best_mfe_bps": 12.700092604842617,
+        "control_ts_us": 1786554315795995,
+        "event_best_mfe_bps": 12.449341774163347,
+        "event_key": "absorption:ETHUSD:1368493073131833:-1:1887.75",
+        "event_ts_us": 1786556115795995,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.2507508306792694
+      },
+      {
+        "control_best_mfe_bps": 15.04920538619725,
+        "control_ts_us": 1786557986407135,
+        "event_best_mfe_bps": 6.459235919653583,
+        "event_key": "absorption:BTCUSD:1368563684478250:-1:63475.0",
+        "event_ts_us": 1786556186407135,
+        "symbol": "BTCUSD",
+        "uplift_bps": -8.589969466543668
+      },
+      {
+        "control_best_mfe_bps": 18.540099586820126,
+        "control_ts_us": 1786555041780406,
+        "event_best_mfe_bps": 11.126712056588328,
+        "event_key": "absorption:ETHUSD:1369219048154416:-1:1887.35",
+        "event_ts_us": 1786556841780406,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.413387530231798
+      },
+      {
+        "control_best_mfe_bps": 12.852659633186825,
+        "control_ts_us": 1786555394282857,
+        "event_best_mfe_bps": 12.36522300719023,
+        "event_key": "absorption:BTCUSD:1369571550935791:-1:63485.5",
+        "event_ts_us": 1786557194282857,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.48743662599659565
+      },
+      {
+        "control_best_mfe_bps": 22.005991993001572,
+        "control_ts_us": 1786555401530539,
+        "event_best_mfe_bps": 8.740795677280033,
+        "event_key": "absorption:ETHUSD:1369578798624708:1:1887.7",
+        "event_ts_us": 1786557201530539,
+        "symbol": "ETHUSD",
+        "uplift_bps": -13.26519631572154
+      },
+      {
+        "control_best_mfe_bps": 16.424711242980507,
+        "control_ts_us": 1786555433845643,
+        "event_best_mfe_bps": 9.005429744405324,
+        "event_key": "absorption:ETHUSD:1369611113758791:1:1887.75",
+        "event_ts_us": 1786557233845643,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.419281498575183
+      },
+      {
+        "control_best_mfe_bps": 15.88394133530957,
+        "control_ts_us": 1786559749426708,
+        "event_best_mfe_bps": 17.73518979300226,
+        "event_key": "absorption:ETHUSD:1370326682956291:-1:1888.9",
+        "event_ts_us": 1786557949426708,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.851248457692689
+      },
+      {
+        "control_best_mfe_bps": 12.611135632764059,
+        "control_ts_us": 1786560112258091,
+        "event_best_mfe_bps": 18.116512807586638,
+        "event_key": "absorption:BTCUSD:1370689513944500:-1:63478.0",
+        "event_ts_us": 1786558312258091,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.505377174822579
+      },
+      {
+        "control_best_mfe_bps": 11.430193052018867,
+        "control_ts_us": 1786560269909861,
+        "event_best_mfe_bps": 15.678550324994545,
+        "event_key": "absorption:BTCUSD:1370847165543791:-1:63463.5",
+        "event_ts_us": 1786558469909861,
+        "symbol": "BTCUSD",
+        "uplift_bps": 4.248357272975678
+      },
+      {
+        "control_best_mfe_bps": 10.603329445445508,
+        "control_ts_us": 1786560423372948,
+        "event_best_mfe_bps": 9.5399618401526,
+        "event_key": "absorption:ETHUSD:1371000618552583:-1:1886.9",
+        "event_ts_us": 1786558623372948,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.0633676052929086
+      },
+      {
+        "control_best_mfe_bps": 12.214245750623576,
+        "control_ts_us": 1786556825530769,
+        "event_best_mfe_bps": 9.302765601841845,
+        "event_key": "absorption:BTCUSD:1371002776366291:1:63421.0",
+        "event_ts_us": 1786558625530769,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.911480148781731
+      },
+      {
+        "control_best_mfe_bps": 12.608750472828945,
+        "control_ts_us": 1786556866089237,
+        "event_best_mfe_bps": 13.88100195595987,
+        "event_key": "absorption:BTCUSD:1371043334718416:1:63396.833333333336",
+        "event_ts_us": 1786558666089237,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.2722514831309262
+      },
+      {
+        "control_best_mfe_bps": 10.06595851765546,
+        "control_ts_us": 1786556923530216,
+        "event_best_mfe_bps": 24.654048035630538,
+        "event_key": "absorption:ETHUSD:1371100775538750:1:1886.0166666666667",
+        "event_ts_us": 1786558723530216,
+        "symbol": "ETHUSD",
+        "uplift_bps": 14.588089517975078
+      },
+      {
+        "control_best_mfe_bps": 13.318937322184254,
+        "control_ts_us": 1786556930327682,
+        "event_best_mfe_bps": 17.665615141955193,
+        "event_key": "absorption:BTCUSD:1371107572985916:-1:63400.0",
+        "event_ts_us": 1786558730327682,
+        "symbol": "BTCUSD",
+        "uplift_bps": 4.346677819770939
+      },
+      {
+        "control_best_mfe_bps": 11.927164780407562,
+        "control_ts_us": 1786560568394075,
+        "event_best_mfe_bps": 23.855594136825697,
+        "event_key": "absorption:ETHUSD:1371145639272541:-1:1886.35",
+        "event_ts_us": 1786558768394075,
+        "symbol": "ETHUSD",
+        "uplift_bps": 11.928429356418135
+      },
+      {
+        "control_best_mfe_bps": 7.159714672111406,
+        "control_ts_us": 1786560884277737,
+        "event_best_mfe_bps": 27.044942330636257,
+        "event_key": "absorption:ETHUSD:1371461522058208:-1:1885.725",
+        "event_ts_us": 1786559084277737,
+        "symbol": "ETHUSD",
+        "uplift_bps": 19.88522765852485
+      },
+      {
+        "control_best_mfe_bps": 6.364697146494791,
+        "control_ts_us": 1786561038263085,
+        "event_best_mfe_bps": 28.374436488993737,
+        "event_key": "absorption:ETHUSD:1371615506978875:-1:1885.5",
+        "event_ts_us": 1786559238263085,
+        "symbol": "ETHUSD",
+        "uplift_bps": 22.009739342498946
+      },
+      {
+        "control_best_mfe_bps": 4.103082045858741,
+        "control_ts_us": 1786561088937511,
+        "event_best_mfe_bps": 15.375032524107546,
+        "event_key": "absorption:BTCUSD:1371666181264666:-1:63420.5",
+        "event_ts_us": 1786559288937511,
+        "symbol": "BTCUSD",
+        "uplift_bps": 11.271950478248804
+      },
+      {
+        "control_best_mfe_bps": 1.8144095674599292,
+        "control_ts_us": 1786561427146852,
+        "event_best_mfe_bps": 17.005463792533206,
+        "event_key": "absorption:BTCUSD:1372004382413208:-1:63511.75",
+        "event_ts_us": 1786559627146852,
+        "symbol": "BTCUSD",
+        "uplift_bps": 15.191054225073277
+      },
+      {
+        "control_best_mfe_bps": 15.04920538619725,
+        "control_ts_us": 1786557986836881,
+        "event_best_mfe_bps": 12.68505605849346,
+        "event_key": "absorption:BTCUSD:1372164071802666:1:63460.5",
+        "event_ts_us": 1786559786836881,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.3641493277037906
+      },
+      {
+        "control_best_mfe_bps": 14.341097487944321,
+        "control_ts_us": 1786558117330637,
+        "event_best_mfe_bps": 9.221602194268153,
+        "event_key": "absorption:BTCUSD:1372294565035666:1:63438.0",
+        "event_ts_us": 1786559917330637,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.119495293676168
+      },
+      {
+        "control_best_mfe_bps": 17.349610422383588,
+        "control_ts_us": 1786559144803430,
+        "event_best_mfe_bps": 4.103082045858741,
+        "event_key": "absorption:BTCUSD:1373322042363041:-1:63368.0",
+        "event_ts_us": 1786560944803430,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.246528376524846
+      },
+      {
+        "control_best_mfe_bps": 10.0951065299415,
+        "control_ts_us": 1786590163835557,
+        "event_best_mfe_bps": 25.36241556985397,
+        "event_key": "absorption:ETHUSD:1374438903946083:-1:1872.85",
+        "event_ts_us": 1786588363835557,
+        "symbol": "ETHUSD",
+        "uplift_bps": 15.267309039912469
+      },
+      {
+        "control_best_mfe_bps": 11.722776016300784,
+        "control_ts_us": 1786590903703125,
+        "event_best_mfe_bps": 13.075396200259437,
+        "event_key": "absorption:BTCUSD:1375178492355916:-1:63478.0",
+        "event_ts_us": 1786589103703125,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.3526201839586527
+      },
+      {
+        "control_best_mfe_bps": 21.348704400501184,
+        "control_ts_us": 1786588429300597,
+        "event_best_mfe_bps": 15.150306993061413,
+        "event_key": "absorption:ETHUSD:1376304363506000:1:1881.125",
+        "event_ts_us": 1786590229300597,
+        "symbol": "ETHUSD",
+        "uplift_bps": -6.198397407439771
+      },
+      {
+        "control_best_mfe_bps": 23.41809580130194,
+        "control_ts_us": 1786588907190500,
+        "event_best_mfe_bps": 18.185969249180367,
+        "event_key": "absorption:BTCUSD:1376782256945541:-1:63516.0",
+        "event_ts_us": 1786590707190500,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.232126552121574
+      },
+      {
+        "control_best_mfe_bps": 2.98537949672828,
+        "control_ts_us": 1786593108671974,
+        "event_best_mfe_bps": 9.433072351664462,
+        "event_key": "absorption:BTCUSD:1377383703105250:-1:63607.0",
+        "event_ts_us": 1786591308671974,
+        "symbol": "BTCUSD",
+        "uplift_bps": 6.447692854936182
+      },
+      {
+        "control_best_mfe_bps": 10.0951065299415,
+        "control_ts_us": 1786590163619712,
+        "event_best_mfe_bps": 9.280619415056313,
+        "event_key": "absorption:ETHUSD:1378038651539041:-1:1885.55",
+        "event_ts_us": 1786591963619712,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.8144871148851873
+      },
+      {
+        "control_best_mfe_bps": 21.158983310851642,
+        "control_ts_us": 1786596279507134,
+        "event_best_mfe_bps": 13.777389184750355,
+        "event_key": "absorption:ETHUSD:1378685154800250:-1:1887.3",
+        "event_ts_us": 1786594479507134,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.381594126101287
+      },
+      {
+        "control_best_mfe_bps": 10.20103893658142,
+        "control_ts_us": 1786596403864031,
+        "event_best_mfe_bps": 6.995205533286697,
+        "event_key": "absorption:BTCUSD:1378809511409916:1:63614.0",
+        "event_ts_us": 1786594603864031,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.205833403294722
+      },
+      {
+        "control_best_mfe_bps": 12.787222191714687,
+        "control_ts_us": 1786596448534440,
+        "event_best_mfe_bps": 5.974044349418284,
+        "event_key": "absorption:BTCUSD:1378854181715833:1:63609.25",
+        "event_ts_us": 1786594648534440,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.813177842296403
+      },
+      {
+        "control_best_mfe_bps": 44.41037299426354,
+        "control_ts_us": 1786597309849679,
+        "event_best_mfe_bps": 36.31929164126247,
+        "event_key": "absorption:ETHUSD:1379715460649250:-1:1886.05",
+        "event_ts_us": 1786595509849679,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.091081353001073
+      },
+      {
+        "control_best_mfe_bps": 27.02681530109441,
+        "control_ts_us": 1786597656527525,
+        "event_best_mfe_bps": 13.583436059705356,
+        "event_key": "absorption:BTCUSD:1380062118884916:1:63679.5",
+        "event_ts_us": 1786595856527525,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.443379241389053
+      },
+      {
+        "control_best_mfe_bps": 24.827888689604727,
+        "control_ts_us": 1786597747449961,
+        "event_best_mfe_bps": 14.291098687102544,
+        "event_key": "absorption:BTCUSD:1380153039072416:-1:63675.25",
+        "event_ts_us": 1786595947449961,
+        "symbol": "BTCUSD",
+        "uplift_bps": -10.536790002502183
+      },
+      {
+        "control_best_mfe_bps": 18.707389810344033,
+        "control_ts_us": 1786598112773570,
+        "event_best_mfe_bps": 12.875873439586183,
+        "event_key": "absorption:BTCUSD:1380518358890333:-1:63685.0",
+        "event_ts_us": 1786596312773570,
+        "symbol": "BTCUSD",
+        "uplift_bps": -5.83151637075785
+      },
+      {
+        "control_best_mfe_bps": 8.74774679249346,
+        "control_ts_us": 1786594612025540,
+        "event_best_mfe_bps": 10.301381441665258,
+        "event_key": "absorption:ETHUSD:1380617609830958:-1:1892.8833333333332",
+        "event_ts_us": 1786596412025540,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.5536346491717978
+      },
+      {
+        "control_best_mfe_bps": 8.76348755506573,
+        "control_ts_us": 1786598350760020,
+        "event_best_mfe_bps": 8.16249646815037,
+        "event_key": "absorption:BTCUSD:1380756342871958:-1:63707.0",
+        "event_ts_us": 1786596550760020,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.600991086915359
+      },
+      {
+        "control_best_mfe_bps": 16.669287623840567,
+        "control_ts_us": 1786595203908509,
+        "event_best_mfe_bps": 23.149419695054352,
+        "event_key": "absorption:BTCUSD:1381209476271750:1:63716.5",
+        "event_ts_us": 1786597003908509,
+        "symbol": "BTCUSD",
+        "uplift_bps": 6.480132071213784
+      },
+      {
+        "control_best_mfe_bps": 24.135979118840023,
+        "control_ts_us": 1786595538864279,
+        "event_best_mfe_bps": 51.43669360221814,
+        "event_key": "absorption:BTCUSD:1381544428017083:1:63670.5",
+        "event_ts_us": 1786597338864279,
+        "symbol": "BTCUSD",
+        "uplift_bps": 27.30071448337812
+      },
+      {
+        "control_best_mfe_bps": 12.089810017270608,
+        "control_ts_us": 1786596223830651,
+        "event_best_mfe_bps": 21.688237458796777,
+        "event_key": "absorption:BTCUSD:1382229381179083:1:63858.5",
+        "event_ts_us": 1786598023830651,
+        "symbol": "BTCUSD",
+        "uplift_bps": 9.59842744152617
+      },
+      {
+        "control_best_mfe_bps": 21.42403724079589,
+        "control_ts_us": 1786596294400237,
+        "event_best_mfe_bps": 11.593286433217997,
+        "event_key": "absorption:ETHUSD:1382299949861791:1:1897.65",
+        "event_ts_us": 1786598094400237,
+        "symbol": "ETHUSD",
+        "uplift_bps": -9.830750807577893
+      },
+      {
+        "control_best_mfe_bps": 12.420062364568718,
+        "control_ts_us": 1786596343677003,
+        "event_best_mfe_bps": 13.958388201211758,
+        "event_key": "absorption:ETHUSD:1382349225997208:1:1898.3500000000001",
+        "event_ts_us": 1786598143677003,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.5383258366430397
+      },
+      {
+        "control_best_mfe_bps": 12.787222191714687,
+        "control_ts_us": 1786596446270375,
+        "event_best_mfe_bps": 6.1007563373560725,
+        "event_key": "absorption:BTCUSD:1382451818055583:-1:63926.5",
+        "event_ts_us": 1786598246270375,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.686465854358614
+      },
+      {
+        "control_best_mfe_bps": 43.082941269756425,
+        "control_ts_us": 1786597333972237,
+        "event_best_mfe_bps": 7.907221929361885,
+        "event_key": "absorption:ETHUSD:1383339505293291:1:1897.0",
+        "event_ts_us": 1786599133972237,
+        "symbol": "ETHUSD",
+        "uplift_bps": -35.17571934039454
+      },
+      {
+        "control_best_mfe_bps": 7.049203440011587,
+        "control_ts_us": 1786600936474780,
+        "event_best_mfe_bps": 3.756015493563414,
+        "event_key": "absorption:BTCUSD:1383342007803708:1:63903.5",
+        "event_ts_us": 1786599136474780,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.293187946448173
+      },
+      {
+        "control_best_mfe_bps": 10.5610561056102,
+        "control_ts_us": 1786600995877777,
+        "event_best_mfe_bps": 13.185654008438519,
+        "event_key": "absorption:ETHUSD:1383401410011250:1:1896.025",
+        "event_ts_us": 1786599195877777,
+        "symbol": "ETHUSD",
+        "uplift_bps": 2.6245979028283184
+      },
+      {
+        "control_best_mfe_bps": 8.186763851476542,
+        "control_ts_us": 1786601033500201,
+        "event_best_mfe_bps": 13.977899095392043,
+        "event_key": "absorption:ETHUSD:1383439031934958:1:1895.7",
+        "event_ts_us": 1786599233500201,
+        "symbol": "ETHUSD",
+        "uplift_bps": 5.791135243915502
+      },
+      {
+        "control_best_mfe_bps": 4.152954082432547,
+        "control_ts_us": 1786601054594210,
+        "event_best_mfe_bps": 4.852051556960557,
+        "event_key": "absorption:BTCUSD:1383460125663333:1:63890.5",
+        "event_ts_us": 1786599254594210,
+        "symbol": "BTCUSD",
+        "uplift_bps": 0.6990974745280099
+      },
+      {
+        "control_best_mfe_bps": 5.5641761100933,
+        "control_ts_us": 1786601105507880,
+        "event_best_mfe_bps": 7.666551929155219,
+        "event_key": "absorption:BTCUSD:1383511038656500:-1:63914.25",
+        "event_ts_us": 1786599305507880,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.102375819061919
+      },
+      {
+        "control_best_mfe_bps": 28.362348590500464,
+        "control_ts_us": 1786597616869780,
+        "event_best_mfe_bps": 5.47846571654409,
+        "event_key": "absorption:BTCUSD:1383622399075791:1:63886.5",
+        "event_ts_us": 1786599416869780,
+        "symbol": "BTCUSD",
+        "uplift_bps": -22.883882873956374
+      },
+      {
+        "control_best_mfe_bps": 16.343745881111094,
+        "control_ts_us": 1786597734554735,
+        "event_best_mfe_bps": 11.593286433220218,
+        "event_key": "absorption:ETHUSD:1383740082607166:1:1897.65",
+        "event_ts_us": 1786599534554735,
+        "symbol": "ETHUSD",
+        "uplift_bps": -4.750459447890876
+      },
+      {
+        "control_best_mfe_bps": 11.887151310228106,
+        "control_ts_us": 1786601370820071,
+        "event_best_mfe_bps": 14.224376366461788,
+        "event_key": "absorption:ETHUSD:1383776347464166:-1:1898.25",
+        "event_ts_us": 1786599570820071,
+        "symbol": "ETHUSD",
+        "uplift_bps": 2.3372250562336827
+      },
+      {
+        "control_best_mfe_bps": 15.72831487929971,
+        "control_ts_us": 1786598143785422,
+        "event_best_mfe_bps": 8.295053487443749,
+        "event_key": "absorption:BTCUSD:1384149307866250:1:63893.5",
+        "event_ts_us": 1786599943785422,
+        "symbol": "BTCUSD",
+        "uplift_bps": -7.433261391855961
+      },
+      {
+        "control_best_mfe_bps": 5.80766083260742,
+        "control_ts_us": 1786601758911550,
+        "event_best_mfe_bps": 12.913087018394664,
+        "event_key": "absorption:ETHUSD:1384164433794041:-1:1897.25",
+        "event_ts_us": 1786599958911550,
+        "symbol": "ETHUSD",
+        "uplift_bps": 7.105426185787245
+      },
+      {
+        "control_best_mfe_bps": 8.992102588161188,
+        "control_ts_us": 1786598181384421,
+        "event_best_mfe_bps": 9.780448492245908,
+        "event_key": "absorption:BTCUSD:1384186906367083:-1:63904.0",
+        "event_ts_us": 1786599981384421,
+        "symbol": "BTCUSD",
+        "uplift_bps": 0.7883459040847196
+      },
+      {
+        "control_best_mfe_bps": 7.289543815645061,
+        "control_ts_us": 1786602436344712,
+        "event_best_mfe_bps": 12.368293332081226,
+        "event_key": "absorption:BTCUSD:1384841890148750:1:63873.0",
+        "event_ts_us": 1786600636344712,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.078749516436165
+      },
+      {
+        "control_best_mfe_bps": 11.092916380539553,
+        "control_ts_us": 1786602453940017,
+        "event_best_mfe_bps": 22.415611814345926,
+        "event_key": "absorption:ETHUSD:1384859485311958:-1:1896.1",
+        "event_ts_us": 1786600653940017,
+        "symbol": "ETHUSD",
+        "uplift_bps": 11.322695433806373
+      },
+      {
+        "control_best_mfe_bps": 14.78508818248958,
+        "control_ts_us": 1786602599007622,
+        "event_best_mfe_bps": 16.623568526044075,
+        "event_key": "absorption:ETHUSD:1385004551754000:1:1895.05",
+        "event_ts_us": 1786600799007622,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.8384803435544939
+      },
+      {
+        "control_best_mfe_bps": 27.74254914394314,
+        "control_ts_us": 1786603429500077,
+        "event_best_mfe_bps": 10.829371368197283,
+        "event_key": "absorption:ETHUSD:1385835034121833:1:1892.9",
+        "event_ts_us": 1786601629500077,
+        "symbol": "ETHUSD",
+        "uplift_bps": -16.913177775745858
+      },
+      {
+        "control_best_mfe_bps": 30.391120507400338,
+        "control_ts_us": 1786603469887262,
+        "event_best_mfe_bps": 10.829371368197283,
+        "event_key": "absorption:ETHUSD:1385875420959708:-1:1893.05",
+        "event_ts_us": 1786601669887262,
+        "symbol": "ETHUSD",
+        "uplift_bps": -19.561749139203055
+      },
+      {
+        "control_best_mfe_bps": 18.182297293736216,
+        "control_ts_us": 1786600026792736,
+        "event_best_mfe_bps": 10.564961305830067,
+        "event_key": "absorption:ETHUSD:1386032325088125:1:1893.125",
+        "event_ts_us": 1786601826792736,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.617335987906149
+      },
+      {
+        "control_best_mfe_bps": 7.436282797921301,
+        "control_ts_us": 1786604023347811,
+        "event_best_mfe_bps": 8.14944834503506,
+        "event_key": "absorption:BTCUSD:1386428874649166:-1:63809.0",
+        "event_ts_us": 1786602223347811,
+        "symbol": "BTCUSD",
+        "uplift_bps": 0.7131655471137588
+      },
+      {
+        "control_best_mfe_bps": 6.574673418751065,
+        "control_ts_us": 1786604086373867,
+        "event_best_mfe_bps": 8.306038333150134,
+        "event_key": "absorption:BTCUSD:1386491899932916:1:63808.0",
+        "event_ts_us": 1786602286373867,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.7313649143990695
+      },
+      {
+        "control_best_mfe_bps": 6.8143901120854,
+        "control_ts_us": 1786600960954810,
+        "event_best_mfe_bps": 7.369312302047959,
+        "event_key": "absorption:BTCUSD:1386966476603583:1:63779.0",
+        "event_ts_us": 1786602760954810,
+        "symbol": "BTCUSD",
+        "uplift_bps": 0.5549221899625589
+      },
+      {
+        "control_best_mfe_bps": 5.875026437619502,
+        "control_ts_us": 1786601011803566,
+        "event_best_mfe_bps": 7.8393251908870365,
+        "event_key": "absorption:BTCUSD:1387017324902333:1:63781.0",
+        "event_ts_us": 1786602811803566,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.964298753267535
+      },
+      {
+        "control_best_mfe_bps": 10.033533123862126,
+        "control_ts_us": 1786601013965109,
+        "event_best_mfe_bps": 17.702388501372734,
+        "event_key": "absorption:ETHUSD:1387019486425708:1:1892.45",
+        "event_ts_us": 1786602813965109,
+        "symbol": "ETHUSD",
+        "uplift_bps": 7.668855377510608
+      },
+      {
+        "control_best_mfe_bps": 5.401808431518829,
+        "control_ts_us": 1786604813374457,
+        "event_best_mfe_bps": 9.489302967564672,
+        "event_key": "absorption:BTCUSD:1387218893980541:1:63756.0",
+        "event_ts_us": 1786603013374457,
+        "symbol": "BTCUSD",
+        "uplift_bps": 4.087494536045844
+      },
+      {
+        "control_best_mfe_bps": 11.622685368624097,
+        "control_ts_us": 1786601314353139,
+        "event_best_mfe_bps": 28.016386943305882,
+        "event_key": "absorption:ETHUSD:1387319877501833:1:1891.75",
+        "event_ts_us": 1786603114353139,
+        "symbol": "ETHUSD",
+        "uplift_bps": 16.393701574681785
+      },
+      {
+        "control_best_mfe_bps": 6.590915082650417,
+        "control_ts_us": 1786604991802589,
+        "event_best_mfe_bps": 28.810065020881126,
+        "event_key": "absorption:ETHUSD:1387397328768250:1:1891.6",
+        "event_ts_us": 1786603191802589,
+        "symbol": "ETHUSD",
+        "uplift_bps": 22.219149938230707
+      },
+      {
+        "control_best_mfe_bps": 4.779066123472564,
+        "control_ts_us": 1786601690744939,
+        "event_best_mfe_bps": 28.3983933726617,
+        "event_key": "absorption:BTCUSD:1387696268868125:-1:63737.0",
+        "event_ts_us": 1786603490744939,
+        "symbol": "BTCUSD",
+        "uplift_bps": 23.619327249189137
+      },
+      {
+        "control_best_mfe_bps": 5.80766083260742,
+        "control_ts_us": 1786601747392107,
+        "event_best_mfe_bps": 29.326287978863608,
+        "event_key": "absorption:ETHUSD:1387752915607333:-1:1892.45",
+        "event_ts_us": 1786603547392107,
+        "symbol": "ETHUSD",
+        "uplift_bps": 23.518627146256186
+      },
+      {
+        "control_best_mfe_bps": 7.289543815645061,
+        "control_ts_us": 1786602440765151,
+        "event_best_mfe_bps": 9.545717728431935,
+        "event_key": "absorption:BTCUSD:1388446296637958:-1:63904.0",
+        "event_ts_us": 1786604240765151,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.256173912786874
+      },
+      {
+        "control_best_mfe_bps": 11.092916380539553,
+        "control_ts_us": 1786602453306184,
+        "event_best_mfe_bps": 12.384716732541934,
+        "event_key": "absorption:ETHUSD:1388458837603666:-1:1897.4",
+        "event_ts_us": 1786604253306184,
+        "symbol": "ETHUSD",
+        "uplift_bps": 1.2918003520023813
+      },
+      {
+        "control_best_mfe_bps": 15.312318496225608,
+        "control_ts_us": 1786602540731862,
+        "event_best_mfe_bps": 12.384716732541934,
+        "event_key": "absorption:ETHUSD:1388546262808708:-1:1897.35",
+        "event_ts_us": 1786604340731862,
+        "symbol": "ETHUSD",
+        "uplift_bps": -2.9276017636836738
+      },
+      {
+        "control_best_mfe_bps": 10.735583365331092,
+        "control_ts_us": 1786602550943247,
+        "event_best_mfe_bps": 9.623886015632799,
+        "event_key": "absorption:BTCUSD:1388556474138500:-1:63903.5",
+        "event_ts_us": 1786604350943247,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.111697349698293
+      },
+      {
+        "control_best_mfe_bps": 14.78508818248958,
+        "control_ts_us": 1786602577610523,
+        "event_best_mfe_bps": 13.174189128659641,
+        "event_key": "absorption:ETHUSD:1388583141269083:-1:1897.75",
+        "event_ts_us": 1786604377610523,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.6108990538299395
+      },
+      {
+        "control_best_mfe_bps": 10.01687051876754,
+        "control_ts_us": 1786606444905321,
+        "event_best_mfe_bps": 6.065400843882074,
+        "event_key": "absorption:ETHUSD:1388850434622500:1:1896.0",
+        "event_ts_us": 1786604644905321,
+        "symbol": "ETHUSD",
+        "uplift_bps": -3.951469674885466
+      },
+      {
+        "control_best_mfe_bps": 6.106248727865138,
+        "control_ts_us": 1786606470226496,
+        "event_best_mfe_bps": 3.5235254046184217,
+        "event_key": "absorption:BTCUSD:1388875755660375:1:63856.5",
+        "event_ts_us": 1786604670226496,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.582723323246716
+      },
+      {
+        "control_best_mfe_bps": 24.84669063226974,
+        "control_ts_us": 1786603019290625,
+        "event_best_mfe_bps": 5.00988793671775,
+        "event_key": "absorption:ETHUSD:1389024818983375:-1:1896.35",
+        "event_ts_us": 1786604819290625,
+        "symbol": "ETHUSD",
+        "uplift_bps": -19.83680269555199
+      },
+      {
+        "control_best_mfe_bps": 14.270928080795109,
+        "control_ts_us": 1786603091060408,
+        "event_best_mfe_bps": 4.933630917420828,
+        "event_key": "absorption:BTCUSD:1389096588377833:1:63847.5",
+        "event_ts_us": 1786604891060408,
+        "symbol": "BTCUSD",
+        "uplift_bps": -9.33729716337428
+      },
+      {
+        "control_best_mfe_bps": 30.657821708910404,
+        "control_ts_us": 1786603357979572,
+        "event_best_mfe_bps": 9.751469309228211,
+        "event_key": "absorption:ETHUSD:1389363500321375:-1:1897.15",
+        "event_ts_us": 1786605157979572,
+        "symbol": "ETHUSD",
+        "uplift_bps": -20.90635239968219
+      },
+      {
+        "control_best_mfe_bps": 9.008162178252288,
+        "control_ts_us": 1786607370690993,
+        "event_best_mfe_bps": 6.734323122219443,
+        "event_key": "absorption:BTCUSD:1389776209118625:1:63852.0",
+        "event_ts_us": 1786605570690993,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.2738390560328448
+      },
+      {
+        "control_best_mfe_bps": 14.334503070561055,
+        "control_ts_us": 1786603943318152,
+        "event_best_mfe_bps": 4.697408596257002,
+        "event_key": "absorption:BTCUSD:1389948835180541:-1:63866.0",
+        "event_ts_us": 1786605743318152,
+        "symbol": "BTCUSD",
+        "uplift_bps": -9.637094474304053
+      },
+      {
+        "control_best_mfe_bps": 8.436816156502935,
+        "control_ts_us": 1786603943444572,
+        "event_best_mfe_bps": 5.008039220855132,
+        "event_key": "absorption:ETHUSD:1389948961599958:-1:1896.95",
+        "event_ts_us": 1786605743444572,
+        "symbol": "ETHUSD",
+        "uplift_bps": -3.4287769356478037
+      },
+      {
+        "control_best_mfe_bps": 7.121893954216141,
+        "control_ts_us": 1786604055928783,
+        "event_best_mfe_bps": 4.304609845816598,
+        "event_key": "absorption:BTCUSD:1390061444332583:-1:63885.0",
+        "event_ts_us": 1786605855928783,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.8172841083995426
+      },
+      {
+        "control_best_mfe_bps": 5.0105691693413945,
+        "control_ts_us": 1786605201287390,
+        "event_best_mfe_bps": 3.6020516033041794,
+        "event_key": "absorption:BTCUSD:1391206794696208:1:63851.5",
+        "event_ts_us": 1786607001287390,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.4085175660372151
+      },
+      {
+        "control_best_mfe_bps": 5.2734272003374105,
+        "control_ts_us": 1786605219831917,
+        "event_best_mfe_bps": 9.229957805907407,
+        "event_key": "absorption:ETHUSD:1391225339101041:1:1895.975",
+        "event_ts_us": 1786607019831917,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.9565306055699967
+      },
+      {
+        "control_best_mfe_bps": 26.160025367297777,
+        "control_ts_us": 1786610414790272,
+        "event_best_mfe_bps": 13.991182914917522,
+        "event_key": "absorption:ETHUSD:1392820290988375:-1:1894.15",
+        "event_ts_us": 1786608614790272,
+        "symbol": "ETHUSD",
+        "uplift_bps": -12.168842452380256
+      },
+      {
+        "control_best_mfe_bps": 11.072737338851946,
+        "control_ts_us": 1786606849127255,
+        "event_best_mfe_bps": 14.254791193706318,
+        "event_key": "absorption:ETHUSD:1392854627987583:-1:1894.15",
+        "event_ts_us": 1786608649127255,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.182053854854372
+      },
+      {
+        "control_best_mfe_bps": 25.63289466730012,
+        "control_ts_us": 1786610480941266,
+        "event_best_mfe_bps": 13.729010455169055,
+        "event_key": "absorption:ETHUSD:1392886441832708:1:1893.75",
+        "event_ts_us": 1786608680941266,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.903884212131066
+      },
+      {
+        "control_best_mfe_bps": 7.685310078735519,
+        "control_ts_us": 1786610931812051,
+        "event_best_mfe_bps": 5.251565672004244,
+        "event_key": "absorption:BTCUSD:1393337309939541:1:63790.5",
+        "event_ts_us": 1786609131812051,
+        "symbol": "BTCUSD",
+        "uplift_bps": -2.4337444067312752
+      },
+      {
+        "control_best_mfe_bps": 14.292141968610395,
+        "control_ts_us": 1786611042514799,
+        "event_best_mfe_bps": 6.342662332514681,
+        "event_key": "absorption:ETHUSD:1393448012028291:-1:1891.95",
+        "event_ts_us": 1786609242514799,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.949479636095713
+      },
+      {
+        "control_best_mfe_bps": 11.690859160454758,
+        "control_ts_us": 1786611284952348,
+        "event_best_mfe_bps": 4.390056521977881,
+        "event_key": "absorption:BTCUSD:1393690448134458:1:63779.5",
+        "event_ts_us": 1786609484952348,
+        "symbol": "BTCUSD",
+        "uplift_bps": -7.300802638476878
+      },
+      {
+        "control_best_mfe_bps": 14.589722873704636,
+        "control_ts_us": 1786611365450816,
+        "event_best_mfe_bps": 3.449654642529998,
+        "event_key": "absorption:BTCUSD:1393770946467000:1:63774.5",
+        "event_ts_us": 1786609565450816,
+        "symbol": "BTCUSD",
+        "uplift_bps": -11.140068231174638
+      },
+      {
+        "control_best_mfe_bps": 14.905818760934109,
+        "control_ts_us": 1786611418443054,
+        "event_best_mfe_bps": 4.390056521977881,
+        "event_key": "absorption:BTCUSD:1393823938396041:1:63779.5",
+        "event_ts_us": 1786609618443054,
+        "symbol": "BTCUSD",
+        "uplift_bps": -10.515762238956228
+      },
+      {
+        "control_best_mfe_bps": 29.176241754966803,
+        "control_ts_us": 1786611695442834,
+        "event_best_mfe_bps": 7.291772841674371,
+        "event_key": "absorption:BTCUSD:1394100936540375:-1:63770.5",
+        "event_ts_us": 1786609895442834,
+        "symbol": "BTCUSD",
+        "uplift_bps": -21.88446891329243
+      },
+      {
+        "control_best_mfe_bps": 20.409925503771518,
+        "control_ts_us": 1786611849974202,
+        "event_best_mfe_bps": 4.548805546406021,
+        "event_key": "absorption:BTCUSD:1394255466996291:1:63752.75",
+        "event_ts_us": 1786610049974202,
+        "symbol": "BTCUSD",
+        "uplift_bps": -15.861119957365498
+      },
+      {
+        "control_best_mfe_bps": 20.33158539265889,
+        "control_ts_us": 1786611947046715,
+        "event_best_mfe_bps": 4.548805546406021,
+        "event_key": "absorption:BTCUSD:1394352538936708:1:63753.0",
+        "event_ts_us": 1786610147046715,
+        "symbol": "BTCUSD",
+        "uplift_bps": -15.78277984625287
+      },
+      {
+        "control_best_mfe_bps": 18.372682804268514,
+        "control_ts_us": 1786612011798146,
+        "event_best_mfe_bps": 6.900012545477674,
+        "event_key": "absorption:BTCUSD:1394417289985458:-1:63768.5",
+        "event_ts_us": 1786610211798146,
+        "symbol": "BTCUSD",
+        "uplift_bps": -11.47267025879084
+      },
+      {
+        "control_best_mfe_bps": 23.609305780299962,
+        "control_ts_us": 1786612035553060,
+        "event_best_mfe_bps": 14.01263781297124,
+        "event_key": "absorption:ETHUSD:1394441044759166:-1:1891.25",
+        "event_ts_us": 1786610235553060,
+        "symbol": "ETHUSD",
+        "uplift_bps": -9.596667967328722
+      },
+      {
+        "control_best_mfe_bps": 26.25507200254451,
+        "control_ts_us": 1786612100448612,
+        "event_best_mfe_bps": 17.183493272001638,
+        "event_key": "absorption:ETHUSD:1394505939928583:-1:1891.45",
+        "event_ts_us": 1786610300448612,
+        "symbol": "ETHUSD",
+        "uplift_bps": -9.071578730542871
+      },
+      {
+        "control_best_mfe_bps": 15.487299628147433,
+        "control_ts_us": 1786612514314292,
+        "event_best_mfe_bps": 9.486550266956106,
+        "event_key": "absorption:BTCUSD:1394919802854958:-1:63775.5",
+        "event_ts_us": 1786610714314292,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.0007493611913265
+      },
+      {
+        "control_best_mfe_bps": 11.937289439478693,
+        "control_ts_us": 1786612718421330,
+        "event_best_mfe_bps": 12.436494496189665,
+        "event_key": "absorption:ETHUSD:1395123908680125:1:1889.6",
+        "event_ts_us": 1786610918421330,
+        "symbol": "ETHUSD",
+        "uplift_bps": 0.4992050567109718
+      },
+      {
+        "control_best_mfe_bps": 4.229223937407545,
+        "control_ts_us": 1786609158788566,
+        "event_best_mfe_bps": 15.347569527135452,
+        "event_key": "absorption:ETHUSD:1395164275677208:1:1889.55",
+        "event_ts_us": 1786610958788566,
+        "symbol": "ETHUSD",
+        "uplift_bps": 11.118345589727907
+      },
+      {
+        "control_best_mfe_bps": 5.565862708718505,
+        "control_ts_us": 1786613566295468,
+        "event_best_mfe_bps": 40.25423728813537,
+        "event_key": "absorption:ETHUSD:1395971778531541:1:1888.0",
+        "event_ts_us": 1786611766295468,
+        "symbol": "ETHUSD",
+        "uplift_bps": 34.688374579416866
+      },
+      {
+        "control_best_mfe_bps": 5.810757754221019,
+        "control_ts_us": 1786613570775539,
+        "event_best_mfe_bps": 24.48191712243308,
+        "event_key": "absorption:BTCUSD:1395976258576500:1:63720.5",
+        "event_ts_us": 1786611770775539,
+        "symbol": "BTCUSD",
+        "uplift_bps": 18.671159368212063
+      },
+      {
+        "control_best_mfe_bps": 14.578032230703197,
+        "control_ts_us": 1786613982385875,
+        "event_best_mfe_bps": 24.138571314888946,
+        "event_key": "absorption:ETHUSD:1396387866516875:1:1884.95",
+        "event_ts_us": 1786612182385875,
+        "symbol": "ETHUSD",
+        "uplift_bps": 9.560539084185748
+      },
+      {
+        "control_best_mfe_bps": 25.105708245243274,
+        "control_ts_us": 1786610453325082,
+        "event_best_mfe_bps": 23.344651952461604,
+        "event_key": "absorption:ETHUSD:1396458805311125:-1:1884.8",
+        "event_ts_us": 1786612253325082,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.7610562927816709
+      },
+      {
+        "control_best_mfe_bps": 7.685310078735519,
+        "control_ts_us": 1786610908870824,
+        "event_best_mfe_bps": 9.742759715261062,
+        "event_key": "absorption:BTCUSD:1396914349752291:-1:63637.0",
+        "event_ts_us": 1786612708870824,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.0574496365255435
+      },
+      {
+        "control_best_mfe_bps": 8.787759905845016,
+        "control_ts_us": 1786611239010610,
+        "event_best_mfe_bps": 8.086359175661917,
+        "event_key": "absorption:BTCUSD:1397244487686041:-1:63687.5",
+        "event_ts_us": 1786613039010610,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.7014007301830993
+      },
+      {
+        "control_best_mfe_bps": 29.176241754966803,
+        "control_ts_us": 1786611704953619,
+        "event_best_mfe_bps": 5.418564473065324,
+        "event_key": "absorption:BTCUSD:1397710449950500:-1:63669.0",
+        "event_ts_us": 1786613504953619,
+        "symbol": "BTCUSD",
+        "uplift_bps": -23.75767728190148
+      },
+      {
+        "control_best_mfe_bps": 20.4882643849591,
+        "control_ts_us": 1786611853375236,
+        "event_best_mfe_bps": 5.730973951545426,
+        "event_key": "absorption:BTCUSD:1397858871265125:-1:63689.0",
+        "event_ts_us": 1786613653375236,
+        "symbol": "BTCUSD",
+        "uplift_bps": -14.757290433413672
+      },
+      {
+        "control_best_mfe_bps": 20.4882643849591,
+        "control_ts_us": 1786611931549558,
+        "event_best_mfe_bps": 5.730973951545426,
+        "event_key": "absorption:BTCUSD:1397937045426875:-1:63689.0",
+        "event_ts_us": 1786613731549558,
+        "symbol": "BTCUSD",
+        "uplift_bps": -14.757290433413672
+      },
+      {
+        "control_best_mfe_bps": 18.52942331095675,
+        "control_ts_us": 1786612007244356,
+        "event_best_mfe_bps": 12.487630177653308,
+        "event_key": "absorption:BTCUSD:1398012740070041:-1:63663.0",
+        "event_ts_us": 1786613807244356,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.041793133303443
+      },
+      {
+        "control_best_mfe_bps": 25.726031030366414,
+        "control_ts_us": 1786612106466396,
+        "event_best_mfe_bps": 12.723320786725,
+        "event_key": "absorption:ETHUSD:1398111961907791:-1:1886.3",
+        "event_ts_us": 1786613906466396,
+        "symbol": "ETHUSD",
+        "uplift_bps": -13.002710243641413
+      },
+      {
+        "control_best_mfe_bps": 10.765277657727168,
+        "control_ts_us": 1786612332355996,
+        "event_best_mfe_bps": 16.49231929130135,
+        "event_key": "absorption:BTCUSD:1398337851045166:-1:63665.75",
+        "event_ts_us": 1786614132355996,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.727041633574181
+      },
+      {
+        "control_best_mfe_bps": 16.432238636989727,
+        "control_ts_us": 1786612509436081,
+        "event_best_mfe_bps": 19.392169332108633,
+        "event_key": "absorption:BTCUSD:1398514930768958:-1:63686.5",
+        "event_ts_us": 1786614309436081,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.9599306951189064
+      },
+      {
+        "control_best_mfe_bps": 8.091441140658517,
+        "control_ts_us": 1786612782794027,
+        "event_best_mfe_bps": 47.95579590138877,
+        "event_key": "absorption:BTCUSD:1398788288155708:-1:63704.5",
+        "event_ts_us": 1786614582794027,
+        "symbol": "BTCUSD",
+        "uplift_bps": 39.86435476073025
+      },
+      {
+        "control_best_mfe_bps": 32.12190395285308,
+        "control_ts_us": 1786623413380139,
+        "event_best_mfe_bps": 13.296457823636088,
+        "event_key": "absorption:ETHUSD:1399817744591541:-1:1880.1",
+        "event_ts_us": 1786621613380139,
+        "symbol": "ETHUSD",
+        "uplift_bps": -18.825446129216992
+      },
+      {
+        "control_best_mfe_bps": 19.19295209627969,
+        "control_ts_us": 1786624109844323,
+        "event_best_mfe_bps": 12.45045428398095,
+        "event_key": "absorption:BTCUSD:1400514218704083:-1:63451.5",
+        "event_ts_us": 1786622309844323,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.7424978122987405
+      },
+      {
+        "control_best_mfe_bps": 26.532236667551334,
+        "control_ts_us": 1786624131816187,
+        "event_best_mfe_bps": 20.487986589681206,
+        "event_key": "absorption:ETHUSD:1400536190831750:-1:1879.15",
+        "event_ts_us": 1786622331816187,
+        "symbol": "ETHUSD",
+        "uplift_bps": -6.044250077870128
+      },
+      {
+        "control_best_mfe_bps": 24.421320874921104,
+        "control_ts_us": 1786624269483489,
+        "event_best_mfe_bps": 28.21775588979003,
+        "event_key": "absorption:ETHUSD:1400673858572041:1:1878.25",
+        "event_ts_us": 1786622469483489,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.7964350148689263
+      },
+      {
+        "control_best_mfe_bps": 26.078803684124185,
+        "control_ts_us": 1786624352871257,
+        "event_best_mfe_bps": 12.84233084365427,
+        "event_key": "absorption:BTCUSD:1400757246564666:-1:63461.5",
+        "event_ts_us": 1786622552871257,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.236472840469915
+      },
+      {
+        "control_best_mfe_bps": 10.53906532647475,
+        "control_ts_us": 1786624469012947,
+        "event_best_mfe_bps": 15.998865105135707,
+        "event_key": "absorption:BTCUSD:1400873388568958:1:63441.0",
+        "event_ts_us": 1786622669012947,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.4597997786609564
+      },
+      {
+        "control_best_mfe_bps": 17.747874228496443,
+        "control_ts_us": 1786624509607232,
+        "event_best_mfe_bps": 25.5461827084269,
+        "event_key": "absorption:ETHUSD:1400913982964625:1:1878.85",
+        "event_ts_us": 1786622709607232,
+        "symbol": "ETHUSD",
+        "uplift_bps": 7.7983084799304585
+      },
+      {
+        "control_best_mfe_bps": 16.27115446592109,
+        "control_ts_us": 1786624528732028,
+        "event_best_mfe_bps": 12.92121995225548,
+        "event_key": "absorption:BTCUSD:1400933107811958:-1:63460.666666666664",
+        "event_ts_us": 1786622728732028,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.349934513665609
+      },
+      {
+        "control_best_mfe_bps": 16.173078452688117,
+        "control_ts_us": 1786624736729032,
+        "event_best_mfe_bps": 8.766803039159665,
+        "event_key": "absorption:ETHUSD:1401141105379166:1:1882.0",
+        "event_ts_us": 1786622936729032,
+        "symbol": "ETHUSD",
+        "uplift_bps": -7.406275413528451
+      },
+      {
+        "control_best_mfe_bps": 12.721971905644835,
+        "control_ts_us": 1786624778148454,
+        "event_best_mfe_bps": 8.235044097333333,
+        "event_key": "absorption:ETHUSD:1401182524913250:1:1882.0749999999998",
+        "event_ts_us": 1786622978148454,
+        "symbol": "ETHUSD",
+        "uplift_bps": -4.486927808311503
+      },
+      {
+        "control_best_mfe_bps": 29.889957760769192,
+        "control_ts_us": 1786625353886357,
+        "event_best_mfe_bps": 22.116928501716426,
+        "event_key": "absorption:BTCUSD:1401758250849625:1:63526.0",
+        "event_ts_us": 1786623553886357,
+        "symbol": "BTCUSD",
+        "uplift_bps": -7.773029259052766
+      },
+      {
+        "control_best_mfe_bps": 19.486897418772298,
+        "control_ts_us": 1786625438266395,
+        "event_best_mfe_bps": 19.75102689601993,
+        "event_key": "absorption:BTCUSD:1401842630973875:-1:63541.0",
+        "event_ts_us": 1786623638266395,
+        "symbol": "BTCUSD",
+        "uplift_bps": 0.26412947724763214
+      },
+      {
+        "control_best_mfe_bps": 8.432301230170136,
+        "control_ts_us": 1786621953283433,
+        "event_best_mfe_bps": 19.43565774357614,
+        "event_key": "absorption:BTCUSD:1401957648130708:-1:63543.0",
+        "event_ts_us": 1786623753283433,
+        "symbol": "BTCUSD",
+        "uplift_bps": 11.003356513406004
+      },
+      {
+        "control_best_mfe_bps": 39.47438139140669,
+        "control_ts_us": 1786625647872710,
+        "event_best_mfe_bps": 35.052312921557416,
+        "event_key": "absorption:ETHUSD:1402052237504541:-1:1882.9",
+        "event_ts_us": 1786623847872710,
+        "symbol": "ETHUSD",
+        "uplift_bps": -4.422068469849272
+      },
+      {
+        "control_best_mfe_bps": 25.61745129934012,
+        "control_ts_us": 1786625677890329,
+        "event_best_mfe_bps": 18.64732170957284,
+        "event_key": "absorption:BTCUSD:1402082255155666:-1:63545.25",
+        "event_ts_us": 1786623877890329,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.970129589767282
+      },
+      {
+        "control_best_mfe_bps": 24.829688764564928,
+        "control_ts_us": 1786625728016970,
+        "event_best_mfe_bps": 18.568494929069868,
+        "event_key": "absorption:BTCUSD:1402132381847333:-1:63549.5",
+        "event_ts_us": 1786623928016970,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.26119383549506
+      },
+      {
+        "control_best_mfe_bps": 22.624612121451282,
+        "control_ts_us": 1786625760699012,
+        "event_best_mfe_bps": 19.43565774357614,
+        "event_key": "absorption:BTCUSD:1402165063923041:-1:63544.0",
+        "event_ts_us": 1786623960699012,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.1889543778751417
+      },
+      {
+        "control_best_mfe_bps": 12.949504779544707,
+        "control_ts_us": 1786626009539112,
+        "event_best_mfe_bps": 29.70203671108895,
+        "event_key": "absorption:BTCUSD:1402413889823000:-1:63663.0",
+        "event_ts_us": 1786624209539112,
+        "symbol": "BTCUSD",
+        "uplift_bps": 16.752531931544244
+      },
+      {
+        "control_best_mfe_bps": 11.958543715120395,
+        "control_ts_us": 1786622865727656,
+        "event_best_mfe_bps": 14.845448279519058,
+        "event_key": "absorption:ETHUSD:1402870077918166:1:1886.0",
+        "event_ts_us": 1786624665727656,
+        "symbol": "ETHUSD",
+        "uplift_bps": 2.8869045643986624
+      },
+      {
+        "control_best_mfe_bps": 25.648483566461657,
+        "control_ts_us": 1786626744404357,
+        "event_best_mfe_bps": 12.456600673187435,
+        "event_key": "absorption:ETHUSD:1403148754353000:-1:1886.575",
+        "event_ts_us": 1786624944404357,
+        "symbol": "ETHUSD",
+        "uplift_bps": -13.191882893274222
+      },
+      {
+        "control_best_mfe_bps": 10.361042480273586,
+        "control_ts_us": 1786623186818106,
+        "event_best_mfe_bps": 13.518170010868857,
+        "event_key": "absorption:ETHUSD:1403191168062083:-1:1886.35",
+        "event_ts_us": 1786624986818106,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.1571275305952717
+      },
+      {
+        "control_best_mfe_bps": 30.920478871007127,
+        "control_ts_us": 1786626866354471,
+        "event_best_mfe_bps": 14.049039098742444,
+        "event_key": "absorption:ETHUSD:1403270726524208:-1:1886.25",
+        "event_ts_us": 1786625066354471,
+        "symbol": "ETHUSD",
+        "uplift_bps": -16.871439772264683
+      },
+      {
+        "control_best_mfe_bps": 19.59333983821754,
+        "control_ts_us": 1786623310222431,
+        "event_best_mfe_bps": 23.599933920184224,
+        "event_key": "absorption:BTCUSD:1403314594984166:-1:63556.5",
+        "event_ts_us": 1786625110222431,
+        "symbol": "BTCUSD",
+        "uplift_bps": 4.006594081966686
+      },
+      {
+        "control_best_mfe_bps": 24.565782141540147,
+        "control_ts_us": 1786626962390646,
+        "event_best_mfe_bps": 23.99288866512972,
+        "event_key": "absorption:BTCUSD:1403366763349958:-1:63560.5",
+        "event_ts_us": 1786625162390646,
+        "symbol": "BTCUSD",
+        "uplift_bps": -0.5728934764104281
+      },
+      {
+        "control_best_mfe_bps": 32.12190395285308,
+        "control_ts_us": 1786623406707299,
+        "event_best_mfe_bps": 20.945462258399328,
+        "event_key": "absorption:ETHUSD:1403411080111458:1:1885.8",
+        "event_ts_us": 1786625206707299,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.176441694453754
+      },
+      {
+        "control_best_mfe_bps": 36.9180101458122,
+        "control_ts_us": 1786623767784990,
+        "event_best_mfe_bps": 40.00635862653645,
+        "event_key": "absorption:ETHUSD:1403772158678083:1:1887.2",
+        "event_ts_us": 1786625567784990,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.0883484807242567
+      },
+      {
+        "control_best_mfe_bps": 34.78584136594076,
+        "control_ts_us": 1786623908920495,
+        "event_best_mfe_bps": 40.00635862653645,
+        "event_key": "absorption:ETHUSD:1403913294524583:-1:1887.3",
+        "event_ts_us": 1786625708920495,
+        "symbol": "ETHUSD",
+        "uplift_bps": 5.220517260595692
+      },
+      {
+        "control_best_mfe_bps": 30.54530000796918,
+        "control_ts_us": 1786624294338574,
+        "event_best_mfe_bps": 28.846662785158017,
+        "event_key": "absorption:ETHUSD:1404298700571500:-1:1889.3",
+        "event_ts_us": 1786626094338574,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.6986372228111613
+      },
+      {
+        "control_best_mfe_bps": 19.334163201525367,
+        "control_ts_us": 1786624522768123,
+        "event_best_mfe_bps": 30.704888959474097,
+        "event_key": "absorption:ETHUSD:1404527130212541:1:1889.0",
+        "event_ts_us": 1786626322768123,
+        "symbol": "ETHUSD",
+        "uplift_bps": 11.37072575794873
+      },
+      {
+        "control_best_mfe_bps": 15.13962974584171,
+        "control_ts_us": 1786628317228068,
+        "event_best_mfe_bps": 25.088004014081065,
+        "event_key": "absorption:BTCUSD:1404721590237666:-1:63776.5",
+        "event_ts_us": 1786626517228068,
+        "symbol": "BTCUSD",
+        "uplift_bps": 9.948374268239355
+      },
+      {
+        "control_best_mfe_bps": 20.15808179937517,
+        "control_ts_us": 1786624805834822,
+        "event_best_mfe_bps": 32.23249669748962,
+        "event_key": "absorption:ETHUSD:1404810197026833:-1:1892.625",
+        "event_ts_us": 1786626605834822,
+        "symbol": "ETHUSD",
+        "uplift_bps": 12.074414898114451
+      },
+      {
+        "control_best_mfe_bps": 25.53838199465752,
+        "control_ts_us": 1786628471265953,
+        "event_best_mfe_bps": 28.71353929675413,
+        "event_key": "absorption:BTCUSD:1404875628183750:1:63733.0",
+        "event_ts_us": 1786626671265953,
+        "symbol": "BTCUSD",
+        "uplift_bps": 3.1751573020966113
+      },
+      {
+        "control_best_mfe_bps": 15.110946157312899,
+        "control_ts_us": 1786624879825353,
+        "event_best_mfe_bps": 30.130034887408954,
+        "event_key": "absorption:ETHUSD:1404884187587541:1:1891.7",
+        "event_ts_us": 1786626679825353,
+        "symbol": "ETHUSD",
+        "uplift_bps": 15.019088730096055
+      },
+      {
+        "control_best_mfe_bps": 23.60197627214733,
+        "control_ts_us": 1786624969248048,
+        "event_best_mfe_bps": 28.55708278415858,
+        "event_key": "absorption:BTCUSD:1404973610318208:1:63731.0",
+        "event_ts_us": 1786626769248048,
+        "symbol": "BTCUSD",
+        "uplift_bps": 4.955106512011252
+      },
+      {
+        "control_best_mfe_bps": 21.86451835365699,
+        "control_ts_us": 1786628643401687,
+        "event_best_mfe_bps": 26.913992922326102,
+        "event_key": "absorption:BTCUSD:1405047763988333:1:63720.5",
+        "event_ts_us": 1786626843401687,
+        "symbol": "BTCUSD",
+        "uplift_bps": 5.049474568669112
+      },
+      {
+        "control_best_mfe_bps": 16.397344688054982,
+        "control_ts_us": 1786628841860050,
+        "event_best_mfe_bps": 24.067070429240054,
+        "event_key": "absorption:ETHUSD:1405246235987250:1:1890.5749999999998",
+        "event_ts_us": 1786627041860050,
+        "symbol": "ETHUSD",
+        "uplift_bps": 7.669725741185072
+      },
+      {
+        "control_best_mfe_bps": 13.800566136861203,
+        "control_ts_us": 1786628855788745,
+        "event_best_mfe_bps": 26.605137381394695,
+        "event_key": "absorption:BTCUSD:1405260164718416:-1:63709.5",
+        "event_ts_us": 1786627055788745,
+        "symbol": "BTCUSD",
+        "uplift_bps": 12.804571244533491
+      },
+      {
+        "control_best_mfe_bps": 20.667976424362244,
+        "control_ts_us": 1786625473943576,
+        "event_best_mfe_bps": 22.063268975589523,
+        "event_key": "absorption:BTCUSD:1405478320118625:-1:63681.0",
+        "event_ts_us": 1786627273943576,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.3952925512272785
+      },
+      {
+        "control_best_mfe_bps": 16.94197373994122,
+        "control_ts_us": 1786629415892758,
+        "event_best_mfe_bps": 33.8956121070888,
+        "event_key": "absorption:ETHUSD:1405820270190916:-1:1888.15",
+        "event_ts_us": 1786627615892758,
+        "symbol": "ETHUSD",
+        "uplift_bps": 16.953638367147583
+      },
+      {
+        "control_best_mfe_bps": 16.01519873762447,
+        "control_ts_us": 1786625879372481,
+        "event_best_mfe_bps": 44.60843705253792,
+        "event_key": "absorption:BTCUSD:1405883750080125:1:63556.0",
+        "event_ts_us": 1786627679372481,
+        "symbol": "BTCUSD",
+        "uplift_bps": 28.593238314913453
+      },
+      {
+        "control_best_mfe_bps": 12.949504779544707,
+        "control_ts_us": 1786626007370876,
+        "event_best_mfe_bps": 43.18618042226552,
+        "event_key": "absorption:BTCUSD:1406011745596000:1:63559.25",
+        "event_ts_us": 1786627807370876,
+        "symbol": "BTCUSD",
+        "uplift_bps": 30.236675642720815
+      },
+      {
+        "control_best_mfe_bps": 24.345709068775978,
+        "control_ts_us": 1786629681858313,
+        "event_best_mfe_bps": 33.62635034950267,
+        "event_key": "absorption:ETHUSD:1406086232760041:-1:1888.4250000000002",
+        "event_ts_us": 1786627881858313,
+        "symbol": "ETHUSD",
+        "uplift_bps": 9.280641280726694
+      },
+      {
+        "control_best_mfe_bps": 28.06088682991481,
+        "control_ts_us": 1786630127424252,
+        "event_best_mfe_bps": 19.810872206666996,
+        "event_key": "absorption:ETHUSD:1406531799577125:-1:1893.2666666666667",
+        "event_ts_us": 1786628327424252,
+        "symbol": "ETHUSD",
+        "uplift_bps": -8.250014623247814
+      },
+      {
+        "control_best_mfe_bps": 13.01276976020338,
+        "control_ts_us": 1786630356001945,
+        "event_best_mfe_bps": 25.53838199465752,
+        "event_key": "absorption:BTCUSD:1406760377722125:1:63825.5",
+        "event_ts_us": 1786628556001945,
+        "symbol": "BTCUSD",
+        "uplift_bps": 12.52561223445414
+      },
+      {
+        "control_best_mfe_bps": 29.866525703714508,
+        "control_ts_us": 1786626834206753,
+        "event_best_mfe_bps": 27.98384329047776,
+        "event_key": "absorption:ETHUSD:1406838582685083:-1:1893.9250000000002",
+        "event_ts_us": 1786628634206753,
+        "symbol": "ETHUSD",
+        "uplift_bps": -1.882682413236747
+      },
+      {
+        "control_best_mfe_bps": 30.920478871007127,
+        "control_ts_us": 1786626865299349,
+        "event_best_mfe_bps": 19.55240838111272,
+        "event_key": "absorption:ETHUSD:1406869675342416:1:1892.2333333333333",
+        "event_ts_us": 1786628665299349,
+        "symbol": "ETHUSD",
+        "uplift_bps": -11.368070489894407
+      },
+      {
+        "control_best_mfe_bps": 15.06302687561023,
+        "control_ts_us": 1786630523408058,
+        "event_best_mfe_bps": 18.49747641571753,
+        "event_key": "absorption:ETHUSD:1406927784166750:1:1892.125",
+        "event_ts_us": 1786628723408058,
+        "symbol": "ETHUSD",
+        "uplift_bps": 3.4344495401072983
+      },
+      {
+        "control_best_mfe_bps": 18.523418893887644,
+        "control_ts_us": 1786627103544266,
+        "event_best_mfe_bps": 18.76123031391952,
+        "event_key": "absorption:ETHUSD:1407107899597083:-1:1892.2",
+        "event_ts_us": 1786628903544266,
+        "symbol": "ETHUSD",
+        "uplift_bps": 0.23781142003187483
+      },
+      {
+        "control_best_mfe_bps": 15.899496385409773,
+        "control_ts_us": 1786630759763276,
+        "event_best_mfe_bps": 18.887739427567716,
+        "event_key": "absorption:BTCUSD:1407164118515958:-1:63801.0",
+        "event_ts_us": 1786628959763276,
+        "symbol": "BTCUSD",
+        "uplift_bps": 2.9882430421579436
+      },
+      {
+        "control_best_mfe_bps": 20.87848194936237,
+        "control_ts_us": 1786630781458607,
+        "event_best_mfe_bps": 26.941362916005353,
+        "event_key": "absorption:ETHUSD:1407185813812541:-1:1893.3",
+        "event_ts_us": 1786628981458607,
+        "symbol": "ETHUSD",
+        "uplift_bps": 6.062880966642982
+      },
+      {
+        "control_best_mfe_bps": 30.412016713385892,
+        "control_ts_us": 1786630837669497,
+        "event_best_mfe_bps": 21.142766531000447,
+        "event_key": "absorption:ETHUSD:1407242024612750:1:1891.725",
+        "event_ts_us": 1786629037669497,
+        "symbol": "ETHUSD",
+        "uplift_bps": -9.269250182385445
+      },
+      {
+        "control_best_mfe_bps": 25.547388053852593,
+        "control_ts_us": 1786630851933419,
+        "event_best_mfe_bps": 17.327897130312575,
+        "event_key": "absorption:BTCUSD:1407256288511833:1:63770.0",
+        "event_ts_us": 1786629051933419,
+        "symbol": "BTCUSD",
+        "uplift_bps": -8.219490923540018
+      },
+      {
+        "control_best_mfe_bps": 20.342386135476787,
+        "control_ts_us": 1786630962701380,
+        "event_best_mfe_bps": 19.560160710508924,
+        "event_key": "absorption:ETHUSD:1407367056295791:-1:1891.6",
+        "event_ts_us": 1786629162701380,
+        "symbol": "ETHUSD",
+        "uplift_bps": -0.7822254249678622
+      },
+      {
+        "control_best_mfe_bps": 28.54726157750065,
+        "control_ts_us": 1786630994301068,
+        "event_best_mfe_bps": 13.224714346170563,
+        "event_key": "absorption:ETHUSD:1407398655933833:1:1889.75",
+        "event_ts_us": 1786629194301068,
+        "symbol": "ETHUSD",
+        "uplift_bps": -15.322547231330086
+      },
+      {
+        "control_best_mfe_bps": 27.974987070384927,
+        "control_ts_us": 1786631021866514,
+        "event_best_mfe_bps": 10.827180931608504,
+        "event_key": "absorption:BTCUSD:1407426221335125:1:63727.5",
+        "event_ts_us": 1786629221866514,
+        "symbol": "BTCUSD",
+        "uplift_bps": -17.147806138776424
+      },
+      {
+        "control_best_mfe_bps": 28.06912710518361,
+        "control_ts_us": 1786627462887477,
+        "event_best_mfe_bps": 14.43103299530235,
+        "event_key": "absorption:BTCUSD:1407467242233000:-1:63750.75",
+        "event_ts_us": 1786629262887477,
+        "symbol": "BTCUSD",
+        "uplift_bps": -13.63809410988126
+      },
+      {
+        "control_best_mfe_bps": 31.613217785186887,
+        "control_ts_us": 1786627497361833,
+        "event_best_mfe_bps": 14.509348726314819,
+        "event_key": "absorption:BTCUSD:1407501716533166:1:63752.0",
+        "event_ts_us": 1786629297361833,
+        "symbol": "BTCUSD",
+        "uplift_bps": -17.103869058872068
+      },
+      {
+        "control_best_mfe_bps": 39.74457486553007,
+        "control_ts_us": 1786627521870348,
+        "event_best_mfe_bps": 12.698412698413097,
+        "event_key": "absorption:ETHUSD:1407526225009625:1:1890.05",
+        "event_ts_us": 1786629321870348,
+        "symbol": "ETHUSD",
+        "uplift_bps": -27.04616216711697
+      },
+      {
+        "control_best_mfe_bps": 37.66967080325312,
+        "control_ts_us": 1786627537738830,
+        "event_best_mfe_bps": 11.375760999183804,
+        "event_key": "absorption:BTCUSD:1407542093466166:1:63727.5",
+        "event_ts_us": 1786629337738830,
+        "symbol": "BTCUSD",
+        "uplift_bps": -26.293909804069315
+      },
+      {
+        "control_best_mfe_bps": 41.021569405848,
+        "control_ts_us": 1786631277987057,
+        "event_best_mfe_bps": 26.468330642386295,
+        "event_key": "absorption:ETHUSD:1407682341469458:-1:1889.05",
+        "event_ts_us": 1786629477987057,
+        "symbol": "ETHUSD",
+        "uplift_bps": -14.553238763461703
+      },
+      {
+        "control_best_mfe_bps": 36.78373672569846,
+        "control_ts_us": 1786631308250496,
+        "event_best_mfe_bps": 13.96286505439992,
+        "event_key": "absorption:BTCUSD:1407712604859583:-1:63740.5",
+        "event_ts_us": 1786629508250496,
+        "symbol": "BTCUSD",
+        "uplift_bps": -22.82087167129854
+      },
+      {
+        "control_best_mfe_bps": 34.117055883209346,
+        "control_ts_us": 1786631391371033,
+        "event_best_mfe_bps": 24.080444562053493,
+        "event_key": "absorption:ETHUSD:1407795725264666:-1:1889.675",
+        "event_ts_us": 1786629591371033,
+        "symbol": "ETHUSD",
+        "uplift_bps": -10.036611321155853
+      },
+      {
+        "control_best_mfe_bps": 38.36930455635601,
+        "control_ts_us": 1786627939209436,
+        "event_best_mfe_bps": 20.4752453499224,
+        "event_key": "absorption:BTCUSD:1407943564507791:-1:63744.0",
+        "event_ts_us": 1786629739209436,
+        "symbol": "BTCUSD",
+        "uplift_bps": -17.894059206433614
+      },
+      {
+        "control_best_mfe_bps": 38.14468490900946,
+        "control_ts_us": 1786627964436122,
+        "event_best_mfe_bps": 18.243832791307035,
+        "event_key": "absorption:ETHUSD:1407968791159083:-1:1891.2",
+        "event_ts_us": 1786629764436122,
+        "symbol": "ETHUSD",
+        "uplift_bps": -19.900852117702428
+      },
+      {
+        "control_best_mfe_bps": 16.227403145137043,
+        "control_ts_us": 1786628866370306,
+        "event_best_mfe_bps": 17.383678135718394,
+        "event_key": "absorption:BTCUSD:1408870708876000:-1:63854.25",
+        "event_ts_us": 1786630666370306,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.1562749905813519
+      },
+      {
+        "control_best_mfe_bps": 28.24411360996759,
+        "control_ts_us": 1786633415729379,
+        "event_best_mfe_bps": 11.344748436800112,
+        "event_key": "absorption:ETHUSD:1409820073782125:1:1895.15",
+        "event_ts_us": 1786631615729379,
+        "symbol": "ETHUSD",
+        "uplift_bps": -16.89936517316748
+      },
+      {
+        "control_best_mfe_bps": 12.923985862741683,
+        "control_ts_us": 1786631710761722,
+        "event_best_mfe_bps": 21.13215521567957,
+        "event_key": "absorption:ETHUSD:1411715098818375:1:1892.8249999999998",
+        "event_ts_us": 1786633510761722,
+        "symbol": "ETHUSD",
+        "uplift_bps": 8.208169352937889
+      },
+      {
+        "control_best_mfe_bps": 11.347696575202404,
+        "control_ts_us": 1786636986221809,
+        "event_best_mfe_bps": 31.033940917661873,
+        "event_key": "absorption:BTCUSD:1413390539137875:-1:63640.0",
+        "event_ts_us": 1786635186221809,
+        "symbol": "BTCUSD",
+        "uplift_bps": 19.686244342459467
+      },
+      {
+        "control_best_mfe_bps": 19.40405624518138,
+        "control_ts_us": 1786637117724811,
+        "event_best_mfe_bps": 34.687284859397096,
+        "event_key": "absorption:ETHUSD:1413522041443583:-1:1888.3",
+        "event_ts_us": 1786635317724811,
+        "symbol": "ETHUSD",
+        "uplift_bps": 15.283228614215716
+      },
+      {
+        "control_best_mfe_bps": 37.9998272735127,
+        "control_ts_us": 1786635409457891,
+        "event_best_mfe_bps": 10.324309414035948,
+        "event_key": "absorption:BTCUSD:1414293726799583:1:63441.5",
+        "event_ts_us": 1786637209457891,
+        "symbol": "BTCUSD",
+        "uplift_bps": -27.675517859476752
+      },
+      {
+        "control_best_mfe_bps": 27.92456412365807,
+        "control_ts_us": 1786644470239168,
+        "event_best_mfe_bps": 24.87109012997868,
+        "event_key": "absorption:BTCUSD:1419754494507916:-1:63126.75",
+        "event_ts_us": 1786642670239168,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.0534739936793898
+      },
+      {
+        "control_best_mfe_bps": 15.273216476081597,
+        "control_ts_us": 1786641983797427,
+        "event_best_mfe_bps": 13.847894724348109,
+        "event_key": "absorption:BTCUSD:1420868040231708:1:63185.5",
+        "event_ts_us": 1786643783797427,
+        "symbol": "BTCUSD",
+        "uplift_bps": -1.4253217517334882
+      },
+      {
+        "control_best_mfe_bps": 12.420099993670775,
+        "control_ts_us": 1786642926077638,
+        "event_best_mfe_bps": 31.892499327328405,
+        "event_key": "absorption:BTCUSD:1421810275514416:-1:63181.0",
+        "event_ts_us": 1786644726077638,
+        "symbol": "BTCUSD",
+        "uplift_bps": 19.47239933365763
+      },
+      {
+        "control_best_mfe_bps": 14.311459768895363,
+        "control_ts_us": 1786669817815490,
+        "event_best_mfe_bps": 9.005429744404214,
+        "event_key": "absorption:ETHUSD:1424509558076916:-1:1887.5",
+        "event_ts_us": 1786671617815490,
+        "symbol": "ETHUSD",
+        "uplift_bps": -5.3060300244911485
+      },
+      {
+        "control_best_mfe_bps": 11.029180059243249,
+        "control_ts_us": 1786670952556522,
+        "event_best_mfe_bps": 7.316382402919874,
+        "event_key": "absorption:BTCUSD:1425644299210375:-1:63556.25",
+        "event_ts_us": 1786672752556522,
+        "symbol": "BTCUSD",
+        "uplift_bps": -3.7127976563233744
+      },
+      {
+        "control_best_mfe_bps": 16.4395184811994,
+        "control_ts_us": 1786670969917603,
+        "event_best_mfe_bps": 11.91137933772679,
+        "event_key": "absorption:ETHUSD:1425661660293500:1:1888.85",
+        "event_ts_us": 1786672769917603,
+        "symbol": "ETHUSD",
+        "uplift_bps": -4.528139143472609
+      },
+      {
+        "control_best_mfe_bps": 5.667015607906389,
+        "control_ts_us": 1786672123876691,
+        "event_best_mfe_bps": 7.3232959556501775,
+        "event_key": "absorption:BTCUSD:1426735788560875:1:63496.0",
+        "event_ts_us": 1786673923876691,
+        "symbol": "BTCUSD",
+        "uplift_bps": 1.6562803477437882
+      },
+      {
+        "control_best_mfe_bps": 11.013908993643406,
+        "control_ts_us": 1786673058910972,
+        "event_best_mfe_bps": 4.88146695955427,
+        "event_key": "absorption:BTCUSD:1427671294871458:-1:63507.0",
+        "event_ts_us": 1786674858910972,
+        "symbol": "BTCUSD",
+        "uplift_bps": -6.132442034089136
+      },
+      {
+        "control_best_mfe_bps": 7.558995598460072,
+        "control_ts_us": 1786674137967743,
+        "event_best_mfe_bps": 22.349358242900188,
+        "event_key": "absorption:BTCUSD:1428750330008583:-1:63537.5",
+        "event_ts_us": 1786675937967743,
+        "symbol": "BTCUSD",
+        "uplift_bps": 14.790362644440116
+      },
+      {
+        "control_best_mfe_bps": 9.009963960144862,
+        "control_ts_us": 1786674688948081,
+        "event_best_mfe_bps": 15.649867374005755,
+        "event_key": "absorption:ETHUSD:1429301317444875:1:1885.35",
+        "event_ts_us": 1786676488948081,
+        "symbol": "ETHUSD",
+        "uplift_bps": 6.639903413860893
+      },
+      {
+        "control_best_mfe_bps": 6.612455031369535,
+        "control_ts_us": 1786675052905914,
+        "event_best_mfe_bps": 21.5209730948418,
+        "event_key": "absorption:BTCUSD:1429665272646041:-1:63427.5",
+        "event_ts_us": 1786676852905914,
+        "symbol": "BTCUSD",
+        "uplift_bps": 14.908518063472265
+      },
+      {
+        "control_best_mfe_bps": 17.743644067795827,
+        "control_ts_us": 1786675617845190,
+        "event_best_mfe_bps": 11.132905688384653,
+        "event_key": "absorption:ETHUSD:1430230239106375:1:1886.3",
+        "event_ts_us": 1786677417845190,
+        "symbol": "ETHUSD",
+        "uplift_bps": -6.610738379411174
+      }
+    ],
+    "passed": false,
+    "unavailable_pairs": 1091
+  },
+  "coverage": {
+    "evaluated_entries": 0,
+    "incomplete_horizons": 0,
+    "missed_entries": 0
+  },
+  "deterministic_result_hash": "ba54e4804ea5cb36018326af8ee8200b4868e7c71c9d2c16bf173c47a7a633b5",
+  "development_window_only": true,
+  "diagnosis": {
+    "best_cell": null,
+    "next_step": "Collect independent episodes until selected events beat nearby controls.",
+    "positive_discovery_cells": 0,
+    "sufficiently_populated_cells": 0,
+    "verdict": "CONTROL_GATE_FAILED_EXIT_TESTING_BLOCKED",
+    "warning": "The opportunity atlas uses hindsight MFE only to establish that movement existed. It is not a tradable return. Exit testing is blocked until independent event episodes outperform matched nearby controls."
+  },
+  "direction_entry_exit_matrix": [],
+  "episode_collapse": {
+    "collapsed_detections": 7425,
+    "independent_episodes": 1506,
+    "policy": "first causal detection; new episode only after a quiet separation window",
+    "raw_detections": 8931,
+    "separation_ms": 30000
+  },
+  "feature_cells": [],
+  "generated_at": "2026-08-14T16:38:30.274365+00:00",
+  "opportunity_atlas": [],
+  "order_route": "absent",
+  "paper_authorized": false,
+  "scanner_implementation_authorized": false,
+  "schema_version": "vnedge.event_response_atlas.v1",
+  "sealed_holdout_opened": false,
+  "source": {
+    "availability_clock": "local_recv_ns",
+    "collapsed_detections": 7425,
+    "duplicate_observations_ignored": 0,
+    "entry_fill": "first public trade at-or-after decision plus delay",
+    "event_family": "absorption",
+    "event_root": "data/delta_events",
+    "exit_fill": "first public trade at-or-after horizon",
+    "first_decision_ts": "2026-08-10T14:59:15.210940+00:00",
+    "independent_episodes": 1506,
+    "journal_path": "logs/delta_event_research.jsonl",
+    "last_decision_ts": "2026-08-14T16:35:46.841553+00:00",
+    "manifest_verification": "enforced by DeltaShardEventStore",
+    "raw_detections": 8931,
+    "symbols": [
+      "BTCUSD",
+      "ETHUSD"
+    ],
+    "tape_trades": {
+      "BTCUSD": 317538,
+      "ETHUSD": 212507
+    }
+  }
+}

@@ -158,6 +158,8 @@ def test_missing_oi_dislocation_fails_market_truth_closed(tmp_path):
     )
 
     episode = result["episodes"][0]
+    assert episode["anchor_price"] == detection.price
+    assert episode["anchor_reversal_direction"] == detection.reversal_direction
     assert episode["market_truth_complete"] is False
     assert episode["abnormal_score_passed"] is False
     assert "OPEN_INTEREST_DISLOCATION_UNAVAILABLE" in episode["rejection_reasons"]

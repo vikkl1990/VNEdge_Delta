@@ -2,9 +2,6 @@ import json
 
 from vnedge.research.paper_lane_activation import (
     ACTIVATION_MANIFEST_UNSAFE,
-    ACTIVATION_NEEDS_HUMAN_APPROVAL,
-    ACTIVATION_PAPER_ONLINE_WAITING,
-    ACTIVATION_PAPER_RUNNING,
     ACTIVATION_ROUTE_BLOCKED,
     PaperLaneActivationConfig,
     _parse_args,
@@ -81,8 +78,9 @@ max_leverage: 5
     )
 
     row = payload["rows"][0]
-    assert row["activation_state"] == ACTIVATION_PAPER_RUNNING
-    assert row["route_checks"]["manifest_approved_by_human"] is True
+    assert row["activation_state"] == ACTIVATION_ROUTE_BLOCKED
+    assert row["route_checks"]["legacy_human_label_present"] is True
+    assert row["route_checks"]["canonical_paper_authorized"] is False
     assert row["route_checks"]["desired_paper_route"] is True
     assert row["route_checks"]["journal_seen"] is True
     assert row["requested_experiment"]["can_run_requested"] is False
@@ -92,9 +90,9 @@ max_leverage: 5
     assert row["sizing_profiles"]["live"]["can_apply_from_dashboard"] is False
     assert payload["can_trade"] is False
     assert payload["can_promote"] is False
-    assert payload["paper_simulation_route_open"] is True
+    assert payload["paper_simulation_route_open"] is False
     assert payload["live_trade_route_open"] is False
-    assert payload["policy"]["simulated_paper_orders_allowed"] is True
+    assert payload["policy"]["simulated_paper_orders_allowed"] is False
 
 
 def test_paper_activation_marks_heartbeat_only_lane_online_waiting(tmp_path):
@@ -157,12 +155,12 @@ max_leverage: 25
     )
 
     row = payload["rows"][0]
-    assert row["activation_state"] == ACTIVATION_PAPER_ONLINE_WAITING
+    assert row["activation_state"] == ACTIVATION_ROUTE_BLOCKED
     assert row["route_checks"]["journal_seen"] is True
     assert row["evidence"]["paper_journal"]["paper_lane_heartbeats"] == 1
     assert row["evidence"]["paper_journal"]["evals"] == 0
-    assert row["blockers"] == ["last_eval_no_signal"]
-    assert payload["summary"]["paper_online"] == 1
+    assert "strategy registry authority.paper=true is required" in row["blockers"]
+    assert payload["summary"]["paper_online"] == 0
     assert payload["summary"]["paper_journal_heartbeats"] == 1
 
 
@@ -186,11 +184,11 @@ def test_paper_activation_surfaces_paper_review_ready_without_manifest(tmp_path)
         desired_specs=[],
     )
 
-    assert payload["rows"][0]["activation_state"] == ACTIVATION_NEEDS_HUMAN_APPROVAL
+    assert payload["rows"][0]["activation_state"] == "OBSERVE_ONLY"
     assert payload["rows"][0]["next_action"] == (
-        "create a locked paper-trial manifest after human approval"
+        "retain as observation only until canonical paper authority exists"
     )
-    assert payload["summary"]["needs_human_approval"] == 1
+    assert payload["summary"]["needs_human_approval"] == 0
     assert payload["paper_simulation_route_open"] is False
     assert payload["live_trade_route_open"] is False
 

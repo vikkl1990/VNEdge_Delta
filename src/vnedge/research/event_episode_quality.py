@@ -497,6 +497,11 @@ def _score_episode(
         "symbol": episode.symbol,
         "decision_ts": _iso(episode.decision_ts_us),
         "quality_available_ts": _iso(episode.quality_available_ts_us),
+        # Explicit location identity keeps downstream clean-room studies from
+        # parsing prices or directions out of the human-readable event key.
+        # Both values were present at the original detection timestamp.
+        "anchor_price": episode.anchor.price,
+        "anchor_reversal_direction": episode.anchor.reversal_direction,
         "raw_detection_count": episode.raw_detection_count,
         "causal_detection_count": episode.causal_detection_count,
         "market_truth_complete": market_truth_complete,

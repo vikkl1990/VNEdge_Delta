@@ -285,6 +285,39 @@ def test_trade_without_causal_book_match_cannot_feed_absorption() -> None:
     assert counts["absorption_observations"] == 0
 
 
+def test_trade_book_join_tolerates_float_noise_within_one_tick() -> None:
+    fee = DeltaFeeModel(default_slippage_bps_per_leg=1.5)
+    absorption = AbsorptionDetectorConfig(
+        instruments=(
+            AbsorptionInstrumentConfig(
+                symbol="BTCUSD",
+                tick_size=0.5,
+                minimum_aggressive_notional_usd=1.0,
+            ),
+        ),
+    )
+    engine = EventDrivenTriggerLayer(
+        (AbsorptionReversalScanner(fee),),
+        config=config(absorption=absorption, require_trade_book_join=True),
+    )
+    engine.on_l2(l2(0))
+    engine.on_trade(
+        TradeEvent(
+            symbol="BTCUSD",
+            price=101.0000000001,
+            size=1.0,
+            side="buy",
+            exchange_ts=NOW + timedelta(milliseconds=50),
+            publish_ts=NOW + timedelta(milliseconds=100),
+            received_at=NOW + timedelta(milliseconds=120),
+            received_monotonic_ns=BASE_NS + 120_000_000,
+        )
+    )
+    truth = engine.market_states(now_ns=BASE_NS + 120_000_000)["BTCUSD"]["market_truth"]
+    assert truth["trade_book_join_ok"] is True
+    assert truth["trade_book_join_reason"] == "joined"
+
+
 def test_calibrated_plugin_still_uses_shared_gates_and_journal(tmp_path: Path) -> None:
     journal = DecisionJournal(tmp_path / "event-decisions.jsonl")
     decision = prime_sustained_flow(layer(probability=0.9, journal=journal))

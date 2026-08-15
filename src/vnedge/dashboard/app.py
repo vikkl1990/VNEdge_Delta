@@ -85,11 +85,13 @@ from vnedge.research.strategy_evidence_registry import (
     dashboard_metric_semantics,
     relabel_uncalibrated_edge_fields,
 )
+from vnedge.runtime_version import code_version
 
 logger = logging.getLogger(__name__)
 
 _STATIC_DIR = Path(__file__).parent / "static"
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+_PROCESS_CODE_VERSION = code_version(_REPO_ROOT)
 _APP_START = time.time()
 _READY_MAX_SOURCE_AGE_SECONDS = float(os.environ.get("VNEDGE_READY_MAX_SOURCE_AGE_SECONDS", "900"))
 _PAPER_STATUS_MAX_AGE_SECONDS = float(os.environ.get("VNEDGE_PAPER_STATUS_MAX_AGE_SECONDS", "180"))
@@ -103,7 +105,7 @@ def _build_sha() -> str:
                 return sha
         except OSError:
             continue
-    return "dev"
+    return _PROCESS_CODE_VERSION
 
 
 # --- incident timeline --------------------------------------------------------
@@ -575,14 +577,36 @@ def event_research_infrastructure_payload(
     response_control_schema_valid = isinstance(response_control.get("passed"), bool) and isinstance(
         (response_atlas.get("source") or {}).get("independent_episodes"), int
     )
+    quality_episode_count = (episode_quality.get("episode_collapse") or {}).get(
+        "independent_episodes"
+    )
+    response_episode_count = (response_atlas.get("source") or {}).get(
+        "independent_episodes"
+    )
+    response_source_aligned = (
+        episode_quality_schema_valid
+        and isinstance(quality_episode_count, int)
+        and response_episode_count == quality_episode_count
+    )
     response_exit_authorized = (
-        response_control_schema_valid and response_control.get("passed") is True
+        response_control_schema_valid
+        and response_source_aligned
+        and response_control.get("passed") is True
     )
     if response_atlas and not response_control_schema_valid:
         response_atlas_diagnosis = {
             "verdict": "WITHHELD_PRE_CONTROL_GATE_ARTIFACT",
             "warning": "Artifact predates independent-episode and matched-control qualification.",
             "next_step": "Rebuild the atlas; no legacy exit matrix is displayed.",
+        }
+    elif response_atlas and not response_source_aligned:
+        response_atlas_diagnosis = {
+            "verdict": "WITHHELD_STALE_EPISODE_SOURCE",
+            "warning": (
+                f"Atlas has {response_episode_count} episodes; current quality artifact "
+                f"has {quality_episode_count}."
+            ),
+            "next_step": "Rebuild from the current independent-episode artifact.",
         }
     direction_study = _read_json_dict(post_absorption_direction_path)
     direction_diagnosis = (
@@ -598,13 +622,31 @@ def event_research_infrastructure_payload(
     direction_control_schema_valid = isinstance(
         direction_control.get("passed"), bool
     ) and isinstance((direction_study.get("source") or {}).get("independent_episodes"), int)
+    direction_episode_count = (direction_study.get("source") or {}).get(
+        "independent_episodes"
+    )
+    direction_source_aligned = (
+        episode_quality_schema_valid
+        and isinstance(quality_episode_count, int)
+        and direction_episode_count == quality_episode_count
+    )
     direction_exit_authorized = (
-        direction_control_schema_valid and direction_control.get("passed") is True
+        direction_control_schema_valid
+        and direction_source_aligned
+        and direction_control.get("passed") is True
     )
     if direction_study and not direction_control_schema_valid:
         direction_diagnosis = {
             "verdict": "WITHHELD_PRE_CONTROL_GATE_ARTIFACT",
             "warning": "Artifact predates independent-episode and matched-control qualification.",
+        }
+    elif direction_study and not direction_source_aligned:
+        direction_diagnosis = {
+            "verdict": "WITHHELD_STALE_EPISODE_SOURCE",
+            "warning": (
+                f"Direction study has {direction_episode_count} episodes; current quality "
+                f"artifact has {quality_episode_count}."
+            ),
         }
     readiness_coverage = (
         readiness.get("coverage") if isinstance(readiness.get("coverage"), dict) else {}
@@ -662,6 +704,11 @@ def event_research_infrastructure_payload(
         if isinstance(recorder_runtime.get("feed_delay_corrected_by_channel"), dict)
         else {}
     )
+    eligible_delay_by_channel = (
+        recorder_runtime.get("decision_eligible_feed_delay_by_channel")
+        if isinstance(recorder_runtime.get("decision_eligible_feed_delay_by_channel"), dict)
+        else {}
+    )
     timestamp_quality = (
         recorder_runtime.get("feed_timestamp_quality")
         if isinstance(recorder_runtime.get("feed_timestamp_quality"), dict)
@@ -676,7 +723,8 @@ def event_research_infrastructure_payload(
     latency_attention = False
     for channel in ("ob_updates", "trades"):
         raw_metrics = delay_by_channel.get(channel)
-        metrics = corrected_delay_by_channel.get(channel) or raw_metrics
+        observed_metrics = corrected_delay_by_channel.get(channel) or raw_metrics
+        metrics = eligible_delay_by_channel.get(channel) or observed_metrics
         if not isinstance(metrics, dict):
             critical_latency[channel] = {"status": "UNAVAILABLE"}
             latency_attention = True
@@ -694,7 +742,9 @@ def event_research_infrastructure_payload(
             "sample_count": int(metrics.get("count") or 0),
             "p95_sla_us": 500_000,
             "measurement_basis": (
-                "clock_offset_corrected_source_delay"
+                "decision_eligible_clock_offset_corrected_source_delay"
+                if channel in eligible_delay_by_channel
+                else "clock_offset_corrected_source_delay"
                 if channel in corrected_delay_by_channel
                 else "raw_receive_minus_source_delay"
             ),
@@ -705,6 +755,9 @@ def event_research_infrastructure_payload(
                 label: int(delay_classifications.get(f"{channel}:{label}") or 0)
                 for label in ("ON_TIME", "DELAYED", "STALE_BACKLOG", "UNKNOWN")
             },
+            "observed_all_events": (
+                dict(observed_metrics) if isinstance(observed_metrics, dict) else None
+            ),
         }
 
     try:
@@ -898,9 +951,23 @@ def event_research_infrastructure_payload(
         "can_promote": False,
     }
 
+    process_versions = {
+        "dashboard": _PROCESS_CODE_VERSION,
+        "recorder": recorder_runtime.get("code_version"),
+        "event_trigger": trigger.get("code_version"),
+    }
+    reported_versions = {
+        str(value) for value in process_versions.values() if isinstance(value, str) and value
+    }
+
     return {
         "schema_version": "vnedge.event_research_infrastructure.v1",
         "generated_at": datetime.now(UTC).isoformat(),
+        "runtime_versions": {
+            **process_versions,
+            "aligned": all(process_versions.values()) and len(reported_versions) == 1,
+            "reported_versions": sorted(reported_versions),
+        },
         "recorder": {
             "implementation": "available",
             "status": recorder_status,
@@ -1022,6 +1089,7 @@ def event_research_infrastructure_payload(
             "diagnosis": response_atlas_diagnosis,
             "episode_collapse": response_atlas.get("episode_collapse") or {},
             "control_qualification": response_control,
+            "source_aligned_with_quality": response_source_aligned,
             "opportunity_atlas": (
                 response_atlas.get("opportunity_atlas") or [] if response_exit_authorized else []
             ),
@@ -1054,6 +1122,7 @@ def event_research_infrastructure_payload(
             "diagnosis": direction_diagnosis,
             "episode_collapse": direction_study.get("episode_collapse") or {},
             "control_qualification": direction_control,
+            "source_aligned_with_quality": direction_source_aligned,
             "best_comparisons": (
                 direction_study.get("best_comparisons") or [] if direction_exit_authorized else []
             ),
@@ -3244,6 +3313,31 @@ def create_app(
             build_registry_snapshot(strategy_evidence_registry_file),
             headers=_identity(user),
         )
+
+    @app.get("/production-readiness")
+    async def production_readiness(request: Request) -> JSONResponse:
+        """Canonical fail-closed production-readiness projection."""
+
+        user = _authorized(request)
+        payload = _read_json_payload(
+            production_readiness_file,
+            {
+                "scanner": {"state": "UNAVAILABLE"},
+                "ladder": [],
+                "blockers": ["production readiness artifact unavailable"],
+                "authority": {
+                    "paper_allowed": False,
+                    "live_allowed": False,
+                    "can_trade": False,
+                    "can_promote": False,
+                },
+                "can_trade": False,
+                "can_promote": False,
+            },
+        )
+        payload["can_trade"] = False
+        payload["can_promote"] = False
+        return JSONResponse(payload, headers=_identity(user))
 
     @app.get("/scanner-evidence")
     async def scanner_evidence(request: Request) -> JSONResponse:

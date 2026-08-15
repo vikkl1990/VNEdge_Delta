@@ -42,6 +42,7 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Literal
 
 from vnedge.exchange.delta_public_schema import delta_message_timestamp
+from vnedge.runtime_version import code_version
 
 logger = logging.getLogger(__name__)
 
@@ -564,6 +565,7 @@ class DeltaEventRecorder:
         self.queue_high_water = 0
         self._event_index = 0
         self.started_at = datetime.now(UTC)
+        self.code_version = code_version()
         self.last_wire_recv_ns: int | None = None
         self.last_feed_delay_us: int | None = None
         self.last_raw_feed_delay_us: int | None = None
@@ -571,6 +573,7 @@ class DeltaEventRecorder:
         self.corrected_feed_delay_us = _SignedLatencyWindow()
         self.feed_delay_by_channel: dict[str, _SignedLatencyWindow] = {}
         self.corrected_feed_delay_by_channel: dict[str, _SignedLatencyWindow] = {}
+        self.decision_eligible_feed_delay_by_channel: dict[str, _SignedLatencyWindow] = {}
         self.clock_offset_by_channel: dict[str, _ClockOffsetWindow] = {}
         self.feed_timestamp_outliers: Counter[str] = Counter()
         self.feed_timestamp_missing: Counter[str] = Counter()
@@ -727,6 +730,10 @@ class DeltaEventRecorder:
                 self.corrected_feed_delay_by_channel.setdefault(
                     channel, _SignedLatencyWindow()
                 ).add(corrected)
+                if delay_classification == "ON_TIME":
+                    self.decision_eligible_feed_delay_by_channel.setdefault(
+                        channel, _SignedLatencyWindow()
+                    ).add(corrected)
             else:
                 self.feed_timestamp_outliers[channel] += 1
                 envelope["feed_timestamp_outlier"] = True
@@ -958,6 +965,7 @@ class DeltaEventRecorder:
             "state": state,
             "session_id": self.session_id,
             "pid": os.getpid(),
+            "code_version": self.code_version,
             "started_at": self.started_at.isoformat(),
             "updated_at": datetime.now(UTC).isoformat(),
             "last_wire_recv_ns": self.last_wire_recv_ns,
@@ -990,6 +998,12 @@ class DeltaEventRecorder:
                 channel: window.summary()
                 for channel, window in sorted(
                     self.corrected_feed_delay_by_channel.items()
+                )
+            },
+            "decision_eligible_feed_delay_by_channel": {
+                channel: window.summary()
+                for channel, window in sorted(
+                    self.decision_eligible_feed_delay_by_channel.items()
                 )
             },
             "last_feed_delay_us": self.last_feed_delay_us,

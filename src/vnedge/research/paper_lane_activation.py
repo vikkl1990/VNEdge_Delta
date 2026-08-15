@@ -26,6 +26,11 @@ import yaml
 
 from vnedge.config.risk_config import ABSOLUTE_MAX_LEVERAGE, HIGH_LEVERAGE_THRESHOLD
 from vnedge.exchange.venue_specs import venue_symbol_limits
+from vnedge.research.strategy_evidence_registry import (
+    DEFAULT_REGISTRY,
+    strategy_authority_blockers,
+)
+from vnedge.runtime_version import code_version
 from vnedge.strategy.strategy_registry import get_strategy_class
 
 DEFAULT_RESEARCH_DIR = Path("research/live_research")
@@ -84,10 +89,11 @@ def build_paper_lane_activation(
     manifest_dir: Path | str = DEFAULT_MANIFEST_DIR,
     journal_dir: Path | str = DEFAULT_JOURNAL_DIR,
     desired_specs: Iterable[Mapping[str, Any] | Any] | None = None,
-    config: PaperLaneActivationConfig = PaperLaneActivationConfig(),
+    config: PaperLaneActivationConfig | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
     """Build a paper activation report from persisted operator artifacts."""
+    config = config or PaperLaneActivationConfig()
     now = now or datetime.now(UTC)
     readiness_path = Path(readiness_path)
     scanner_path = Path(scanner_path)
@@ -142,6 +148,7 @@ def build_paper_lane_activation(
     paper_route_open = int(summary.get("paper_online") or 0) > 0
     return {
         "generated_at": now.isoformat(),
+        "code_version": code_version(),
         "report_id": "paper_lane_activation_v1",
         "mode": "read_only_activation_truth",
         "policy": {
@@ -402,6 +409,19 @@ def _activation_state(
             [f"strategy is not registered: {manifest.get('strategy_id')}"],
             "register the strategy or remove the manifest candidate",
         )
+    if route_checks.get("canonical_paper_authorized") is not True:
+        authority_blockers = [
+            str(item) for item in route_checks.get("canonical_authority_blockers", []) if item
+        ]
+        authority_blockers.extend(
+            str(item) for item in route_checks.get("signed_eligibility_blockers", []) if item
+        )
+        return (
+            ACTIVATION_ROUTE_BLOCKED,
+            ROUTE_BLOCKED,
+            authority_blockers or ["canonical registry does not authorize paper"],
+            "obtain hash-linked signed eligibility and explicit canonical paper authority",
+        )
     if route_checks.get("desired_paper_route") is False:
         return (
             ACTIVATION_ROUTE_BLOCKED,
@@ -455,6 +475,23 @@ def _readiness_activation(
 ) -> tuple[str, str, list[str], str]:
     status = str(row.get("status") or "")
     blockers = [str(b) for b in (row.get("blockers") or []) if b]
+    if route_checks.get("canonical_paper_authorized") is not True:
+        blockers.extend(
+            str(item)
+            for item in route_checks.get("canonical_authority_blockers", [])
+            if item
+        )
+        blockers.extend(
+            str(item)
+            for item in route_checks.get("signed_eligibility_blockers", [])
+            if item
+        )
+        return (
+            ACTIVATION_OBSERVE_ONLY,
+            ROUTE_BLOCKED,
+            blockers or ["canonical registry does not authorize paper"],
+            "retain as observation only until canonical paper authority exists",
+        )
     if status == STATUS_PAPER_REVIEW_READY:
         return (
             ACTIVATION_NEEDS_HUMAN_APPROVAL,
@@ -514,15 +551,53 @@ def _route_checks(
 ) -> dict[str, Any]:
     live_orders_enabled = bool(manifest.get("live_orders_enabled"))
     approved_by = str(manifest.get("approved_by") or "").lower()
+    registry_path = _manifest_registry_path(manifest)
+    try:
+        authority_blockers = strategy_authority_blockers(
+            strategy_id,
+            purpose="paper",
+            registry_path=registry_path,
+        )
+    except (OSError, TypeError, ValueError) as exc:
+        authority_blockers = (f"canonical registry verification failed: {exc}",)
+    signed_eligibility_valid, proof_blockers = _verify_signed_manifest(manifest)
     return {
         "manifest_present": bool(manifest.get("manifest_path")),
-        "manifest_approved_by_human": approved_by == "human",
+        "legacy_human_label_present": approved_by == "human",
+        "canonical_paper_authorized": not authority_blockers and signed_eligibility_valid,
+        "canonical_authority_blockers": list(authority_blockers),
+        "signed_eligibility_valid": signed_eligibility_valid,
+        "signed_eligibility_blockers": list(proof_blockers),
+        "strategy_registry_path": str(registry_path),
         "manifest_safe": live_orders_enabled is False,
         "strategy_registered": _strategy_registered(strategy_id),
         "desired_paper_route": any(str(r.get("mode") or "").lower() == "paper" for r in route_matches),
         "journal_seen": bool(journal),
         "live_orders_enabled": live_orders_enabled,
     }
+
+
+def _verify_signed_manifest(manifest: Mapping[str, Any]) -> tuple[bool, tuple[str, ...]]:
+    manifest_path = Path(str(manifest.get("manifest_path") or ""))
+    if not manifest_path.is_file():
+        return False, ("paper manifest path is unavailable",)
+    try:
+        from vnedge.runtime.paper_trial import TrialManifest
+
+        TrialManifest.load(manifest_path)
+    except (OSError, TypeError, ValueError) as exc:
+        return False, (f"signed paper eligibility invalid: {exc}",)
+    return True, ()
+
+
+def _manifest_registry_path(manifest: Mapping[str, Any]) -> Path:
+    configured = manifest.get("strategy_registry_path")
+    locator = str(configured or DEFAULT_REGISTRY)
+    registry_path = Path(locator)
+    manifest_path = Path(str(manifest.get("manifest_path") or ""))
+    if configured and not registry_path.is_absolute() and manifest_path:
+        registry_path = manifest_path.parent / registry_path
+    return registry_path
 
 
 def _paper_decision(
@@ -711,7 +786,7 @@ def _desired_route_index(
             from vnedge.runtime.multi_lane_shadow import desired_lane_specs
 
             desired_specs = desired_lane_specs({})
-        except Exception as exc:  # pragma: no cover - defensive for minimal installs.
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
             desired_specs = []
             errors.append(f"could not load runtime lane roster: {exc}")
 
@@ -907,6 +982,12 @@ def _summary(
     return {
         "total_rows": len(rows),
         "approved_manifests": sum(
+            1
+            for row in rows
+            if row.get("row_type") == "paper_manifest_candidate"
+            and row.get("route_checks", {}).get("canonical_paper_authorized") is True
+        ),
+        "legacy_human_labels": sum(
             1 for c in manifest_candidates if str(c.get("approved_by") or "").lower() == "human"
         ),
         "manifest_candidates": len(manifest_candidates),
@@ -1072,7 +1153,7 @@ def _optional_float(value: Any) -> float | None:
         parsed = float(value)
     except (TypeError, ValueError):
         return None
-    if parsed != parsed:
+    if math.isnan(parsed):
         return None
     return parsed
 

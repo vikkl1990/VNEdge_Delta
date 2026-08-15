@@ -214,8 +214,8 @@ def test_dashboard_home_is_delta_research_sidecar(client):
     assert "No validated after-cost edge" in html
     assert "Historical values are never presented as live" in html
     assert "Provisional event scanner is collecting simulated outcomes." in html
-    assert 'fetch("/delta-scalper"' in html
-    assert 'fetch("/event-research-infrastructure"' in html
+    assert 'authorizedFetch("/delta-scalper"' in html
+    assert 'authorizedFetch("/event-research-infrastructure"' in html
     assert 'href="/research-lab"' in html
     assert "BTCUSD" in html
     assert "ETHUSD" in html

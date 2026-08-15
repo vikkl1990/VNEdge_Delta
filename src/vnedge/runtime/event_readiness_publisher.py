@@ -12,7 +12,6 @@ import argparse
 import json
 import os
 import signal
-import subprocess
 import time
 from collections.abc import Mapping
 from datetime import UTC, datetime
@@ -23,35 +22,9 @@ from typing import Any
 from vnedge.research.event_continuity import qualify_event_continuity
 from vnedge.research.event_episode_quality import build_event_episode_quality
 from vnedge.runtime.scanner_authority import publish_production_readiness
+from vnedge.runtime_version import code_version
 
 DEFAULT_STATUS = Path("research/live_research/event_readiness_publisher_latest.json")
-
-
-def code_version(repo: Path | None = None) -> str:
-    repo = repo or Path.cwd()
-    configured = os.environ.get("VNEDGE_BUILD_SHA", "").strip()
-    if configured:
-        return configured
-    try:
-        commit = subprocess.check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=repo,
-            text=True,
-            stderr=subprocess.DEVNULL,
-            timeout=5,
-        ).strip()
-        dirty = bool(
-            subprocess.check_output(
-                ["git", "status", "--porcelain", "--untracked-files=normal"],
-                cwd=repo,
-                text=True,
-                stderr=subprocess.DEVNULL,
-                timeout=5,
-            ).strip()
-        )
-    except (OSError, subprocess.SubprocessError):
-        return "local-unversioned"
-    return f"{commit}{'+dirty' if dirty else ''}"
 
 
 def publish_once(
