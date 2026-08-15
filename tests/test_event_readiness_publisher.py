@@ -48,3 +48,43 @@ def test_publisher_keeps_scanner_and_orders_locked(monkeypatch, tmp_path):
     assert result["order_route"] == "absent"
     assert result["can_trade"] is False
     assert result["can_promote"] is False
+
+
+def test_quality_refresh_is_fail_closed_and_input_driven(monkeypatch, tmp_path):
+    journal = tmp_path / "events.jsonl"
+    journal.write_text("raw event\n")
+    event_root = tmp_path / "events"
+    event_root.mkdir()
+    output = tmp_path / "quality.json"
+
+    def build(*args, **kwargs):
+        kwargs["output_path"].write_text("{}")
+        return {
+            "diagnosis": {"verdict": "NO_ABNORMAL_CONTROL_OUTPERFORMANCE"},
+            "deterministic_result_hash": "a" * 64,
+            "can_trade": False,
+            "can_promote": False,
+        }
+
+    monkeypatch.setattr(publisher, "build_event_episode_quality", build)
+
+    refreshed = publisher._refresh_episode_quality(
+        journal_path=journal,
+        event_root=event_root,
+        output_path=output,
+        version="abc",
+        refresh=True,
+    )
+    current = publisher._refresh_episode_quality(
+        journal_path=journal,
+        event_root=event_root,
+        output_path=output,
+        version="abc",
+        refresh=True,
+    )
+
+    assert refreshed["status"] == "REFRESHED"
+    assert refreshed["verdict"] == "NO_ABNORMAL_CONTROL_OUTPERFORMANCE"
+    assert refreshed["can_trade"] is False
+    assert current["status"] == "CURRENT"
+    assert current["can_promote"] is False

@@ -424,22 +424,20 @@ def test_dashboard_surfaces_response_atlas_without_granting_authority(tmp_path: 
         json.dumps(
             {
                 "generated_at": "2026-08-13T00:00:00+00:00",
-                    "source": {
-                        "raw_detections": 700,
-                        "independent_episodes": 500,
-                        "symbols": ["BTCUSD", "ETHUSD"],
-                    },
-                    "contract": {"route_cost_contract": {"round_trip_cost_bps": 14.8}},
-                    "control_qualification": {"passed": True, "matched_pairs": 500},
+                "source": {
+                    "raw_detections": 700,
+                    "independent_episodes": 500,
+                    "symbols": ["BTCUSD", "ETHUSD"],
+                },
+                "contract": {"route_cost_contract": {"round_trip_cost_bps": 14.8}},
+                "control_qualification": {"passed": True, "matched_pairs": 500},
                 "coverage": {"evaluated_entries": 1_200},
                 "diagnosis": {
                     "verdict": "NO_AFTER_COST_DIRECTIONAL_CELL_FOUND",
                     "best_cell": {"average_net_bps": -8.0},
                 },
                 "opportunity_atlas": [{"symbol": "ETHUSD", "average_mfe_bps": 30.0}],
-                "direction_entry_exit_matrix": [
-                    {"symbol": "ETHUSD", "hypothesis": "reversal"}
-                ],
+                "direction_entry_exit_matrix": [{"symbol": "ETHUSD", "hypothesis": "reversal"}],
                 "best_discovery_cells": [],
                 "deterministic_result_hash": "a" * 64,
                 "can_trade": False,
@@ -449,13 +447,9 @@ def test_dashboard_surfaces_response_atlas_without_granting_authority(tmp_path: 
     )
     provider = SnapshotProvider()
     provider.publish({"mode": "research"})
-    client = TestClient(
-        create_app(provider, token="token", event_response_atlas_path=atlas)
-    )
+    client = TestClient(create_app(provider, token="token", event_response_atlas_path=atlas))
 
-    response = client.get("/event-research-infrastructure?token=token").json()[
-        "response_atlas"
-    ]
+    response = client.get("/event-research-infrastructure?token=token").json()["response_atlas"]
 
     assert response["status"] == "NO_AFTER_COST_DIRECTIONAL_CELL_FOUND"
     assert response["source"]["independent_episodes"] == 500
@@ -466,6 +460,73 @@ def test_dashboard_surfaces_response_atlas_without_granting_authority(tmp_path: 
     assert response["can_promote"] is False
 
 
+def test_dashboard_surfaces_episode_quality_funnel_without_authority(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "episode-quality.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "schema_version": "vnedge.event_episode_quality.v1",
+                "generated_at": "2026-08-15T00:00:00+00:00",
+                "source": {"raw_detections": 6},
+                "contract": {"cost_contract_id": "taker_full_14_8"},
+                "episode_collapse": {"independent_episodes": 4},
+                "funnel": [
+                    {
+                        "id": "raw_events",
+                        "label": "Raw events",
+                        "value": 6,
+                        "target": 6,
+                        "state": "OBSERVED",
+                    },
+                    {
+                        "id": "abnormal_vs_control",
+                        "label": "Abnormal vs control",
+                        "value": 0,
+                        "target": 2,
+                        "state": "BLOCKED",
+                    },
+                ],
+                "rejection_diagnostics": {"by_reason": {"CONTROL_NOT_OUTPERFORMED": 2}},
+                "control_qualification": {
+                    "passed": False,
+                    "matched_pairs": 2,
+                    "average_uplift_bps": -2.12,
+                },
+                "diagnosis": {
+                    "verdict": "NO_ABNORMAL_CONTROL_OUTPERFORMANCE",
+                    "exit_testing_authorized": False,
+                },
+                "parallel_swing_collection": {
+                    "scanner_id": "mtf_amf_directional_rejection_v3",
+                    "required_observations": 60,
+                },
+                "deterministic_result_hash": "c" * 64,
+                "can_trade": False,
+                "can_promote": False,
+            }
+        )
+    )
+    provider = SnapshotProvider()
+    provider.publish({"mode": "research"})
+    client = TestClient(create_app(provider, token="token", event_episode_quality_path=artifact))
+
+    quality = client.get("/event-research-infrastructure?token=token").json()[
+        "event_episode_quality"
+    ]
+
+    assert quality["status"] == "NO_ABNORMAL_CONTROL_OUTPERFORMANCE"
+    assert quality["artifact_schema_valid"] is True
+    assert quality["episode_collapse"]["independent_episodes"] == 4
+    assert quality["funnel"][1]["id"] == "abnormal_vs_control"
+    assert quality["control_qualification"]["average_uplift_bps"] == -2.12
+    assert quality["diagnosis"]["exit_testing_authorized"] is False
+    assert quality["paper_authorized"] is False
+    assert quality["can_trade"] is False
+    assert quality["can_promote"] is False
+
+
 def test_dashboard_surfaces_post_event_direction_failure_without_authority(
     tmp_path: Path,
 ) -> None:
@@ -474,13 +535,13 @@ def test_dashboard_surfaces_post_event_direction_failure_without_authority(
         json.dumps(
             {
                 "generated_at": "2026-08-14T00:00:00+00:00",
-                    "source": {
-                        "raw_detections": 10_000,
-                        "independent_episodes": 8_907,
-                        "symbols": ["BTCUSD", "ETHUSD"],
-                    },
-                    "contract": {"route_cost_contract": {"round_trip_cost_bps": 14.8}},
-                    "control_qualification": {"passed": True, "matched_pairs": 8_907},
+                "source": {
+                    "raw_detections": 10_000,
+                    "independent_episodes": 8_907,
+                    "symbols": ["BTCUSD", "ETHUSD"],
+                },
+                "contract": {"route_cost_contract": {"round_trip_cost_bps": 14.8}},
+                "control_qualification": {"passed": True, "matched_pairs": 8_907},
                 "coverage": {"captured_response_states": 39_307},
                 "diagnosis": {
                     "verdict": "NO_STABLE_AFTER_COST_DIRECTION_RULE_FOUND",
@@ -500,9 +561,7 @@ def test_dashboard_surfaces_post_event_direction_failure_without_authority(
     )
     provider = SnapshotProvider()
     provider.publish({"mode": "research"})
-    client = TestClient(
-        create_app(provider, token="token", post_absorption_direction_path=study)
-    )
+    client = TestClient(create_app(provider, token="token", post_absorption_direction_path=study))
 
     response = client.get("/event-research-infrastructure?token=token").json()[
         "post_absorption_direction"
@@ -511,9 +570,7 @@ def test_dashboard_surfaces_post_event_direction_failure_without_authority(
     assert response["status"] == "NO_STABLE_AFTER_COST_DIRECTION_RULE_FOUND"
     assert response["source"]["independent_episodes"] == 8_907
     assert response["control_qualification"]["passed"] is True
-    assert response["diagnosis"]["best_comparison"]["validation"][
-        "average_net_bps"
-    ] == -14.26
+    assert response["diagnosis"]["best_comparison"]["validation"]["average_net_bps"] == -14.26
     assert response["scanner_implementation_authorized"] is False
     assert response["paper_authorized"] is False
     assert response["can_trade"] is False

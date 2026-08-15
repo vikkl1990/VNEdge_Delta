@@ -80,6 +80,14 @@ class ResponseSnapshot:
     spread_bps: float
     book_imbalance: float
     flow_imbalance: float
+    aggressive_buy_usd: float = 0.0
+    aggressive_sell_usd: float = 0.0
+    open_interest: float | None = None
+    open_interest_delta: float | None = None
+    basis_bps: float | None = None
+    market_truth_ready: bool = False
+    market_truth_blockers: tuple[str, ...] = ()
+    trade_book_join_ok: bool = False
 
     def __post_init__(self) -> None:
         if self.response_delay_ms < 0 or self.captured_ts_us < self.requested_ts_us:
@@ -88,6 +96,9 @@ class ResponseSnapshot:
             raise ValueError("response snapshot prices/spread are invalid")
         if not -1 <= self.book_imbalance <= 1 or not -1 <= self.flow_imbalance <= 1:
             raise ValueError("response snapshot imbalances must be in [-1, 1]")
+        if self.aggressive_buy_usd < 0 or self.aggressive_sell_usd < 0:
+            raise ValueError("response snapshot aggressive notional cannot be negative")
+        object.__setattr__(self, "market_truth_blockers", tuple(self.market_truth_blockers))
         object.__setattr__(self, "symbol", self.symbol.upper())
 
 
@@ -182,12 +193,8 @@ class _Metrics:
             "net_positive_rate": self.positive / count if count else 0.0,
             "average_mfe_bps": self.mfe_sum / count if count else 0.0,
             "average_mae_bps": self.mae_sum / count if count else 0.0,
-            "average_mfe_after_cost_bps": (
-                self.mfe_after_cost_sum / count if count else 0.0
-            ),
-            "average_time_to_mfe_ms": (
-                self.time_to_mfe_ms_sum / count if count else 0.0
-            ),
+            "average_mfe_after_cost_bps": (self.mfe_after_cost_sum / count if count else 0.0),
+            "average_time_to_mfe_ms": (self.time_to_mfe_ms_sum / count if count else 0.0),
             "average_capture_ratio": (
                 self.capture_ratio_sum / self.capture_ratio_samples
                 if self.capture_ratio_samples
@@ -244,7 +251,16 @@ class _ContextCollector:
                 spread_bps=context.spread_bps,
                 book_imbalance=context.book_imbalance,
                 flow_imbalance=context.flow_imbalance,
+                aggressive_buy_usd=context.aggressive_buy_usd,
+                aggressive_sell_usd=context.aggressive_sell_usd,
+                open_interest=context.open_interest,
+                open_interest_delta=context.open_interest_delta,
+                basis_bps=context.basis_bps,
+                market_truth_ready=context.market_truth_ready,
+                market_truth_blockers=context.market_truth_blockers,
+                trade_book_join_ok=bool(context.features.get("trade_book_join_ok")),
             )
+
     def finalize(self) -> None:
         self.missed += sum(len(rows) for rows in self._pending.values())
         self._pending.clear()
@@ -262,9 +278,7 @@ def classify_direction(
     if tick_size <= 0 or event.key != snapshot.event_key or event.symbol != snapshot.symbol:
         raise ValueError("event/snapshot/tick contract mismatch")
     signed_ticks = (
-        event.reversal_direction
-        * (snapshot.last_trade_price - event.level_price)
-        / tick_size
+        event.reversal_direction * (snapshot.last_trade_price - event.level_price) / tick_size
     )
     if signed_ticks >= rule.reclaim_ticks:
         state = "reversal_reclaim"
@@ -524,8 +538,7 @@ def build_post_event_direction_study(
             "verdict": (
                 "CONTROL_GATE_FAILED_EXIT_TESTING_BLOCKED"
                 if not exit_testing_authorized
-                else
-                "DEVELOPMENT_CELL_REQUIRES_FUTURE_CONFIRMATION"
+                else "DEVELOPMENT_CELL_REQUIRES_FUTURE_CONFIRMATION"
                 if supported
                 else "NO_STABLE_AFTER_COST_DIRECTION_RULE_FOUND"
             ),
@@ -582,7 +595,17 @@ def _capture_snapshots(
         symbols=symbols,
         start_ts_us=int(first.timestamp() * 1_000_000),
         end_ts_us=int(last.timestamp() * 1_000_000),
-        channels=("trades", "ob_updates"),
+        # The quality layer consumes the same collector and needs point-in-time
+        # basis/OI truth in addition to trade and book state. Missing channels
+        # remain explicit missing-data blockers; they are never imputed.
+        channels=(
+            "trades",
+            "ob_updates",
+            "ticker",
+            "funding_rate",
+            "spot_price",
+            "mark_price",
+        ),
         enable_feature_engine=True,
         enable_scanner=True,
         journal_mode="none",
@@ -759,9 +782,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path(
-            "research/live_research/post_absorption_direction_study_latest.json"
-        ),
+        default=Path("research/live_research/post_absorption_direction_study_latest.json"),
     )
     parser.add_argument("--delays-ms", type=_csv_ints, default=DEFAULT_RESPONSE_DELAYS_MS)
     parser.add_argument("--horizons-ms", type=_csv_ints, default=DEFAULT_OUTCOME_HORIZONS_MS)

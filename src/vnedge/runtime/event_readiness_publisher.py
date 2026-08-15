@@ -21,11 +21,10 @@ from tempfile import NamedTemporaryFile
 from typing import Any
 
 from vnedge.research.event_continuity import qualify_event_continuity
+from vnedge.research.event_episode_quality import build_event_episode_quality
 from vnedge.runtime.scanner_authority import publish_production_readiness
 
-DEFAULT_STATUS = Path(
-    "research/live_research/event_readiness_publisher_latest.json"
-)
+DEFAULT_STATUS = Path("research/live_research/event_readiness_publisher_latest.json")
 
 
 def code_version(repo: Path | None = None) -> str:
@@ -65,6 +64,9 @@ def publish_once(
     production_output: Path,
     status_output: Path,
     version: str,
+    quality_journal: Path | None = None,
+    quality_output: Path | None = None,
+    refresh_quality: bool = False,
 ) -> dict[str, Any]:
     started = time.monotonic()
     continuity = qualify_event_continuity(
@@ -77,6 +79,13 @@ def publish_once(
     production = publish_production_readiness(
         production_output,
         production_manifest,
+    )
+    quality_refresh = _refresh_episode_quality(
+        journal_path=quality_journal,
+        event_root=event_root,
+        output_path=quality_output,
+        version=version,
+        refresh=refresh_quality,
     )
     qualification = dict(continuity.get("qualification") or {})
     payload = {
@@ -93,6 +102,7 @@ def publish_once(
         "scanner_implementation_authorized": False,
         "selection_authorized": False,
         "production_scanner_state": (production.get("scanner") or {}).get("state"),
+        "event_episode_quality": quality_refresh,
         "research_only": True,
         "order_route": "absent",
         "can_trade": False,
@@ -100,6 +110,76 @@ def publish_once(
     }
     _atomic_json(status_output, payload)
     return payload
+
+
+def _refresh_episode_quality(
+    *,
+    journal_path: Path | None,
+    event_root: Path,
+    output_path: Path | None,
+    version: str,
+    refresh: bool,
+) -> dict[str, Any]:
+    """Refresh quality evidence only when finalized inputs have advanced.
+
+    A quality failure is isolated from continuity publication.  It is exposed
+    as research telemetry and can never grant scanner, paper, or live authority.
+    """
+
+    if journal_path is None or output_path is None:
+        return {"status": "DISABLED", "can_trade": False, "can_promote": False}
+    if not journal_path.is_file():
+        return {
+            "status": "WAITING_FOR_RAW_EVENTS",
+            "artifact": str(output_path),
+            "can_trade": False,
+            "can_promote": False,
+        }
+    if not refresh:
+        return {
+            "status": "CURRENT_MANUAL_REFRESH" if output_path.is_file() else "NEEDS_BUILD",
+            "artifact": str(output_path),
+            "refresh_command": "python -m vnedge.research.event_episode_quality",
+            "can_trade": False,
+            "can_promote": False,
+        }
+    newest_input_mtime = journal_path.stat().st_mtime_ns
+    for manifest in event_root.rglob("*.manifest.json") if event_root.exists() else ():
+        try:
+            newest_input_mtime = max(newest_input_mtime, manifest.stat().st_mtime_ns)
+        except OSError:
+            continue
+    if output_path.is_file() and output_path.stat().st_mtime_ns >= newest_input_mtime:
+        return {
+            "status": "CURRENT",
+            "artifact": str(output_path),
+            "can_trade": False,
+            "can_promote": False,
+        }
+    try:
+        result = build_event_episode_quality(
+            journal_path,
+            event_root=event_root,
+            output_path=output_path,
+            code_version=version,
+        )
+    except (FileNotFoundError, TypeError, ValueError) as exc:
+        return {
+            "status": "BLOCKED",
+            "artifact": str(output_path),
+            "error": f"{type(exc).__name__}: {str(exc)[:500]}",
+            "can_trade": False,
+            "can_promote": False,
+        }
+    diagnosis = result.get("diagnosis") if isinstance(result.get("diagnosis"), dict) else {}
+    return {
+        "status": "REFRESHED",
+        "artifact": str(output_path),
+        "verdict": diagnosis.get("verdict"),
+        "deterministic_result_hash": result.get("deterministic_result_hash"),
+        "can_trade": False,
+        "can_promote": False,
+    }
 
 
 def _atomic_json(path: Path, payload: Mapping[str, object]) -> None:
@@ -142,6 +222,21 @@ def _parser() -> argparse.ArgumentParser:
         default=Path("research/live_research/production_readiness_latest.json"),
     )
     parser.add_argument("--status-output", type=Path, default=DEFAULT_STATUS)
+    parser.add_argument(
+        "--quality-journal",
+        type=Path,
+        default=Path("logs/delta_event_research.jsonl"),
+    )
+    parser.add_argument(
+        "--quality-output",
+        type=Path,
+        default=Path("research/live_research/event_episode_quality_latest.json"),
+    )
+    parser.add_argument(
+        "--refresh-quality",
+        action="store_true",
+        help="Run the heavyweight event replay when finalized inputs advance.",
+    )
     parser.add_argument("--interval-seconds", type=float, default=300.0)
     parser.add_argument("--once", action="store_true")
     return parser
@@ -171,6 +266,9 @@ def main(argv: list[str] | None = None) -> int:
                 production_output=args.production_output,
                 status_output=args.status_output,
                 version=version,
+                quality_journal=args.quality_journal,
+                quality_output=args.quality_output,
+                refresh_quality=args.refresh_quality,
             )
             print(json.dumps(payload, sort_keys=True), flush=True)
         except Exception as exc:  # noqa: BLE001 - status remains fail-closed
